@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
-  "name": "WEBForms → Real Signature",
-  "short_name": "WF → Real Sig",
+  "name": "RealDealForms by Deal Dates",
+  "short_name": "RealDealForms",
   "version": "0.0.1",
   "description": "Send forms from CREA WEBForms to a Real Signature draft on your reZEN deal. Free, open source, no server. Never sends to signers.",
   "minimum_chrome_version": "116",
@@ -12,7 +12,7 @@
   ],
   "background": { "service_worker": "src/background.js", "type": "module" },
   "side_panel": { "default_path": "src/panel/panel.html" },
-  "action": { "default_title": "WEBForms → Real Signature" },
+  "action": { "default_title": "RealDealForms" },
   "content_scripts": [
     {
       "matches": ["https://pr.transactiondesk.com/*"],

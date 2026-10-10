@@ -1,4 +1,4 @@
-# Plan — WEBForms → Real Signature
+# Plan — RealDealForms (WEBForms → Real Signature)
 
 A free, open-source browser extension that takes forms an agent filled in CREA WEBForms
 and lands them as a **Real Signature draft** on the matching reZEN deal, with signature,
@@ -168,7 +168,7 @@ Install from an **unlisted** Chrome Web Store link during beta.
 - CREA's own WEBForms terms (not public) and AREA form copyright — ask before public release.
 - Real Signature's draft URL; `position[]` units; packet body; delegation model.
 - WEBForms auth header; combined vs zip downloads.
-- Repo name (working name `webforms-real-signature`) and GitHub owner.
+- Repo: `stante-group/realdealforms`. Store name "RealDealForms by Deal Dates" — "Real" is a pun on "the real deal"; keep the not-affiliated line, rename if Real objects.
 
 ## Reference
 

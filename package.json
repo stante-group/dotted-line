@@ -1,5 +1,5 @@
 {
-  "name": "webforms-real-signature",
+  "name": "realdealforms",
   "version": "0.0.1",
   "private": true,
   "description": "Send CREA WEBForms forms to a Real Signature draft. Free, open source, no server.",

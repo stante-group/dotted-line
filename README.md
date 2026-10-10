@@ -1,4 +1,4 @@
-# WEBForms → Real Signature
+# RealDealForms — WEBForms → Real Signature
 
 A free, open-source browser extension for Canadian Real Broker agents and their
 transaction coordinators. It takes forms you filled in **CREA WEBForms** and creates a
@@ -34,7 +34,7 @@ a real form, deal, name or address — including in screenshots.
 
 Made by the team behind [Deal Dates](https://dealdates.app).
 
-Not affiliated with or endorsed by Lone Wolf Technologies, CREA or Real Broker. WEBForms®,
+Not affiliated with or endorsed by Lone Wolf Technologies, CREA or Real Broker — "Real" in the name is a pun on "the real deal". WEBForms®,
 REALTOR® and Real Signature are trademarks of their owners and are named only to describe
 what this works with.
 
