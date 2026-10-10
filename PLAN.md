@@ -1,4 +1,4 @@
-# Plan — RealDealForms (WEBForms → Real Signature)
+# Plan — Dotted Line by Deal Dates (WEBForms → Real Signature)
 
 A free, open-source browser extension that takes forms an agent filled in CREA WEBForms
 and lands them as a **Real Signature draft** on the matching reZEN deal, with signature,
@@ -168,10 +168,22 @@ Install from an **unlisted** Chrome Web Store link during beta.
 - CREA's own WEBForms terms (not public) and AREA form copyright — ask before public release.
 - Real Signature's draft URL; `position[]` units; packet body; delegation model.
 - WEBForms auth header; combined vs zip downloads.
-- Repo: `stante-group/realdealforms`. Store name "RealDealForms by Deal Dates" — "Real" is a pun on "the real deal"; keep the not-affiliated line, rename if Real objects.
+- Repo: `stante-group/dotted-line`. Store name "Dotted Line by Deal Dates" — chosen 2026-10-10 over RealDealForms, which read as an official Real tool (Web Store affiliation rule, Real, Lone Wolf).
 
 ## Reference
 
 Real Signature API map: Stante `content-engine/docs/rezen-api-mapping.md` §Real Signature;
 WEBForms map: `content-engine/docs/webforms-real-signature.md`. Summaries go into
 `docs/api-notes.md` here so this repo stands alone.
+
+## Copy rules (brand review 2026-10-10)
+
+- Lead with **Create / Turn into a draft**, never "Send" — the product's promise is that it
+  doesn't send. Button: "Create Real Signature draft".
+- Say where contracts go in plain words ("straight from WEBForms to Real Signature, never
+  through us"), not "no server" / "open source" first.
+- Never mention Authentisign or DocuSign, "replace" or "instead of" (Lone Wolf AUP).
+- Third-party names only to describe compatibility; no logos; keep "REALTOR®" out of
+  marketing copy. Legal disclaimer names The Real Brokerage Inc.
+- Deal Dates credit gives a reason to click: "your deal deadlines in your inbox at 6am".
+- Store screenshots: invented forms and data only.

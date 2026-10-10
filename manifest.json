@@ -1,9 +1,9 @@
 {
   "manifest_version": 3,
-  "name": "RealDealForms by Deal Dates",
-  "short_name": "RealDealForms",
+  "name": "Dotted Line by Deal Dates",
+  "short_name": "Dotted Line",
   "version": "0.0.1",
-  "description": "Send forms from CREA WEBForms to a Real Signature draft on your reZEN deal. Free, open source, no server. Never sends to signers.",
+  "description": "Turn the forms you filled in WEBForms into a Real Signature draft on your reZEN deal, with signature blocks placed. You review it and press Send yourself. Free.",
   "minimum_chrome_version": "116",
   "permissions": ["sidePanel", "storage", "tabs"],
   "host_permissions": [
@@ -12,7 +12,7 @@
   ],
   "background": { "service_worker": "src/background.js", "type": "module" },
   "side_panel": { "default_path": "src/panel/panel.html" },
-  "action": { "default_title": "RealDealForms" },
+  "action": { "default_title": "Dotted Line" },
   "content_scripts": [
     {
       "matches": ["https://pr.transactiondesk.com/*"],

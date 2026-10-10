@@ -1,8 +1,8 @@
 {
-  "name": "realdealforms",
+  "name": "dotted-line",
   "version": "0.0.1",
   "private": true,
-  "description": "Send CREA WEBForms forms to a Real Signature draft. Free, open source, no server.",
+  "description": "Turn forms filled in WEBForms into a Real Signature draft. Free; runs in your browser.",
   "type": "module",
   "license": "MIT",
   "scripts": {

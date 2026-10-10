@@ -1,9 +1,11 @@
-# RealDealForms — WEBForms → Real Signature
+# Dotted Line by Deal Dates
 
-A free, open-source browser extension for Canadian Real Broker agents and their
-transaction coordinators. It takes forms you filled in **CREA WEBForms** and creates a
-**Real Signature draft** on the matching reZEN deal, with your signature, initial and date
-blocks already placed from your Real Signature templates.
+A free browser extension for Canadian Real Broker agents and transaction coordinators.
+It turns the forms you filled in **CREA WEBForms** into a **Real Signature draft** on the
+matching reZEN deal, with your signature, initial and date blocks already placed from your
+Real Signature templates. You review the draft and press Send yourself.
+
+Open source, so anyone can check exactly what it does.
 
 **Status: in development.** Not yet installable. See [PLAN.md](PLAN.md).
 
@@ -32,11 +34,9 @@ a real form, deal, name or address — including in screenshots.
 
 ## Credits
 
-Made by the team behind [Deal Dates](https://dealdates.app).
+From [Deal Dates](https://dealdates.app) — your deal deadlines in your inbox at 6am.
 
-Not affiliated with or endorsed by Lone Wolf Technologies, CREA or Real Broker — "Real" in the name is a pun on "the real deal". WEBForms®,
-REALTOR® and Real Signature are trademarks of their owners and are named only to describe
-what this works with.
+Not affiliated with or endorsed by Lone Wolf Technologies, CREA or The Real Brokerage Inc. WEBForms®, Real Signature, reZEN and TransactionDesk are trademarks of their owners, named only to describe what this works with. WEBForms®,
 
 ## License
 
