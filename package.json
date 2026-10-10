@@ -1,0 +1,11 @@
+{
+  "name": "webforms-real-signature",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Send CREA WEBForms forms to a Real Signature draft. Free, open source, no server.",
+  "type": "module",
+  "license": "MIT",
+  "scripts": {
+    "test": "node --test test/*.test.js"
+  }
+}

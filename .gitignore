@@ -1,0 +1,9 @@
+node_modules/
+*.zip
+*.crx
+*.pem
+# never commit real forms or captures
+*.pdf
+*.har
+captures/
+.DS_Store

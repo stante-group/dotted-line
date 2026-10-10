@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>WEBForms → Real Signature</title>
+  <style>
+    body { font: 14px/1.45 system-ui, sans-serif; margin: 16px; color: #1d2433; }
+    h1 { font-size: 16px; margin: 0 0 12px; }
+    .note { color: #5b6475; font-size: 13px; }
+    button { font: inherit; padding: 8px 14px; border-radius: 6px; border: 1px solid #1d4ed8; background: #1d4ed8; color: #fff; cursor: pointer; }
+    button:disabled { background: #c9cfdb; border-color: #c9cfdb; cursor: default; }
+    footer { margin-top: 32px; border-top: 1px solid #e3e6ec; padding-top: 12px; font-size: 12px; color: #5b6475; }
+    footer a { color: inherit; }
+  </style>
+</head>
+<body>
+  <h1>Send to Real Signature</h1>
+  <p id="where" class="note">Open a deal or a form in WEBForms.</p>
+  <button id="send" disabled>Send to Real Signature</button>
+  <p class="note">Creates a <strong>draft</strong> in Real Signature. Nothing is sent to anyone until you press Send there.</p>
+  <p id="msg" class="note" role="status"></p>
+  <footer>
+    Made by the <a href="https://dealdates.app" target="_blank" rel="noopener">Deal Dates</a> team · free and open source.<br>
+    Not affiliated with Lone Wolf, CREA or Real Broker.
+  </footer>
+  <script type="module" src="panel.js"></script>
+</body>
+</html>

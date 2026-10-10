@@ -1,0 +1,34 @@
+{
+  "manifest_version": 3,
+  "name": "WEBForms → Real Signature",
+  "short_name": "WF → Real Sig",
+  "version": "0.0.1",
+  "description": "Send forms from CREA WEBForms to a Real Signature draft on your reZEN deal. Free, open source, no server. Never sends to signers.",
+  "minimum_chrome_version": "116",
+  "permissions": ["sidePanel", "storage", "tabs"],
+  "host_permissions": [
+    "https://pr.transactiondesk.com/*",
+    "https://signature.therealbrokerage.com/*"
+  ],
+  "background": { "service_worker": "src/background.js", "type": "module" },
+  "side_panel": { "default_path": "src/panel/panel.html" },
+  "action": { "default_title": "WEBForms → Real Signature" },
+  "content_scripts": [
+    {
+      "matches": ["https://pr.transactiondesk.com/*"],
+      "js": ["src/webforms/content.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://signature.therealbrokerage.com/*"],
+      "js": ["src/realsig/content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["src/lib/*.js"],
+      "matches": ["https://signature.therealbrokerage.com/*"]
+    }
+  ]
+}
