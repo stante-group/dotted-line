@@ -64,7 +64,7 @@ and AREA's form-copyright page (404). Not legal advice.
 ```
 WEBForms tab (pr.transactiondesk.com)           Real Signature tab (signature.therealbrokerage.com)
   agent ticks forms / is in an open form,
-  opens our SIDE PANEL → [Send to Real Signature]
+  opens our SIDE PANEL → [Create Real Signature draft]
     1. (open form) blur → app's own Save →
        confirm saveForm + saveMarkups 200 →
        LastModified moved
@@ -112,7 +112,7 @@ Exit: every step above answered and written into `docs/api-notes.md`. If 2a and 
 
 ### Phase 1 — MVP: ticked forms → draft
 
-- Side panel on a deal's Forms page lists the ticked forms; "Send to Real Signature" runs
+- Side panel on a deal's Forms page lists the ticked forms; "Create Real Signature draft" runs
   the app's own download for each, separately.
 - Deal picker in the Real Signature tab: the agent's OPEN deals and listings, ranked by
   address match to the WEBForms transaction, **showing agent name and address**.

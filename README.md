@@ -36,7 +36,7 @@ a real form, deal, name or address — including in screenshots.
 
 From [Deal Dates](https://dealdates.app) — your deal deadlines in your inbox at 6am.
 
-Not affiliated with or endorsed by Lone Wolf Technologies, CREA or The Real Brokerage Inc. WEBForms®, Real Signature, reZEN and TransactionDesk are trademarks of their owners, named only to describe what this works with. WEBForms®,
+Not affiliated with or endorsed by Lone Wolf Technologies, CREA or The Real Brokerage Inc. WEBForms®, Real Signature, reZEN and TransactionDesk are trademarks of their owners, named only to describe what this works with.
 
 ## License
 
