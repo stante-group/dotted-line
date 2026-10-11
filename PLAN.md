@@ -46,13 +46,18 @@ and AREA's form-copyright page (404). Not legal advice.
 
 **Design rules that follow:**
 1. Act only on the agent's click. No timers, no background batches; downloads spaced out.
-2. **Drive WEBForms' own visible Save / Download controls** and reuse what they return —
-   don't call its internal endpoints on our own.
+2. **Use WEBForms' own zip download — the same two requests its button sends — only on the
+   agent's click, with their own session, and keep the bytes unchanged.** No other WEBForms
+   endpoints, no saving forms on the agent's behalf. (Decided 2026-10-11: Dan wants the
+   extension to do the download, not the agent. Clicking WEBForms' button for them was the
+   alternative; rejected because the contracts would land in the Downloads folder — bad on a
+   shared TC computer — and it breaks whenever WEBForms changes its layout. Lone Wolf's
+   servers see the same traffic either way.)
 3. **Don't change WEBForms' pages.** Our UI lives in the extension's own side panel, not a
    button injected into their page.
 4. **PDFs pass through byte-for-byte.** No flattening, re-rendering or stripping footers and
-   copyright notices — so splitting a combined PDF is a last resort (Phase 3, only if
-   separate downloads prove impossible), and packets are the default.
+   copyright notices. The zip download already gives one PDF per form, so nothing is ever
+   split, and packets are the default for several forms.
 5. No form PDFs, screenshots or filled samples in the repo or the store listing.
 6. Name Lone Wolf, CREA and WEBForms only to say what it works with, with a "not affiliated"
    line. Market it as an agent convenience, not an Authentisign replacement.
@@ -63,13 +68,15 @@ and AREA's form-copyright page (404). Not legal advice.
 
 ```
 WEBForms tab (pr.transactiondesk.com)           Real Signature tab (signature.therealbrokerage.com)
-  agent ticks forms / is in an open form,
-  opens our SIDE PANEL → [Create Real Signature draft]
-    1. (open form) blur → app's own Save →
-       confirm saveForm + saveMarkups 200 →
-       LastModified moved
-    2. app's own Download, one form at a time;
-       we keep the bytes it returns, unchanged
+  agent ticks forms in the deal's forms list,
+  opens our SIDE PANEL (lists the ticked forms
+  + last-modified, agent confirms)
+    → [Create Real Signature draft]
+    1. read which forms are ticked (read-only)
+    2. WEBForms' zip download for those forms
+       (CreateDownloadRequest → downloadmany),
+       unzipped in memory: one flattened PDF
+       per form, bytes unchanged
     3. PDFs → extension (IndexedDB, short TTL) ──► 4. tab opens; panel asks:
                                                        · which reZEN deal (agent + address shown)
                                                        · which template per form (remembered)
@@ -110,10 +117,18 @@ Needs Dan at a computer, signed in to WEBForms and Real Signature in Chrome.
 Exit: every step above answered and written into `docs/api-notes.md`. If 2a and 2b both fail
 — Real's editor won't accept blocks it didn't place — stop and rethink layouts.
 
+**Status 2026-10-11:** 1, 2b, 3, 5 and 6 answered (`docs/api-notes.md`). 2b works, so 2a
+wasn't needed. Positions are PDF points from the bottom-left. The zip download gives one
+flattened PDF per form, and ticked forms can be read from the page. **Open:** 4 (packets),
+7 (TC delegation).
+
 ### Phase 1 — MVP: ticked forms → draft
 
-- Side panel on a deal's Forms page lists the ticked forms; "Create Real Signature draft" runs
-  the app's own download for each, separately.
+- Side panel on a deal's Forms page lists the ticked forms (name, last modified); "Create
+  Real Signature draft" fetches them in one zip download and unzips in memory (rule 2).
+  Small built-in unzip using the browser's `DecompressionStream("deflate-raw")`, so there
+  are no dependencies. Nothing touches the Downloads folder.
+- Reject any PDF that carries an AcroForm (fillable fields): it isn't the flattened form.
 - Deal picker in the Real Signature tab: the agent's OPEN deals and listings, ranked by
   address match to the WEBForms transaction, **showing agent name and address**.
 - Form → template mapping: chosen once, remembered in the browser, suggested by name after;
@@ -126,7 +141,10 @@ Exit: every step above answered and written into `docs/api-notes.md`. If 2a and 
 
 ### Phase 2 — open-form mode
 
-From inside an open form: blur, Save through the app, confirm the save landed, then Phase 1.
+From inside an open form. The zip gives each form **as last saved**, and WEBForms has no
+auto-save, so unsaved edits would be left out. The extension doesn't save for the agent
+(rule 2). It detects unsaved edits (WEBForms' own `beforeunload` guard) and asks the agent
+to press Save first, then confirms `LastModified` moved before downloading.
 **Never send a stale copy.**
 
 ### Phase 3 — polish for others

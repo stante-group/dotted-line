@@ -96,9 +96,8 @@ before an MLS number has been seen) — normalise before comparing.
      `GET /api/Transfer/downloadsingle?type=formeditorpdf&id={formId}&filenametouse={name}`,
      which downloads the PDF as `{form name}.pdf`. Auth for that navigation rides on the
      `bearer` cookie. Plain `%PDF-1.4`, flattened (no AcroForm).
-  So the extension can take the app's own bytes by fetching that same URL from the content
-  script, or by watching `chrome.downloads` for it — either keeps rule 2 (byte-for-byte).
-  Don't trigger the save itself; the agent's own Save/Save-as-PDF does that.
+  The extension doesn't use this route: it would save the agent's form as a side effect.
+  It uses the zip download below, which reads each form as last saved.
 - **Multi-form downloads** from the deal's forms list (tick forms, then download), both
   captured 2026-10-11:
   - **As zip — use this.** `POST /api/Transfer/CreateDownloadRequest?type=1` (XHR, Bearer)
@@ -111,6 +110,13 @@ before an MLS number has been seen) — normalise before comparing.
     combined PDF that **does** carry an AcroForm. Avoid: it would need splitting, and isn't
     the flattened form.
   - `saveToDocBox=true` would also file a copy in the deal's Documents; keep it `false`.
+- **Which forms are ticked** (forms list, read-only): each row has a `.dr-item-selector`
+  (attribute `is-selected`) whose icon is `i.isfontpack-ok_circle.is-green` when ticked and
+  `i.isfontpack-circle_blank` when not. Its Angular scope holds `form` (`ID`,
+  `TransactionID`, `Name`), but an isolated-world content script can't read scopes; either
+  read it from a MAIN-world script (`chrome.scripting`, `world: "MAIN"`) or match row order
+  and name against `GET /api/transactionforms/index/{transactionId}`. The deal id is in the
+  page URL: `/transaction/detail/{transactionId}/forms`.
 - "Save as Editable PDF" exists in the form editor; don't use it. Fields stay editable and
   Real Signature renders pages as images anyway. If a PDF arrives with an AcroForm, tell
   the agent to use "Save as PDF" or the zip download.
