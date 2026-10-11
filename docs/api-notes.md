@@ -99,7 +99,20 @@ before an MLS number has been seen) — normalise before comparing.
   So the extension can take the app's own bytes by fetching that same URL from the content
   script, or by watching `chrome.downloads` for it — either keeps rule 2 (byte-for-byte).
   Don't trigger the save itself; the agent's own Save/Save-as-PDF does that.
-- Multi-form download from the forms list (`CreateDownloadRequest` → `downloadmany`): still
-  to capture — one PDF or a zip?
+- **Multi-form downloads** from the deal's forms list (tick forms, then download), both
+  captured 2026-10-11:
+  - **As zip — use this.** `POST /api/Transfer/CreateDownloadRequest?type=1` (XHR, Bearer)
+    with `[{Id, Name}]` → token; then the browser navigates to
+    `GET /api/Transfer/downloadmany?token=…` → a zip with **one flattened PDF per form**,
+    named `{form name}.pdf` (`/` and `:` become `_`). Each entry is the same as that form's
+    single "Save as PDF" (same size ± a few bytes, no AcroForm). No splitting needed.
+  - **As one PDF** — browser navigates to
+    `GET /api/Transfer/printpdf?name=&saveToDocBox=false&transactionId=&id=&id=…` → one
+    combined PDF that **does** carry an AcroForm. Avoid: it would need splitting, and isn't
+    the flattened form.
+  - `saveToDocBox=true` would also file a copy in the deal's Documents; keep it `false`.
+- "Save as Editable PDF" exists in the form editor; don't use it. Fields stay editable and
+  Real Signature renders pages as images anyway. If a PDF arrives with an AcroForm, tell
+  the agent to use "Save as PDF" or the zip download.
 - Vendor hand-off (`/api/AppsStore/SendItems`) is a server-to-server partner integration
   (DocuSign, Authentisign) and is not something an extension can join.
