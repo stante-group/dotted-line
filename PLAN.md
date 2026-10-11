@@ -53,6 +53,10 @@ and AREA's form-copyright page (404). Not legal advice.
    alternative; rejected because the contracts would land in the Downloads folder — bad on a
    shared TC computer — and it breaks whenever WEBForms changes its layout. Lone Wolf's
    servers see the same traffic either way.)
+   Besides the zip, only **read-only lookups the page itself already makes** are allowed, to
+   build the title and match the deal: `transactions/Basic/{id}`,
+   `transactionforms/index/{id}`, `formeditor/formfields/{formId}`. One call each per
+   click, never in a loop over the agent's library.
 3. **Don't change WEBForms' pages.** Our UI lives in the extension's own side panel, not a
    button injected into their page.
 4. **PDFs pass through byte-for-byte.** No flattening, re-rendering or stripping footers and
@@ -119,8 +123,9 @@ Exit: every step above answered and written into `docs/api-notes.md`. If 2a and 
 
 **Status 2026-10-11:** 1, 2b, 3, 5 and 6 answered (`docs/api-notes.md`). 2b works, so 2a
 wasn't needed. Positions are PDF points from the bottom-left. The zip download gives one
-flattened PDF per form, and ticked forms can be read from the page. **Open:** 4 (packets),
-7 (TC delegation).
+flattened PDF per form, and ticked forms can be read from the page. Standalone forms
+(no transaction) go through WEBForms' Basket and the same zip download. **Open:** 4
+(packets), 7 (TC delegation).
 
 ### Phase 1 — MVP: ticked forms → draft
 
@@ -129,6 +134,21 @@ flattened PDF per form, and ticked forms can be read from the page. **Open:** 4 
   Small built-in unzip using the browser's `DecompressionStream("deflate-raw")`, so there
   are no dependencies. Nothing touches the Downloads folder.
 - Reject any PDF that carries an AcroForm (fillable fields): it isn't the flattened form.
+- **Two ways in, one download.** The panel reads the agent's picks from wherever they made
+  them; both feed the same zip request:
+  - *Deal forms:* ticks on `/transaction/detail/{id}/forms`.
+  - *Standalone forms:* forms made with "Create new standalone form" have no transaction.
+    The agent ticks them into WEBForms' **Basket** inside each form-type folder (it gathers
+    across folders). The panel reads the Basket from page memory, so it must be used
+    before a reload empties it; the panel says so if it's empty.
+- **Packet title**, prefilled and always editable:
+  - deal forms: the transaction `Name`; if `Address` is complete and not already in the
+    name, append `– {StreetNumber} {StreetName}, {City}`;
+  - standalone: the form name (one form) or "{n} forms", plus the address from the first
+    form's typed-in `txtp_*` values when complete;
+  - "Complete" = street number, street and city all present. Otherwise no address.
+- The deal picker also offers **"No deal (standalone)"**. Standalone forms are ranked
+  against the agent's deals by the typed-in address, never matched automatically.
 - Deal picker in the Real Signature tab: the agent's OPEN deals and listings, ranked by
   address match to the WEBForms transaction, **showing agent name and address**.
 - Form → template mapping: chosen once, remembered in the browser, suggested by name after;
@@ -184,8 +204,7 @@ Install from an **unlisted** Chrome Web Store link during beta.
 ## Open questions
 
 - CREA's own WEBForms terms (not public) and AREA form copyright — ask before public release.
-- Real Signature's draft URL; `position[]` units; packet body; delegation model.
-- WEBForms auth header; combined vs zip downloads.
+- Real Signature packet body; delegation model (Phase 0 steps 4 and 7).
 - Repo: `stante-group/dotted-line`. Store name "Dotted Line by Deal Dates" — chosen 2026-10-10 over RealDealForms, which read as an official Real tool (Web Store affiliation rule, Real, Lone Wolf).
 
 ## Reference

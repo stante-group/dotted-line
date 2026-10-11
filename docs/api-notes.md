@@ -117,6 +117,35 @@ before an MLS number has been seen) — normalise before comparing.
   read it from a MAIN-world script (`chrome.scripting`, `world: "MAIN"`) or match row order
   and name against `GET /api/transactionforms/index/{transactionId}`. The deal id is in the
   page URL: `/transaction/detail/{transactionId}/forms`.
+- **Transaction details** (read-only, the page loads it): `GET /api/transactions/Basic/{transactionId}`
+  → `Name` (the transaction's name, e.g. "Offer to Purchase 120 Example Street NW"),
+  `Address` (one line), `StreetNumber, StreetName, City, State, ZipCode`, `MLSNumber`,
+  `IsListingTransaction`, `ClosingDate`, `TransactionOwnerName`, `LastModified`.
+- **Standalone forms** (Forms library → form type → "Create new standalone form"; the other
+  choices are "…start a new transaction" and "…add to existing transaction"):
+  - Editor URL `/form/{formId}/` (a transaction form's is `/form/{formId}/false`).
+  - `GET /api/forms/single/{formId}` → `TransactionID: ""`, `TransactionName: null`.
+  - There's no list of their own: each lives inside its form type's folder in
+    `GET /api/forms/index` (folder tree, `LoadItemsOnDemand`, `CountOfItems`,
+    `ShowBasket: true`). The folder list itself has no Basket; open a form type's folder
+    (`/forms/{folderId}`) and each instance has a select circle
+    (`ng-click="toggleBasketItem(instance)"`), and the header has a Basket icon.
+  - **The Basket is page memory only** (captured 2026-10-11). Ticking makes no request and
+    nothing is written to local/session storage. It lives in the Angular service
+    `commonSvc.basket.baskets.forms`, an array of `{ID, Name, LastModified, TransactionID,
+    TransactionName, Path, IsFinalized, …}`, and it survives moving between folders but not
+    a page reload. A MAIN-world script can read it; an isolated content script can't.
+  - Downloading the Basket as a zip is the **same two requests** as the deal's forms list
+    (`CreateDownloadRequest?type=1` → `downloadmany?token=`), one flattened PDF per form, no
+    AcroForm, forms from different folders in one zip. The zip route doesn't care whether a
+    form is in a transaction.
+- **Values typed into a form** (read-only): `GET /api/formeditor/formfields/{formId}` →
+  `FormFieldValues` keyed by WEBForms variable names. On AREA forms the property address
+  is `txtp_unitNumber, txtp_streetnum, txtp_street, txtp_city, txtp_state, txtp_zipcode`,
+  and the parties are `txtseller1/2`, `txtbuyer1/2`, `txts_broker`/`txtl_broker`. These
+  variables give a standalone form an address for the title and deal match, and could
+  pre-fill signer names. Field names will vary by form and province, so match loosely and
+  never require them.
 - "Save as Editable PDF" exists in the form editor; don't use it. Fields stay editable and
   Real Signature renders pages as images anyway. If a PDF arrives with an AcroForm, tell
   the agent to use "Save as PDF" or the zip download.
