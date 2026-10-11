@@ -28,6 +28,28 @@ the extension must fail loudly when a shape stops matching.
 3. **Not used by this extension:** `POST /documents` sends (emails the signers);
    `DELETE /documents/{id}` voids.
 
+### Phase 0 findings (2026-10-11, drafts only)
+
+- `GET /document-templates?sharedWithMe=&oneTimeUse=false&page=&size=` →
+  `{data[], pageNumber, pageSize, totalCount}`; each item carries full `fieldDefinitions`.
+- `GET /document-templates/{id}/page-info` → `documentImages.pages[] {pageNumber, viewport
+  {width, height, viewBox, rotation…}, path}` (presigned PNG). Letter = 612×792.
+- **`position` = `[x1, y1, x2, y2]` in PDF points, origin BOTTOM-left** (PDF-native, y up).
+  Proven by overlaying stored boxes on the page image: bottom-origin lands on the signature
+  lines, top-origin lands on nothing. Typical sizes: SIGNATURE 150×21, SIGNED_DATE 65×21,
+  INITIALS 40×25.
+- **Method 2b works.** Upload a one-time draft, then `PUT` it with a template's
+  `signeeConfigs`, `fieldDefinitions` and `documentFieldValidations` → `204`; Real's own
+  editor shows every block on the new PDF, coloured per signer, at the template's spots.
+  `pagesCount` is `null` straight after upload; sending `1` was accepted. `defaults` was
+  `null` and accepted as `null`.
+- Fields also carry `defaultValue` and `readonly`; set `defaultValue: null` when copying so
+  a template's typed-in text doesn't ride along.
+- Editor URL for a template or draft: `/prepare/{id}` (Upload → Edit details → Prepare →
+  Review).
+- Many real templates are text-fill only (`STRING`/`SENDER`, no signature blocks). Layout
+  reuse only helps where a template actually has SIGNATURE/INITIALS/SIGNED_DATE fields.
+
 ### Other routes the app's client has (not yet observed)
 
 `GET /document-templates` (`sharedWithMe`, `oneTimeUse`, `page`, `size`),
@@ -64,7 +86,20 @@ before an MLS number has been seen) — normalise before comparing.
   (`FormGUID`, `PageCount`, …) and `GET /api/forms/single/{formId}` (`LastModified`, …).
 - **No auto-save.** Save = `PUT /api/formeditor/saveForm/{formId}` then
   `POST /api/formeditor/saveMarkups/{formId}`. A `beforeunload` guard marks unsaved edits.
-- **Auth:** requests from our own script got 401 even via the page's `$http`; the app's own
-  HTTP service adds a token. Header name: **unknown (Phase 0)**.
+- **Auth (Phase 0, 2026-10-11):** `Authorization: Bearer <token>`. The token is opaque (not
+  a JWT, ~580 chars) and JS-readable in two places that hold the same value: localStorage
+  `ls.lastBearer` (JSON-quoted string) and cookie `bearer`.
+- **Single-form "Save as PDF"** (form editor → File → Save → Save as PDF):
+  1. the app first **saves the form** — `PUT /api/formeditor/saveForm/{formId}` then
+     `POST /api/formeditor/saveMarkups/{formId}` (same as the Save button);
+  2. then the **browser navigates** (no XHR, no blob) to
+     `GET /api/Transfer/downloadsingle?type=formeditorpdf&id={formId}&filenametouse={name}`,
+     which downloads the PDF as `{form name}.pdf`. Auth for that navigation rides on the
+     `bearer` cookie. Plain `%PDF-1.4`, flattened (no AcroForm).
+  So the extension can take the app's own bytes by fetching that same URL from the content
+  script, or by watching `chrome.downloads` for it — either keeps rule 2 (byte-for-byte).
+  Don't trigger the save itself; the agent's own Save/Save-as-PDF does that.
+- Multi-form download from the forms list (`CreateDownloadRequest` → `downloadmany`): still
+  to capture — one PDF or a zip?
 - Vendor hand-off (`/api/AppsStore/SendItems`) is a server-to-server partner integration
   (DocuSign, Authentisign) and is not something an extension can join.
