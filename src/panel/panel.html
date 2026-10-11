@@ -6,20 +6,80 @@
   <style>
     body { font: 14px/1.45 system-ui, sans-serif; margin: 16px; color: #1d2433; }
     h1 { font-size: 16px; margin: 0 0 12px; }
+    h2 { font-size: 13px; margin: 16px 0 6px; text-transform: uppercase; letter-spacing: .04em; color: #5b6475; }
     .note { color: #5b6475; font-size: 13px; }
-    button { font: inherit; padding: 8px 14px; border-radius: 6px; border: 1px solid #1d4ed8; background: #1d4ed8; color: #fff; cursor: pointer; }
+    .warn { background: #fff7e6; border: 1px solid #f0c36d; border-radius: 6px; padding: 8px 10px; font-size: 13px; margin: 8px 0; }
+    .err { background: #fdecec; border: 1px solid #e59a9a; border-radius: 6px; padding: 8px 10px; font-size: 13px; margin: 8px 0; }
+    .ok { background: #eaf6ee; border: 1px solid #8cc9a0; border-radius: 6px; padding: 8px 10px; font-size: 13px; margin: 8px 0; }
+    ul.forms { padding-left: 18px; margin: 6px 0; }
+    label { display: block; font-size: 13px; margin: 8px 0 3px; }
+    input[type=text], select { width: 100%; box-sizing: border-box; font: inherit; padding: 6px 8px; border: 1px solid #c9cfdb; border-radius: 6px; }
+    input[type=number] { width: 56px; font: inherit; padding: 4px 6px; }
+    .row { display: flex; gap: 16px; align-items: center; }
+    .form { border: 1px solid #e3e6ec; border-radius: 6px; padding: 8px 10px; margin: 8px 0; }
+    .form b { display: block; font-size: 13px; }
+    button { font: inherit; padding: 8px 14px; border-radius: 6px; border: 1px solid #1d4ed8; background: #1d4ed8; color: #fff; cursor: pointer; margin-top: 12px; }
+    button.link { background: none; border: none; color: #1d4ed8; padding: 0; margin: 0; text-decoration: underline; font-size: 13px; }
     button:disabled { background: #c9cfdb; border-color: #c9cfdb; cursor: default; }
+    pre { white-space: pre-wrap; background: #f5f6f8; padding: 8px; border-radius: 6px; font-size: 12px; }
     footer { margin-top: 32px; border-top: 1px solid #e3e6ec; padding-top: 12px; font-size: 12px; color: #5b6475; }
     footer a { color: inherit; }
+    [hidden] { display: none !important; }
   </style>
 </head>
 <body>
   <h1>Dotted Line</h1>
-  <p class="note">Turn the forms you've filled into a Real Signature draft.</p>
-  <p id="where" class="note">Open a deal or a form in WEBForms.</p>
-  <button id="send" disabled>Create Real Signature draft</button>
-  <p class="note">This makes a <strong>draft</strong> only. Nothing goes to your clients until you press Send in Real Signature.</p>
-  <p id="msg" class="note" role="status"></p>
+
+  <!-- Nothing to act on -->
+  <section id="idle">
+    <p class="note">Turn the forms you've filled into a Real Signature draft.</p>
+    <p class="note">In WEBForms, tick the forms in a deal's <b>Forms</b> list — or, for standalone forms, add them to the <b>Basket</b> inside each form's folder. Then come back here.</p>
+  </section>
+
+  <!-- Step 1: WEBForms -->
+  <section id="wf" hidden>
+    <p id="wf-where" class="note"></p>
+    <ul id="wf-forms" class="forms"></ul>
+    <div id="wf-title-wrap" hidden>
+      <label for="wf-title">Title</label>
+      <input id="wf-title" type="text" maxlength="120">
+    </div>
+    <button id="wf-go" disabled>Create Real Signature draft</button>
+    <p class="note">This makes a <strong>draft</strong> only. Nothing goes to your clients until you press Send in Real Signature.</p>
+    <button id="wf-refresh" class="link">Refresh</button>
+  </section>
+
+  <!-- Step 2: Real Signature -->
+  <section id="rs" hidden>
+    <p id="rs-status" class="note"></p>
+    <div id="rs-form" hidden>
+      <label for="rs-title">Title</label>
+      <input id="rs-title" type="text" maxlength="120">
+      <label for="rs-deal">reZEN deal</label>
+      <select id="rs-deal"></select>
+      <div id="rs-warn"></div>
+      <h2>Signers</h2>
+      <div class="row">
+        <label>Buyers <input id="rs-buyers" type="number" min="0" max="4" value="1"></label>
+        <label>Sellers <input id="rs-sellers" type="number" min="0" max="4" value="1"></label>
+      </div>
+      <p class="note">Blocks for signers beyond these numbers are left off.</p>
+      <h2>Templates</h2>
+      <div id="rs-templates"></div>
+      <button id="rs-go">Create draft</button>
+      <p class="note">Nothing is sent. You'll land on the draft to check it and press Send yourself.</p>
+    </div>
+  </section>
+
+  <div id="msg" role="status"></div>
+
+  <details id="setup">
+    <summary class="note">Check my setup</summary>
+    <p class="note">Counts and yes/no only — no names or deals — so it's safe to paste into a message.</p>
+    <button id="setup-run" class="link">Run check</button>
+    <pre id="setup-out" hidden></pre>
+  </details>
+
   <footer>
     Free, from <a href="https://dealdates.app" target="_blank" rel="noopener">Deal Dates</a>: your deal deadlines in your inbox at 6am.<br>
     Not affiliated with or endorsed by Lone Wolf Technologies, CREA or The Real Brokerage Inc.

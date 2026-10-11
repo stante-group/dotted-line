@@ -20,6 +20,9 @@ export function stripTemplate(template) {
     if (template[k] !== undefined) out[k] = structuredClone(template[k]);
   }
   out.fieldDefinitions ??= [];
+  // A template's typed-in text (defaultValue) belongs to the deal it was made from; a
+  // copied block must start empty (Phase 0, 2026-10-11).
+  out.fieldDefinitions = out.fieldDefinitions.map((f) => ("defaultValue" in f ? { ...f, defaultValue: null } : f));
   out.documentFieldValidations ??= [];
   out.signeeConfigs ??= [];
   return out;

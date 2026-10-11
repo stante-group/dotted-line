@@ -54,9 +54,10 @@ and AREA's form-copyright page (404). Not legal advice.
    shared TC computer — and it breaks whenever WEBForms changes its layout. Lone Wolf's
    servers see the same traffic either way.)
    Besides the zip, only **read-only lookups the page itself already makes** are allowed, to
-   build the title and match the deal: `transactions/Basic/{id}`,
-   `transactionforms/index/{id}`, `formeditor/formfields/{formId}`. One call each per
-   click, never in a loop over the agent's library.
+   build the title and match the deal: `systems/GetPopulatedGlobalJson` (who is signed in),
+   `transactions/Basic/{id}`, `formeditor/formfields/{formId}`. One call each per picked
+   form, never in a loop over the agent's library. `src/lib/webforms-api.js` is an
+   allowlist of exactly these and refuses anything else.
 3. **Don't change WEBForms' pages.** Our UI lives in the extension's own side panel, not a
    button injected into their page.
 4. **PDFs pass through byte-for-byte.** No flattening, re-rendering or stripping footers and
@@ -126,7 +127,12 @@ wasn't needed. Positions are PDF points from the bottom-left. The zip download g
 flattened PDF per form, and ticked forms can be read from the page. Standalone forms
 (no transaction) go through WEBForms' Basket and the same zip download. 4 answered: a packet
 draft is `POST /packet-templates` (`oneTimeUse`) over one-time drafts; `/packets` is the
-send. **Open:** 7 (TC delegation).
+send. **Open:** 7 (TC delegation). Its harness is built: `src/lib/actor.js` (who is
+acting for whom, `DELEGATION_VERIFIED = false`), the panel's "Check my setup" report, and
+the session script in `docs/tc-delegation-test.md`.
+
+**Phase 1 status (2026-10-11):** code complete, unit-tested (33 tests); not yet run end to
+end in a browser.
 
 ### Phase 1 — MVP: ticked forms → draft
 

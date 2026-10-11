@@ -72,6 +72,22 @@ Real's UI has no "packet" choice at upload: each PDF uploads as its own one-time
 - Many real templates are text-fill only (`STRING`/`SENDER`, no signature blocks). Layout
   reuse only helps where a template actually has SIGNATURE/INITIALS/SIGNED_DATE fields.
 
+### Who is signed in, and a draft's deal (observed 2026-10-11)
+
+- The `jwtToken` cookie is **opaque** (not a dotted JWT); it's only ever used as the Bearer.
+- `GET yenta…/api/v1/users/me` → `id` (the yentaUserId for the deal list), `firstName`,
+  `lastName`, `fullName`, `emailAddress`, `type` (`AGENT`, …), plus profile fields.
+  `GET keymaker…/api/v1/keymaker/myself` → `activeRoles`, … Both are what Real
+  Signature's own app calls on load.
+- arrakis deal list item (`…/transactions/OPEN` → `{pageNumber, pageSize, hasNext,
+  totalCount, transactions[]}`): `id`, `address {street, street2, city, state, zip,
+  oneLine}`, `mlsNum`, `transactionOwner {id, name, emailAddress}`, `participants[]
+  {id, participantRole, firstName, lastName, emailAddress}`, `participantYentaIds[]`, …
+- A draft's deal lives in `defaults`: `{transactionId, signees[] {signeeType, name, email,
+  signeeIndex, signOrder}, recipients[], sender {firstName, lastName, email,
+  agentYentaId}, emailSubject, emailBody}`. `agentYentaId` was `null` on an agent's own
+  draft; it may be how Real records a TC preparing for an agent (Phase 0 item 7).
+
 ### Other routes the app's client has (not yet observed)
 
 `GET /document-templates` (`sharedWithMe`, `oneTimeUse`, `page`, `size`),
@@ -108,6 +124,9 @@ before an MLS number has been seen) — normalise before comparing.
   (`FormGUID`, `PageCount`, …) and `GET /api/forms/single/{formId}` (`LastModified`, …).
 - **No auto-save.** Save = `PUT /api/formeditor/saveForm/{formId}` then
   `POST /api/formeditor/saveMarkups/{formId}`. A `beforeunload` guard marks unsaved edits.
+- Signed-in user: `GET /api/systems/GetPopulatedGlobalJson` → `UserID`, `UserName`,
+  `OfficeID`, `IsBroker`, `Roles`, … (loaded by every page). How impersonation shows here
+  is Phase 0 item 7.
 - **Auth (Phase 0, 2026-10-11):** `Authorization: Bearer <token>`. The token is opaque (not
   a JWT, ~580 chars) and JS-readable in two places that hold the same value: localStorage
   `ls.lastBearer` (JSON-quoted string) and cookie `bearer`.

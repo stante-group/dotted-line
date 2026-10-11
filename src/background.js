@@ -24,7 +24,7 @@ async function tx(mode, fn) {
   return new Promise((resolve, reject) => {
     const t = d.transaction(STORE, mode);
     const out = fn(t.objectStore(STORE));
-    t.oncomplete = () => resolve(out?.result ?? out);
+    t.oncomplete = () => resolve(out instanceof IDBRequest ? out.result : out);
     t.onerror = () => reject(t.error);
   });
 }
@@ -43,28 +43,43 @@ async function purgeOld() {
 purgeOld().catch(() => {});
 
 // Messages:
-//   {type: "job:create", job: {forms: [{name, pageCount, formGuid, pdfBase64}], webforms: {...}}}
+//   {type: "job:create", job: {title, forms: [{id, name, pageCount, formGuid, pdfBase64}], …}}
 //       → stores it, opens Real Signature in a new tab bound to the job → {id}
-//   {type: "job:forTab"}              → the job bound to the sender's tab, if any
+//   {type: "job:forTab", tabId}       → that tab's job without the PDFs (for the panel)
+//   {type: "job:get", id}             → the whole job (for the Real Signature content script)
 //   {type: "job:done", id}            → deletes it
-const tabJobs = new Map(); // tabId → jobId (lost on worker restart; the job TTL covers that)
+// The tab binding is stored IN the job, not in worker memory: MV3 stops idle workers, and
+// a hand-off must survive the agent pausing to sign in to Real Signature.
+
+async function allJobs() {
+  return tx("readonly", (s) => s.getAll());
+}
+
+const withoutPdfs = (j) => j && { ...j, forms: j.forms.map(({ pdfBase64, ...f }) => f) };
 
 chrome.runtime.onMessage.addListener((msg, sender, reply) => {
   (async () => {
     if (msg.type === "job:create") {
+      await purgeOld();
       const id = crypto.randomUUID();
-      await tx("readwrite", (s) => s.put({ id, createdAt: Date.now(), ...msg.job }));
-      const tab = await chrome.tabs.create({ url: "https://signature.therealbrokerage.com/" });
-      tabJobs.set(tab.id, id);
+      const job = { id, createdAt: Date.now(), ...msg.job };
+      await tx("readwrite", (s) => s.put(job));
+      const tab = await chrome.tabs.create({ url: "https://signature.therealbrokerage.com/home/draft" });
+      await tx("readwrite", (s) => s.put({ ...job, tabId: tab.id }));
       return { id };
     }
     if (msg.type === "job:forTab") {
-      const id = tabJobs.get(sender.tab?.id);
-      return id ? await tx("readonly", (s) => s.get(id)) : null;
+      const cutoff = Date.now() - JOB_TTL_MS;
+      const j = (await allJobs()).filter((x) => x.tabId === msg.tabId && x.createdAt >= cutoff)
+        .sort((a, b) => b.createdAt - a.createdAt)[0];
+      return withoutPdfs(j) || null;
+    }
+    if (msg.type === "job:get") {
+      const j = await tx("readonly", (s) => s.get(msg.id));
+      return j && j.createdAt >= Date.now() - JOB_TTL_MS ? j : null;
     }
     if (msg.type === "job:done") {
       await tx("readwrite", (s) => s.delete(msg.id));
-      for (const [t, j] of tabJobs) if (j === msg.id) tabJobs.delete(t);
       return { ok: true };
     }
     return null;

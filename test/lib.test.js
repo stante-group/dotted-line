@@ -4,7 +4,6 @@ import assert from "node:assert/strict";
 import { stripTemplate, dropUnusedSlots, offsetPages, mergeLayouts, applyToDraft } from "../src/lib/layout.js";
 import { suggestTemplate, checkPages, formKey } from "../src/lib/match.js";
 import { normalizeAddress, addressScore, rankDeals, wrongDealWarnings } from "../src/lib/deals.js";
-import { planSplit } from "../src/lib/split.js";
 import { sampleTemplate, sampleDeals } from "./fixtures.js";
 
 test("stripTemplate keeps blocks and drops every personal field", () => {
@@ -87,11 +86,4 @@ test("wrong-deal guard flags another agent's deal and a different address", () =
   const w = wrongDealWarnings({ webformsAddress: "120 Example St NW", webformsAgentName: "Alex Example", deal: sampleDeals[1] });
   assert.equal(w.length, 2);
   assert.deepEqual(wrongDealWarnings({ webformsAddress: "120 Example St NW", webformsAgentName: "Alex Example", deal: sampleDeals[0] }), []);
-});
-
-test("split plan must add up to the PDF exactly", () => {
-  assert.deepEqual(planSplit([{ name: "A", pageCount: 9 }, { name: "B", pageCount: 1 }], 10),
-    [{ name: "A", from: 0, to: 8 }, { name: "B", from: 9, to: 9 }]);
-  assert.throws(() => planSplit([{ name: "A", pageCount: 9 }], 10), /not splitting/);
-  assert.throws(() => planSplit([{ name: "A" }], 10), /page count unknown/);
 });

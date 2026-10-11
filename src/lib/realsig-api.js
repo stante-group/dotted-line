@@ -11,6 +11,8 @@
 
 export const API = "https://signature-api.therealbrokerage.com/api/v1";
 export const ARRAKIS = "https://arrakis.therealbrokerage.com/api/v1";
+export const YENTA = "https://yenta.therealbrokerage.com/api/v1";
+export const KEYMAKER = "https://keymaker.therealbrokerage.com/api/v1";
 
 const FORBIDDEN = [
   { method: "POST", re: /^\/documents\/?$/ },                    // send
@@ -35,7 +37,7 @@ export function readToken(cookieString) {
   return m ? decodeURIComponent(m[1]) : null;
 }
 
-export class NotSignedIn extends Error {}
+export class NotSignedIn extends Error { name = "NotSignedIn"; }
 
 export class RealSignature {
   /** getToken: () => string|null (reads document.cookie in the page). */
@@ -90,10 +92,43 @@ export class RealSignature {
   }
   deletePacketDraft(id) { return this.request("DELETE", `/packet-templates/${encodeURIComponent(id)}`); }
 
+  /** Every page of my templates or shared-with-me, up to `max`. Each item already carries
+   *  its full fieldDefinitions. */
+  async allTemplates({ sharedWithMe = false, max = 500 } = {}) {
+    const out = [];
+    for (let page = 0; out.length < max; page++) {
+      const r = await this.listTemplates({ sharedWithMe, page, size: 100 });
+      if (!r || !Array.isArray(r.data)) throw new Error("Real Signature's template list changed shape");
+      out.push(...r.data);
+      if (r.data.length < 100 || out.length >= (r.totalCount ?? 0)) break;
+    }
+    return out;
+  }
+
+  // ---- who is signed in (the same calls Real Signature's own app makes) ----
+  me() { return this.request("GET", "/users/me", { base: YENTA }); }
+  async roles() {
+    const k = await this.request("GET", "/keymaker/myself", { base: KEYMAKER });
+    return (k?.activeRoles || []).map((r) => (typeof r === "string" ? r : r?.role || r?.name)).filter(Boolean);
+  }
+
   // ---- reZEN deals, as Real Signature's own picker reads them ----
   openDeals(yentaUserId, { listings = false, searchText, pageNumber = 0, pageSize = 50 } = {}) {
     const kind = listings ? "listing-transactions" : "transactions";
     return this.request("GET", `/transactions/participant/${encodeURIComponent(yentaUserId)}/${kind}/OPEN`,
       { base: ARRAKIS, query: { searchText, pageNumber, pageSize } });
+  }
+
+  /** All OPEN deals or listings I'm a participant on (a TC is on every deal she
+   *  coordinates), up to `maxPages` pages. */
+  async allOpenDeals(yentaUserId, { listings = false, maxPages = 6 } = {}) {
+    const out = [];
+    for (let pageNumber = 0; pageNumber < maxPages; pageNumber++) {
+      const r = await this.openDeals(yentaUserId, { listings, pageNumber, pageSize: 50 });
+      if (!r || !Array.isArray(r.transactions)) throw new Error("reZEN's deal list changed shape");
+      out.push(...r.transactions);
+      if (!r.hasNext) break;
+    }
+    return out;
   }
 }

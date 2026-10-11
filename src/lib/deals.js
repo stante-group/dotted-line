@@ -49,6 +49,26 @@ export function rankDeals(webformsAddress, deals) {
     .sort((x, y) => y.score - x.score);
 }
 
+/** arrakis deal → what the picker and the draft need. Hand-typed fields carry stray
+ *  whitespace (a TAB before an MLS number has been seen), so trim everything. */
+export function summarizeDeal(t, { listing = false } = {}) {
+  const trim = (s) => String(s ?? "").replace(/\s+/g, " ").trim();
+  return {
+    id: t.id,
+    kind: listing ? "listing" : "deal",
+    address: trim(t.address?.oneLine),
+    agentName: trim(t.transactionOwner?.name),
+    ownerId: t.transactionOwner?.id ?? null,
+    mlsNum: trim(t.mlsNum),
+    participants: (t.participants || []).map((p) => ({
+      role: p.participantRole,
+      firstName: trim(p.firstName),
+      lastName: trim(p.lastName),
+      email: trim(p.emailAddress),
+    })),
+  };
+}
+
 /** Warnings to show before creating the draft. Empty array = nothing to flag. */
 export function wrongDealWarnings({ webformsAddress, webformsAgentName, deal }) {
   const out = [];
