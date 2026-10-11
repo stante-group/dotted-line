@@ -15,12 +15,16 @@ export const ARRAKIS = "https://arrakis.therealbrokerage.com/api/v1";
 const FORBIDDEN = [
   { method: "POST", re: /^\/documents\/?$/ },                    // send
   { method: "POST", re: /\/resend-signature-email$/ },           // re-email signers
-  { method: "POST", re: /^\/packets\/?$/ },                      // packet send — see note
+  { method: "POST", re: /^\/packets\/?$/ },                      // packet send
+  { method: "POST", re: /^\/packets\/[^/]+\/recipients/ },       // add people to a live packet
   { method: "DELETE", re: /^\/documents\// },                    // void a sent document
+  { method: "DELETE", re: /^\/packets\// },                      // void a sent packet
   { method: "PUT", re: /^\/documents\/[^/]+\/signees\// },       // edit a live signer
+  { method: "PUT", re: /^\/packets\/[^/]+\/signees\// },         // edit a live packet signer
 ];
-// Note: whether POST /packets creates a draft or sends is Phase 0 item 4. Until it is
-// known, it is refused like a send.
+// `/packets` are SENT packets (Phase 0 item 4, 2026-10-11). A packet DRAFT is a one-time
+// packet TEMPLATE: `POST /packet-templates` — that is what Real's own "create packet" on
+// the Draft list calls.
 
 export function isForbidden(method, path) {
   return FORBIDDEN.some((f) => f.method === method.toUpperCase() && f.re.test(path));
@@ -77,6 +81,14 @@ export class RealSignature {
   putDraft(id, body) { return this.request("PUT", `/document-templates/${encodeURIComponent(id)}`, { json: body }); }
   /** Clean-up of a draft THIS run created, after a failure. */
   deleteDraft(id) { return this.request("DELETE", `/document-templates/${encodeURIComponent(id)}`); }
+  /** Group one-time drafts into one packet draft. They leave the Draft list as separate
+   *  rows and show as one packet, opened at /one-time-documents/packet/{id}. → {id} */
+  createPacketDraft(name, draftIds) {
+    return this.request("POST", "/packet-templates", {
+      json: { name, oneTimeUse: true, documentTemplates: draftIds.map((documentTemplateId) => ({ documentTemplateId })) },
+    });
+  }
+  deletePacketDraft(id) { return this.request("DELETE", `/packet-templates/${encodeURIComponent(id)}`); }
 
   // ---- reZEN deals, as Real Signature's own picker reads them ----
   openDeals(yentaUserId, { listings = false, searchText, pageNumber = 0, pageSize = 50 } = {}) {

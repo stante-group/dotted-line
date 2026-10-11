@@ -124,8 +124,9 @@ Exit: every step above answered and written into `docs/api-notes.md`. If 2a and 
 **Status 2026-10-11:** 1, 2b, 3, 5 and 6 answered (`docs/api-notes.md`). 2b works, so 2a
 wasn't needed. Positions are PDF points from the bottom-left. The zip download gives one
 flattened PDF per form, and ticked forms can be read from the page. Standalone forms
-(no transaction) go through WEBForms' Basket and the same zip download. **Open:** 4
-(packets), 7 (TC delegation).
+(no transaction) go through WEBForms' Basket and the same zip download. 4 answered: a packet
+draft is `POST /packet-templates` (`oneTimeUse`) over one-time drafts; `/packets` is the
+send. **Open:** 7 (TC delegation).
 
 ### Phase 1 — MVP: ticked forms → draft
 
@@ -155,7 +156,9 @@ flattened PDF per form, and ticked forms can be read from the page. Standalone f
   **refused when page counts differ** (form revised).
 - Signer slots: unused Buyer 2 / Seller 2 blocks removed; names and emails pre-filled from
   the reZEN deal's clients when available.
-- One form → one-time document draft; several → packet draft.
+- One form → one-time document draft; several → each uploaded as a one-time draft, then
+  grouped with `POST /packet-templates`, the same call as Real's own "create packet". Land
+  the agent on `/one-time-documents/packet/{id}`.
 - Fails loudly: any step failing stops with a plain message and nothing half-made left
   behind (best effort: delete drafts it created in the failed run).
 
@@ -204,7 +207,8 @@ Install from an **unlisted** Chrome Web Store link during beta.
 ## Open questions
 
 - CREA's own WEBForms terms (not public) and AREA form copyright — ask before public release.
-- Real Signature packet body; delegation model (Phase 0 steps 4 and 7).
+- Delegation model (Phase 0 step 7). Where a packet's deal is stored (likely each
+  document's `defaults.transactionId`; check when building).
 - Repo: `stante-group/dotted-line`. Store name "Dotted Line by Deal Dates" — chosen 2026-10-10 over RealDealForms, which read as an official Real tool (Web Store affiliation rule, Real, Lone Wolf).
 
 ## Reference

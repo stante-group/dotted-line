@@ -28,6 +28,28 @@ the extension must fail loudly when a shape stops matching.
 3. **Not used by this extension:** `POST /documents` sends (emails the signers);
    `DELETE /documents/{id}` voids.
 
+### Packet drafts (observed 2026-10-11)
+
+Real's UI has no "packet" choice at upload: each PDF uploads as its own one-time draft
+(as above). On the Draft list the agent ticks drafts and creates a packet, which calls:
+
+- `POST /packet-templates` with `{name, oneTimeUse: true, documentTemplates:
+  [{documentTemplateId}]}` → `{id}`. The member drafts leave the Draft list as separate rows
+  and show as one packet row. Nothing is emailed.
+- The packet opens at `/one-time-documents/packet/{id}` (Transaction → Edit details →
+  Prepare → Review). The deal is chosen once for the packet; signer roles are per document.
+- `GET /packet-templates/{id}` → `{id, name, oneTimeUse, shareConfigs, documentTemplates[]}`,
+  each a full document template (`fieldDefinitions`, `signeeConfigs`, `defaults`, …). The
+  packet has no `defaults` of its own; where the packet-level deal is stored is not yet
+  observed (likely each document's `defaults.transactionId`).
+- Other routes in the app's client: `PUT /packet-templates/{id}`,
+  `POST /packet-templates/{id}/document-templates` (add documents),
+  `POST /packet-templates/draft`, `/clone`, `/from-packet`, `/share/*`,
+  `DELETE /packet-templates/{id}`.
+- **`/packets` are SENT packets.** `POST /packets` sends; `POST /packets/{id}/recipients`,
+  `PUT /packets/{id}/signees/{id}`, `/resend-signature-email`, `DELETE /packets/{id}` act
+  on live ones. The client refuses all of them.
+
 ### Phase 0 findings (2026-10-11, drafts only)
 
 - `GET /document-templates?sharedWithMe=&oneTimeUse=false&page=&size=` →
@@ -55,7 +77,7 @@ the extension must fail loudly when a shape stops matching.
 `GET /document-templates` (`sharedWithMe`, `oneTimeUse`, `page`, `size`),
 `GET /document-templates/{id}`, `POST /document-templates/{id}/clone`,
 `PUT /document-templates/{id}/pdf` (multipart `file`), `DELETE /document-templates/{id}`,
-`/packets`, `/packet-templates/*`, `GET /documents/timezone?transactionId=`,
+`GET /documents/timezone?transactionId=`,
 `GET /reference/document-signee-types`.
 
 ### Values

@@ -11,9 +11,26 @@ test("sending routes are refused", () => {
   assert.ok(isForbidden("POST", "/documents/abc/resend-signature-email"));
   assert.ok(isForbidden("POST", "/packets"));
   assert.ok(isForbidden("DELETE", "/documents/abc"));
+  assert.ok(isForbidden("POST", "/packets/abc/recipients"));
+  assert.ok(isForbidden("DELETE", "/packets/abc"));
+  assert.ok(isForbidden("PUT", "/packets/abc/signees/s1"));
   assert.ok(!isForbidden("POST", "/document-templates"));
   assert.ok(!isForbidden("PUT", "/document-templates/abc"));
   assert.ok(!isForbidden("DELETE", "/document-templates/abc"));
+  assert.ok(!isForbidden("POST", "/packet-templates"));
+  assert.ok(!isForbidden("DELETE", "/packet-templates/abc"));
+});
+
+test("a packet draft is a one-time packet template, never /packets", async () => {
+  const seen = [];
+  const rs = new RealSignature({
+    getToken: () => "tok",
+    fetchImpl: async (url, init) => { seen.push({ url, init }); return { ok: true, status: 200, text: async () => '{"id":"p1"}' }; },
+  });
+  assert.deepEqual(await rs.createPacketDraft("120 Example Street NW", ["d1", "d2"]), { id: "p1" });
+  assert.ok(seen[0].url.endsWith("/packet-templates"));
+  assert.deepEqual(JSON.parse(seen[0].init.body),
+    { name: "120 Example Street NW", oneTimeUse: true, documentTemplates: [{ documentTemplateId: "d1" }, { documentTemplateId: "d2" }] });
 });
 
 test("request() refuses a send even if a method tries one", async () => {
