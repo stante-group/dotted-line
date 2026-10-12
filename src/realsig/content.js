@@ -75,6 +75,7 @@ async function setup() {
   return {
     signedIn: true,
     fullName: c.me.fullName, // compared in the panel, never printed in the report
+    email: c.me.email, // likewise
     type: c.me.type,
     roles,
     deals: deals.length,
@@ -120,7 +121,7 @@ async function create({ jobId, title, dealId, templateIds, counts, agentChoice =
       let agents = null;
       if (agentChoice) {
         const role = lib.agentRoleFor({ layout, counts });
-        const people = role ? lib.chooseAgents(lib.agentPeople({ deal, role, me: c.me, webformsUserName: job.webformsUserName }), agentChoice) : [];
+        const people = role ? lib.chooseAgents(lib.agentPeople({ deal, role, me: c.me, webformsUserName: job.webformsUserName, webformsUserEmail: job.webformsUserEmail }), agentChoice) : [];
         if (people.length) agents = { signeeType: role, people };
       }
       await rs.putDraft(up.id, lib.buildDraftBody({

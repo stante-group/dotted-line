@@ -8,7 +8,26 @@ const DB = "wfrs";
 const STORE = "jobs";
 const JOB_TTL_MS = 60 * 60 * 1000;
 
+// Where the UI shows (2026-10-12). A side panel always narrows the page beside it, and
+// WEBForms with its own right-hand menu open gets cramped; Dotted Line may not change
+// WEBForms' page (PLAN.md rule 3), so it can't collapse that menu or float over it.
+// So: the icon opens a POPUP over the page everywhere except Real Signature, where the
+// deal / signer / template choices need room and the SIDE PANEL opens — enabled on Real
+// Signature tabs only, so switching back to WEBForms never squeezes it.
+const RS = "https://signature.therealbrokerage.com/";
+const PANEL = "src/panel/panel.html";
+const POPUP = "src/panel/panel.html?popup=1";
 chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(() => {});
+chrome.sidePanel.setOptions({ enabled: false }).catch(() => {});
+chrome.action.setPopup({ popup: POPUP }).catch(() => {});
+
+async function placeUi(tabId, url) {
+  const rs = String(url || "").startsWith(RS);
+  await chrome.action.setPopup({ tabId, popup: rs ? "" : POPUP }).catch(() => {});
+  await chrome.sidePanel.setOptions(rs ? { tabId, path: PANEL, enabled: true } : { tabId, enabled: false }).catch(() => {});
+}
+chrome.tabs.onUpdated.addListener((tabId, info, tab) => { if (info.url || info.status === "loading") placeUi(tabId, tab.url); });
+chrome.tabs.query({}).then((tabs) => tabs.forEach((t) => placeUi(t.id, t.url))).catch(() => {});
 
 function db() {
   return new Promise((resolve, reject) => {
@@ -43,8 +62,8 @@ async function purgeOld() {
 purgeOld().catch(() => {});
 
 // Messages:
-//   {type: "job:create", job: {title, forms: [{id, name, pageCount, formGuid, pdfBase64}], …}}
-//       → stores it, opens Real Signature in a new tab bound to the job → {id}
+//   {type: "job:create", job: {title, forms: [{id, name, pageCount, formGuid, pdfBase64}], …}, background?}
+//       → stores it, opens Real Signature in a new tab bound to the job → {id, tabId}
 //   {type: "job:forTab", tabId}       → that tab's job without the PDFs (for the panel)
 //   {type: "job:get", id}             → the whole job (for the Real Signature content script)
 //   {type: "job:done", id}            → deletes it
@@ -64,9 +83,13 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
       const id = crypto.randomUUID();
       const job = { id, createdAt: Date.now(), ...msg.job };
       await tx("readwrite", (s) => s.put(job));
-      const tab = await chrome.tabs.create({ url: "https://signature.therealbrokerage.com/home/draft" });
+      // From the popup the tab opens in the BACKGROUND: making it active would close the
+      // popup before it can open the side panel there (msg.background).
+      const url = `${RS}home/draft`;
+      const tab = await chrome.tabs.create({ url, active: !msg.background });
+      await placeUi(tab.id, url); // side panel enabled there before anyone opens it
       await tx("readwrite", (s) => s.put({ ...job, tabId: tab.id }));
-      return { id };
+      return { id, tabId: tab.id };
     }
     if (msg.type === "job:forTab") {
       const cutoff = Date.now() - JOB_TTL_MS;

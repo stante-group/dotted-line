@@ -14,7 +14,7 @@ yet. See [PLAN.md](PLAN.md).
 
 1. In WEBForms, tick the forms in a deal's **Forms** list — or, for standalone forms, add
    them to the **Basket** inside each form's folder.
-2. Open the Dotted Line side panel, check the title, click **Create Real Signature draft**.
+2. Click the Dotted Line icon (a small popup opens over WEBForms), check the title, click **Create Real Signature draft**.
    It uses WEBForms' own zip download and keeps the PDFs exactly as WEBForms made them.
 3. Real Signature opens. In the panel, check the reZEN deal (best address match first,
    picked for you when it's clear) and pick a template for each form — it remembers your

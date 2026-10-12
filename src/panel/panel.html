@@ -18,6 +18,11 @@
     @keyframes spin { to { transform: rotate(360deg); } }
     @media (prefers-reduced-motion: reduce) { .busy::before { animation-duration: 2.4s; } }
     .warn { background: #fff7e6; border: 1px solid #f0c36d; border-radius: 6px; padding: 8px 10px; font-size: 13px; margin: 8px 0; }
+    /* Context, not a warning: "working as a teammate in WEBForms" and the like. */
+    .info { display: flex; gap: 6px; align-items: baseline; font-size: 13px; color: #3b4456; margin: 6px 0; }
+    .info::before { content: "i"; flex: none; display: inline-flex; align-items: center; justify-content: center;
+      width: 15px; height: 15px; border-radius: 50%; background: #e3eafb; color: #2f6fed;
+      font: italic 600 10px/1 Georgia, serif; transform: translateY(2px); }
     .err { background: #fdecec; border: 1px solid #e59a9a; border-radius: 6px; padding: 8px 10px; font-size: 13px; margin: 8px 0; }
     .ok { background: #eaf6ee; border: 1px solid #8cc9a0; border-radius: 6px; padding: 8px 10px; font-size: 13px; margin: 8px 0; }
     ul.forms { padding-left: 18px; margin: 6px 0; }
@@ -33,6 +38,21 @@
     pre { white-space: pre-wrap; background: #f5f6f8; padding: 8px; border-radius: 6px; font-size: 12px; }
     footer { margin-top: 32px; border-top: 1px solid #e3e6ec; padding-top: 12px; font-size: 12px; color: #5b6475; }
     footer a { color: inherit; }
+    /* ⓘ: explanations live behind these, so the panel shows only what to do and what to
+       watch out for. Click (or keyboard) opens the text under it; hover shows the same text
+       as the browser's own tooltip. Warnings never go behind one. */
+    button.i { display: inline-flex; align-items: center; justify-content: center; width: 17px; height: 17px;
+      margin: 0 0 0 6px; padding: 0; border-radius: 50%; border: 1px solid #9aa3b2; background: none;
+      color: #5b6475; font: italic 600 11px/1 Georgia, serif; text-transform: none; letter-spacing: 0;
+      vertical-align: middle; cursor: pointer; }
+    button.i:hover, button.i[aria-expanded="true"] { border-color: #2f6fed; color: #2f6fed; background: #eef3fe; }
+    button.i:focus-visible { outline: 2px solid #2f6fed; outline-offset: 1px; }
+    .tip { background: #f5f6f8; border-radius: 6px; padding: 6px 8px; margin: 4px 0 8px; font-size: 12.5px; color: #3b4456; }
+    .with-i { display: flex; align-items: center; }
+    .with-i label { margin-right: 0; }
+    /* Popup (WEBForms and other sites): a fixed, compact width over the page. */
+    html.popup body { width: 360px; margin: 12px 14px; }
+    html.popup footer { margin-top: 16px; }
     [hidden] { display: none !important; }
   </style>
 </head>
@@ -42,7 +62,7 @@
   <!-- Nothing to act on -->
   <section id="idle">
     <p class="note">Turn the forms you've filled into a Real Signature draft.</p>
-    <p class="note">In WEBForms, tick the forms in a deal's <b>Forms</b> list — or, for standalone forms, add them to the <b>Basket</b> inside each form's folder. Then come back here.</p>
+    <p class="note">In WEBForms, open a form (and save it), or tick the forms in a deal's <b>Forms</b> list — or, for standalone forms, add them to the <b>Basket</b> inside each form's folder. Then come back here.</p>
   </section>
 
   <!-- Step 1: WEBForms -->
@@ -64,23 +84,32 @@
     <div id="rs-form" hidden>
       <label for="rs-title">Title</label>
       <input id="rs-title" type="text" maxlength="120">
-      <label for="rs-deal">reZEN deal</label>
+      <div class="with-i">
+        <label for="rs-deal">reZEN deal</label>
+        <button class="i" type="button" aria-expanded="false" aria-controls="tip-deal" aria-label="About the deal">i</button>
+      </div>
+      <div id="tip-deal" class="tip" hidden>Your open deals and listings, best address match first. The draft is attached to this deal, and its clients fill in the signers. Choose <b>No deal</b> for a standalone form.</div>
       <select id="rs-deal"></select>
       <div id="rs-warn"></div>
-      <h2>Signers</h2>
+      <h2>Signers<button class="i" type="button" aria-expanded="false" aria-controls="tip-signers" aria-label="How the signers are set">i</button></h2>
+      <div id="tip-signers" class="tip" hidden><span id="rs-counts-why"></span>
+        At least two per signing side: deleting a spare signer in Real Signature is one click, adding one means placing their blocks. Blocks for signers beyond these numbers are left off.</div>
       <div class="row">
         <label>Buyers <input id="rs-buyers" type="number" min="0" max="4" value="2"></label>
         <label>Sellers <input id="rs-sellers" type="number" min="0" max="4" value="2"></label>
       </div>
-      <p class="note" id="rs-counts-why"></p>
-      <p class="note">At least two per signing side, because deleting an unused signer in Real Signature is easier than placing their blocks. Blocks for signers beyond these numbers are left off.</p>
-      <label class="check"><input id="rs-agent" type="checkbox"> Add the agent as a signer</label>
+      <div class="with-i">
+        <label class="check"><input id="rs-agent" type="checkbox"> Add the agent as a signer</label>
+        <button class="i" type="button" aria-expanded="false" aria-controls="tip-agent" aria-label="About the agent as a signer">i</button>
+      </div>
+      <div id="tip-agent" class="tip" hidden>Adds the deal's agent as Buyer's or Seller's agent, on the forms whose template has agent blocks (or no template). Ticked for you when a template has agent blocks. <span id="rs-agent-more"></span></div>
       <div id="rs-agent-pick-wrap" hidden>
         <label for="rs-agent-pick">Who signs as agent</label>
         <select id="rs-agent-pick"></select>
       </div>
       <p class="note" id="rs-agent-who"></p>
-      <h2>Templates</h2>
+      <h2>Templates<button class="i" type="button" aria-expanded="false" aria-controls="tip-templates" aria-label="About templates">i</button></h2>
+      <div id="tip-templates" class="tip" hidden>A template places the signature, initial and date blocks for you. Only your Real Signature templates that have blocks and the same number of pages as the form are listed. Your choice is remembered for next time. With no template, you place the blocks in Real Signature.</div>
       <div id="rs-templates"></div>
       <button id="rs-go">Create draft</button>
       <p class="note">Nothing is sent. You'll land on the draft to check it and press Send yourself.</p>
@@ -91,8 +120,9 @@
 
   <details id="setup">
     <summary class="note">Check my setup</summary>
-    <p class="note">Counts and yes/no only — no names or deals — so it's safe to paste into a message.</p>
     <button id="setup-run" class="link">Run check</button>
+    <button class="i" type="button" aria-expanded="false" aria-controls="tip-setup" aria-label="About the setup check">i</button>
+    <div id="tip-setup" class="tip" hidden>Counts and yes/no only — no names or deals — so it's safe to paste into a message.</div>
     <pre id="setup-out" hidden></pre>
   </details>
 

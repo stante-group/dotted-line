@@ -91,6 +91,20 @@ Real's UI has no "packet" choice at upload: each PDF uploads as its own one-time
   agentYentaId}, emailSubject, emailBody}`. `agentYentaId` was `null` on an agent's own
   draft; it may be how Real records a TC preparing for an agent (Phase 0 item 7).
 
+### Sharing (observed 2026-10-12)
+
+- The app's **Shared** tab is `/shared-with-me/templates`: "Shared with Me" → Templates and
+  Folders. It also calls `GET /packet-templates/shared-by-info?name=&page=&size=&sortDirection=&sortBy=`
+  → `{data, pageNumber, pageSize, totalCount}`, so packet templates can be shared too.
+- Templates shared with you come back from `GET /document-templates?sharedWithMe=true`; the
+  panel already lists them, marked "(shared)". Each template's `shareConfigs[]` holds who
+  it's shared with (shape not yet seen — none shared in the test account).
+- **Reach (Dan, from the share dialog):** your own team, or individual agents anywhere in the
+  organisation — nothing wider. So a team lead can give the whole team their templates in
+  one step, but another team (or another province's tester) only person by person.
+- One-time drafts and packets list via `GET /one-time-templates?page=&size=&sort.dir=&sort.property=`
+  (what the Drafts tab calls), not `/document-templates?oneTimeUse=true`, which returns 0.
+
 ### Other routes the app's client has (not yet observed)
 
 `GET /document-templates` (`sharedWithMe`, `oneTimeUse`, `page`, `size`),
@@ -137,6 +151,19 @@ before an MLS number has been seen) — normalise before comparing.
   ("WEBForms is signed in as X; Real Signature as Y") and to suggest that agent as the
   agent signer. Real Signature has no equivalent: drafts are made in the signed-in Real
   account, which for a team lead already sees teammates' deals.
+- The same response's `GtmDataLayer.TransactionDesk.Account.Email` is the account's email
+  (the impersonated agent's while impersonating — assumed, not yet seen). "Same person in
+  WEBForms and Real" is decided by this email ONLY: names differ between the systems
+  ("Dan …" vs "Daniel …") and a family team can share one. No email → "can't confirm",
+  shown as a note, never assumed.
+- **An open form (2026-10-12):** the editor is at `/form/{id}/false` (bare `/form/{id}` is a
+  404 page) under `ng-controller="formEditorCtrl as vm"`. `vm.formObj` → `ID`, `Name`,
+  `TransactionID` (empty for standalone), `LastModified` (an empty `0001-01-01` date here);
+  `vm.formData` → `FormName`, `FormGUID`, `PageCount`; `vm._editFormId`. WEBForms'
+  `window.onbeforeunload` calls a form unsaved when any key of `vm.savedFormFieldValues`
+  differs from `vm.formFieldValues`, or `vm.hasUnsavedFieldSettings()`; the model updates a
+  moment after typing. `vm.ensureSaved()` / `vm.save()` / `vm.saveForm()` SAVE — never call.
+  The Forms library rows (folder view) carry `LastModified` and `DateCreated` per form.
 - **Auth (Phase 0, 2026-10-11):** `Authorization: Bearer <token>`. The token is opaque (not
   a JWT, ~580 chars) and JS-readable in two places that hold the same value: localStorage
   `ls.lastBearer` (JSON-quoted string) and cookie `bearer`.

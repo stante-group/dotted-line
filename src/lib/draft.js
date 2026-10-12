@@ -2,6 +2,7 @@
 // signers, sender, and (if the agent picked one) a template's blocks.
 
 import { applyToDraft } from "./layout.js";
+import { samePerson } from "./actor.js";
 
 const SIGNER_ROLES = ["BUYER", "SELLER"];
 
@@ -175,7 +176,7 @@ const norm = (s) => String(s ?? "").replace(/\s+/g, " ").trim().toLowerCase();
  *  jurisdictions want all (the panel asks). With no deal, or a deal that lists nobody in the
  *  role, the signed-in user if they are an agent and it's theirs. A TC is never put in as
  *  the agent. → [{name, email}] */
-export function agentPeople({ deal, role, me, webformsUserName = null }) {
+export function agentPeople({ deal, role, me, webformsUserName = null, webformsUserEmail = null }) {
   const full = (p) => [p.firstName, p.lastName].filter(Boolean).join(" ");
   const seen = new Set();
   const people = (deal?.participants || [])
@@ -184,7 +185,11 @@ export function agentPeople({ deal, role, me, webformsUserName = null }) {
   // Whose forms these are comes first: a team lead impersonating a teammate in WEBForms (or
   // a TC working in an agent's account) is doing that agent's file, even when the signed-in
   // Real user is also on the deal. Then the signed-in agent, then the deal owner.
-  const rank = (p) => (webformsUserName && norm(full(p)) === norm(webformsUserName) ? 0
+  // By email when WEBForms gave one (names can be shared within a family team); only the
+  // exact name otherwise. This only orders the suggestions — the agent sees and picks.
+  const isWf = (p) => (webformsUserEmail ? samePerson({ wfEmail: webformsUserEmail, rsEmail: p.email }) === true
+    : !!webformsUserName && norm(full(p)) === norm(webformsUserName));
+  const rank = (p) => (isWf(p) ? 0
     : norm(p.email) === norm(me?.email) ? 1 : norm(full(p)) === norm(deal?.agentName) ? 2 : 3);
   const sorted = people.map((p, i) => [rank(p), i, p]).sort((a, b) => a[0] - b[0] || a[1] - b[1]).map(([, , p]) => p);
   if (sorted.length) return sorted.map((p) => ({ name: full(p), email: String(p.email).trim() }));

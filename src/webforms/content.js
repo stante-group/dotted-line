@@ -31,8 +31,8 @@ const ADDRESS_VARS = ["txtp_streetnum", "txtp_street", "txtp_city"];
 
 async function details({ transactionId, formIds }) {
   const { wf, partiesFromFormValues } = await client();
-  const [userName, transaction] = await Promise.all([
-    wf.userName(),
+  const [{ name: userName, email: userEmail }, transaction] = await Promise.all([
+    wf.user(),
     transactionId ? wf.transaction(transactionId) : null,
   ]);
   const forms = [];
@@ -42,6 +42,7 @@ async function details({ transactionId, formIds }) {
   const firstFormValues = v ? Object.fromEntries(ADDRESS_VARS.map((k) => [k, v[k] ?? ""])) : null;
   return {
     userName,
+    userEmail, // compared in the panel only, never shown
     transaction: transaction && {
       Name: transaction.Name, Address: transaction.Address, StreetNumber: transaction.StreetNumber,
       StreetName: transaction.StreetName, City: transaction.City,
@@ -89,7 +90,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, reply) => {
     },
     "webforms:setup": async () => {
       const { wf } = await client();
-      try { return { signedIn: true, userName: await wf.userName() }; } catch { return { signedIn: false }; }
+      try { const u = await wf.user(); return { signedIn: true, userName: u.name, userEmail: u.email }; } catch { return { signedIn: false }; }
     },
   }[msg.type];
   if (!run) return false;

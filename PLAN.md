@@ -158,6 +158,16 @@ Basket, single drafts and packets, with and without templates, no deal and match
 - **Panel.** Follows ticks live (the WEBForms page nudges it), lists only templates with
   blocks that fit the page count, flags a deal it picked by address, shows a spinner on
   every wait, and Real's own error text on failure.
+- **Popup on WEBForms, side panel on Real Signature (2026-10-12, tried by Dan: "a great
+  option").** A side panel narrows the page, and WEBForms with its own right-hand menu open
+  got cramped. Collapsing that menu for the agent or floating over the page would both
+  change WEBForms' page (rule 3, AUP §1), so the icon opens a popup there instead; the side
+  panel is enabled on Real Signature tabs only. After Create the popup opens the Real
+  Signature tab in the background, opens the side panel on it, then switches to it (a
+  "Go to Real Signature" button is the fallback if Chrome refuses the panel). Explanations
+  sit behind ⓘ buttons; warnings stay visible.
+- **Same person** in WEBForms and Real is decided by email only (names differ between the
+  systems, and family teams share names); a mismatch or a missing email is shown as a note.
 
 Not yet seen: what Real does with an agent signer at send time; reZEN's label for a dual
 deal; other provinces' name fields.
@@ -205,6 +215,16 @@ auto-save, so unsaved edits would be left out. The extension doesn't save for th
 to press Save first, then confirms `LastModified` moved before downloading.
 **Never send a stale copy.**
 
+**Status 2026-10-12: built, not yet tried by Dan.** The open form is read from the editor
+(`/form/{id}/false`, `formEditorCtrl as vm`): `vm.formObj` gives `ID`, `Name`,
+`TransactionID`. "Unsaved" uses WEBForms' own leave-page test — `vm.savedFormFieldValues`
+vs `vm.formFieldValues`, plus `vm.hasUnsavedFieldSettings()` — checked both ways on the
+invented test Addendum (type a letter → unsaved; delete it → saved). While unsaved, Create
+is off and the panel asks for Save, re-checking every 2 s; the click checks once more.
+Instead of `LastModified` (the open form's `formObj.LastModified` is an empty date), "no
+unsaved changes" itself is the proof the saved copy matches the screen. `vm.ensureSaved()`
+exists but SAVES — never call it.
+
 ### Phase 3 — polish for others
 
 - How-to: building a Real Signature template for a CREA form (with the Winnipeg tester).
@@ -212,6 +232,12 @@ to press Save first, then confirms `LastModified` moved before downloading.
   PDFs (page-offset merge of templates is ready in `src/lib/layout.js`).
 - Optional: suggest block positions on a form with no template, from "Initials" /
   "Signature" labels in the PDF text — suggestions only.
+- **Team templates:** Real Signature shares templates with your whole team at once, or with
+  individual agents anywhere — nothing wider (2026-10-12). The how-to covers sharing a set
+  with the team; the panel already lists shared templates.
+- Maybe: ship ready-made **block layouts** per standard CREA form (positions only, no names
+  or deal data — `stripTemplate` output) so agents outside a team that has templates
+  needn't build them. Ask CREA/AREA first: layouts are derived from their forms.
 
 ### Beta
 

@@ -43,16 +43,34 @@ export function isOthersDeal(me, deal) {
   return !!(deal && deal.ownerId && me && deal.ownerId !== me.id);
 }
 
-/** Plain-language notes for the panel before Create. Informational, not blocking. */
-export function actingNotes({ me, deal, webformsUserName }) {
+/** Is the WEBForms user the same person as the Real Signature user? By EMAIL only →
+ *  true / false, or null when either side has no email (can't tell).
+ *  Names are never enough: the systems spell them differently ("Dan …" in WEBForms,
+ *  "Daniel …" in Real, 2026-10-12), and real estate runs in families — a father and son on
+ *  one team can share a name (Dan, 2026-10-12: "stick with email matching and flag any
+ *  mismatches"). While impersonating, WEBForms' email is the teammate's, so this is false. */
+export function samePerson({ wfEmail, rsEmail }) {
+  if (!wfEmail || !rsEmail) return null;
+  return norm(wfEmail) === norm(rsEmail);
+}
+
+/** Plain-language notes for the panel before Create, none blocking. Each has a level:
+ *  "warn" — something to check before sending (the sender on someone else's deal);
+ *  "info" — context only. Working in a teammate's WEBForms (impersonation, or a TC's own
+ *  login) is normal for team leads and TCs, so it's said quietly, not as a warning
+ *  (Dan, 2026-10-12). → [{level, text}] */
+export function actingNotes({ me, deal, webformsUserName, webformsUserEmail = null }) {
   const out = [];
   if (isOthersDeal(me, deal)) {
     out.push(DELEGATION_VERIFIED
-      ? `You're making this for ${deal.agentName || "another agent"}.`
-      : `This deal is ${deal.agentName || "another agent"}'s. The draft will be in your Real Signature Drafts with you as sender — check the sender in Real Signature before you press Send.`);
+      ? { level: "info", text: `You're making this for ${deal.agentName || "another agent"}.` }
+      : { level: "warn", text: `This deal is ${deal.agentName || "another agent"}'s. The draft will be in your Real Signature Drafts with you as sender — check the sender in Real Signature before you press Send.` });
   }
-  if (webformsUserName && me?.fullName && norm(webformsUserName) !== norm(me.fullName)) {
-    out.push(`WEBForms is signed in as ${webformsUserName}; Real Signature as ${me.fullName}.`);
+  const same = samePerson({ wfEmail: webformsUserEmail, rsEmail: me?.email });
+  if (webformsUserName && same === false) {
+    out.push({ level: "info", text: `Working as ${webformsUserName} in WEBForms (you're ${me?.fullName || "someone else"} in Real Signature).` });
+  } else if (webformsUserName && same === null) {
+    out.push({ level: "info", text: `Couldn't confirm WEBForms (${webformsUserName}) and Real Signature (${me?.fullName || "?"}) are the same account — no email to compare.` });
   }
   return out;
 }

@@ -60,9 +60,19 @@ export class WebForms {
     try { return text ? JSON.parse(text) : null; } catch { return text; }
   }
 
-  async userName() {
+  /** Who WEBForms is working as — the impersonated agent while impersonating. The email
+   *  sits only in the page's analytics block (GtmDataLayer…Account.Email); it's used to
+   *  tell "same person, name written differently" (Dan / Daniel) from a teammate. */
+  async user() {
     const g = await this.request("GET", "/api/systems/GetPopulatedGlobalJson");
-    return g && typeof g.UserName === "string" ? g.UserName : null;
+    const email = g?.GtmDataLayer?.TransactionDesk?.Account?.Email;
+    return {
+      name: g && typeof g.UserName === "string" ? g.UserName : null,
+      email: typeof email === "string" && email.includes("@") ? email : null,
+    };
+  }
+  async userName() {
+    return (await this.user()).name;
   }
 
   transaction(id) {

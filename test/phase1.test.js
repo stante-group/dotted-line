@@ -10,7 +10,7 @@ import { WebForms, isAllowed, readBearer, zipEntryName, pairEntries, WebFormsSig
 import { buildDraftBody, signeesFromDeal, countsFromDeal, signersWithoutEmail, signerCounts, sideFromFormNames, templateSlots, agentRoleFor, agentPerson, agentPeople, chooseAgents } from "../src/lib/draft.js";
 import { stripTemplate, dropUnusedSlots } from "../src/lib/layout.js";
 import { summarizeDeal } from "../src/lib/deals.js";
-import { actingNotes, setupReport, senderFor, meFromYenta, DELEGATION_VERIFIED } from "../src/lib/actor.js";
+import { actingNotes, setupReport, senderFor, meFromYenta, DELEGATION_VERIFIED, samePerson } from "../src/lib/actor.js";
 import { sampleTemplate } from "./fixtures.js";
 
 const enc = (s) => new TextEncoder().encode(s);
@@ -320,15 +320,36 @@ test("copied template blocks start empty", () => {
   assert.equal(stripTemplate(t).fieldDefinitions[0].defaultValue, null);
 });
 
+test("same person in WEBForms and Real: by email only — names can be shared in a family team", () => {
+  assert.equal(samePerson({ wfEmail: "Alex@Example.com", rsEmail: "alex@example.com" }), true);
+  assert.equal(samePerson({ wfEmail: "alex.jr@example.com", rsEmail: "alex@example.com" }), false, "father and son, same name");
+  assert.equal(samePerson({ wfEmail: null, rsEmail: "alex@example.com" }), null, "no email: can't tell");
+  const me = meFromYenta({ id: "agent-1", firstName: "Alexander", lastName: "Example", emailAddress: "alex@example.com", type: "AGENT" });
+  // the name spelled differently, same email: no note
+  assert.deepEqual(actingNotes({ me, deal: null, webformsUserName: "Alex Example", webformsUserEmail: "alex@example.com" }), []);
+  // same name, different email: flagged
+  const jr = actingNotes({ me, deal: null, webformsUserName: "Alexander Example", webformsUserEmail: "alex.jr@example.com" });
+  assert.equal(jr.length, 1);
+  assert.match(jr[0].text, /Working as Alexander Example in WEBForms/);
+  // no WEBForms email: flagged as unconfirmed, never assumed
+  const unknown = actingNotes({ me, deal: null, webformsUserName: "Alexander Example" });
+  assert.equal(unknown[0].level, "info");
+  assert.match(unknown[0].text, /Couldn't confirm/);
+});
+
 test("delegation framework: another agent's deal is flagged until verified", () => {
   assert.equal(DELEGATION_VERIFIED, false);
   const me = meFromYenta({ id: "tc-1", firstName: "Taylor", lastName: "Example", emailAddress: "tc@example.com" });
   const deal = summarizeDeal(sampleDealRaw);
-  const notes = actingNotes({ me, deal, webformsUserName: "Alex Example" });
+  const notes = actingNotes({ me, deal, webformsUserName: "Alex Example", webformsUserEmail: "alex@example.com" });
   assert.equal(notes.length, 2);
-  assert.match(notes[0], /Alex Example's/);
-  assert.match(notes[1], /WEBForms is signed in as Alex Example/);
-  assert.deepEqual(actingNotes({ me: { ...me, id: "agent-1", fullName: "Alex Example" }, deal, webformsUserName: "Alex Example" }), []);
+  assert.equal(notes[0].level, "warn");
+  assert.match(notes[0].text, /Alex Example's/);
+  // working in a teammate's WEBForms is normal for leads and TCs: info, not a warning
+  assert.equal(notes[1].level, "info");
+  assert.match(notes[1].text, /Working as Alex Example in WEBForms/);
+  assert.deepEqual(actingNotes({ me: { ...me, id: "agent-1", fullName: "Alex Example", email: "alex@example.com" }, deal,
+    webformsUserName: "Alex Example", webformsUserEmail: "alex@example.com" }), []);
   assert.equal(senderFor(me, deal).agentYentaId, null);
 });
 

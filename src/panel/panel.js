@@ -8,12 +8,34 @@ import { suggestTitle, matchAddress } from "../lib/title.js";
 import { rankDeals, wrongDealWarnings } from "../lib/deals.js";
 import { suggestTemplate, formKey } from "../lib/match.js";
 import { signerCounts, signersWithoutEmail, agentRoleFor, agentPeople } from "../lib/draft.js";
-import { actingNotes, setupReport } from "../lib/actor.js";
+import { actingNotes, setupReport, samePerson } from "../lib/actor.js";
+
+// The same page is the popup (WEBForms and other sites) and the side panel (Real Signature);
+// see background.js "Where the UI shows".
+const POPUP = new URLSearchParams(location.search).has("popup");
+if (POPUP) document.documentElement.classList.add("popup");
 
 const WF = "https://pr.transactiondesk.com/";
 const RS = "https://signature.therealbrokerage.com/";
 const $ = (id) => document.getElementById(id);
 const el = (tag, text, cls) => { const e = document.createElement(tag); if (text != null) e.textContent = text; if (cls) e.className = cls; return e; };
+
+// ⓘ buttons: click opens the explanation under it; hover shows the same text as a tooltip
+// (kept in step with the tip, which may change as the agent picks things).
+document.addEventListener("click", (e) => {
+  const b = e.target.closest("button.i");
+  if (!b) return;
+  e.preventDefault(); // inside a <label> or <summary>, don't also tick or toggle
+  const tip = $(b.getAttribute("aria-controls"));
+  const open = b.getAttribute("aria-expanded") !== "true";
+  b.setAttribute("aria-expanded", String(open));
+  tip.hidden = !open;
+});
+function syncTips() {
+  for (const b of document.querySelectorAll("button.i")) {
+    b.title = ($(b.getAttribute("aria-controls"))?.textContent || "").replace(/\s+/g, " ").trim();
+  }
+}
 
 function show(section) {
   for (const s of ["idle", "wf", "rs"]) $(s).hidden = s !== section;
@@ -64,7 +86,26 @@ function readSelection() {
       return { error: "Couldn't read the Basket — WEBForms may have changed." };
     }
   }
-  if (/^\/form\//i.test(location.pathname)) return { source: "open", forms: [] };
+  if (/^\/form\//i.test(location.pathname)) {
+    // Phase 2, an open form. The zip gives the form AS LAST SAVED and WEBForms has no
+    // auto-save, so unsaved edits would silently be left out. WEBForms' own leave-page
+    // prompt decides "unsaved" by comparing the editor's savedFormFieldValues with
+    // formFieldValues, plus hasUnsavedFieldSettings() (formEditorCtrl as vm, seen
+    // 2026-10-12) — the same test is used here, only READ. Never call vm.ensureSaved():
+    // it saves (rule 2). A value in a field the saved copy doesn't list also counts as
+    // unsaved — stricter than WEBForms, because a stale copy is the one thing not allowed.
+    const node = document.querySelector('[ng-controller^="formEditorCtrl"]');
+    const vm = node && ng.element(node).scope()?.vm;
+    const o = vm?.formObj;
+    if (!o || !o.ID) return { source: "open", forms: [], loading: true };
+    const saved = vm.savedFormFieldValues || {}, cur = vm.formFieldValues || {};
+    let unsaved = Object.keys(saved).some((k) => cur[k] !== saved[k])
+      || Object.keys(cur).some((k) => !(k in saved) && cur[k] != null && cur[k] !== "");
+    try { unsaved = unsaved || !!vm.hasUnsavedFieldSettings?.(); } catch { /* treat as unknown below */ }
+    const name = o.Name || vm.formData?.FormName || "This form";
+    return { source: "open", transactionId: o.TransactionID || "", unsaved,
+      forms: [{ id: o.ID, name, transactionId: o.TransactionID || "", lastModified: null }] };
+  }
   return { source: "other", forms: [] };
 }
 
@@ -77,10 +118,28 @@ async function selection(tabId) {
 let wfState = null;
 let wfShown = null; // which picks the panel is showing, so a click that changed nothing doesn't redraw
 let wfBusy = false;
-const selKey = (tabId, sel) => `${tabId}|${sel.source}|${sel.forms.map((f) => f.id).sort().join()}`;
+// The unsaved flag is part of the key, so pressing Save in WEBForms redraws the panel.
+const selKey = (tabId, sel) => `${tabId}|${sel.source}|${sel.forms.map((f) => f.id).sort().join()}|${sel.unsaved ? "unsaved" : ""}`;
+const UNSAVED = "This form has unsaved changes. Press Save in WEBForms first — the draft is made from the last saved copy.";
+
+// While an open form has unsaved changes, look again every 2 s: the Save click's own nudge
+// arrives before the save has finished, and nothing on the page announces it afterwards.
+let wfPoll = null;
+function stopPoll() { clearInterval(wfPoll); wfPoll = null; }
+function startPoll(tabId) {
+  stopPoll();
+  wfPoll = setInterval(async () => {
+    if (wfBusy || $("wf").hidden) return;
+    const tab = await activeTab();
+    if (!tab || tab.id !== tabId) { stopPoll(); return; }
+    const sel = await selection(tabId).catch(() => null);
+    if (sel && selKey(tabId, sel) !== wfShown) { stopPoll(); await refresh(); }
+  }, 2000);
+}
 
 async function showWebforms(tab) {
   show("wf");
+  stopPoll();
   $("wf-go").disabled = true;
   $("wf-title-wrap").hidden = true;
   $("wf-forms").replaceChildren();
@@ -90,13 +149,17 @@ async function showWebforms(tab) {
   const hint = {
     deal: "Tick the forms to send in this deal's Forms list.",
     basket: "Open a form's folder and add your standalone forms to the Basket.",
-    open: "Close the form (save it first), then tick it in the deal's Forms list or add it to the Basket.",
-    other: "Open a deal's Forms list, or the Forms library for standalone forms.",
+    open: "The form is still loading…",
+    other: "Open a form, a deal's Forms list, or the Forms library for standalone forms.",
   }[sel.source];
-  if (!sel.forms.length) { say(""); $("wf-where").textContent = hint; wfState = null; return; }
+  if (!sel.forms.length) {
+    say(""); $("wf-where").textContent = hint; wfState = null;
+    if (sel.loading) startPoll(tab.id);
+    return;
+  }
 
-  $("wf-where").textContent = sel.source === "deal"
-    ? `${sel.forms.length} form(s) ticked on this deal:` : `${sel.forms.length} form(s) in your Basket:`;
+  $("wf-where").textContent = sel.source === "deal" ? `${sel.forms.length} form(s) ticked on this deal:`
+    : sel.source === "open" ? "The form you have open:" : `${sel.forms.length} form(s) in your Basket:`;
   for (const f of sel.forms) $("wf-forms").append(el("li", f.name));
   // The slow part: WEBForms is asked about each form in turn (rule 1), so say so.
   say(`Reading ${sel.forms.length === 1 ? "the form" : `${sel.forms.length} forms`} from WEBForms…`, "busy");
@@ -107,13 +170,18 @@ async function showWebforms(tab) {
   const d = await send(tab.id, { type: "webforms:details", transactionId, formIds: sel.forms.map((f) => f.id) });
   const info = new Map(d.forms.map((f) => [f.id, f]));
   wfState = {
-    tabId: tab.id, sel, userName: d.userName,
+    tabId: tab.id, sel, userName: d.userName, userEmail: d.userEmail || null,
     forms: sel.forms.map((f) => ({ ...f, ...info.get(f.id) })),
     address: matchAddress({ transaction: d.transaction, firstFormValues: d.firstFormValues }),
   };
   $("wf-title").value = suggestTitle({ transaction: d.transaction, forms: sel.forms, firstFormValues: d.firstFormValues });
   say("");
   $("wf-title-wrap").hidden = false;
+  if (sel.unsaved) {
+    say(UNSAVED, "warn");
+    startPoll(tab.id);
+    return; // Create stays off until WEBForms says it's saved
+  }
   $("wf-go").disabled = false;
 }
 
@@ -131,6 +199,11 @@ $("wf-go").addEventListener("click", async () => {
       say("Your picks changed — check the list and click Create again.", "warn");
       return;
     }
+    // The last moment to catch an edit made after the panel looked: never send a stale copy.
+    if (now.unsaved) {
+      await showWebforms(await chrome.tabs.get(wfState.tabId));
+      return;
+    }
     const z = await send(wfState.tabId, { type: "webforms:zip", forms: wfState.forms.map((f) => ({ id: f.id, name: f.name })) });
     const pairs = pairEntries(wfState.forms, await unzip(fromBase64(z.zipBase64)));
     const forms = pairs.map(({ form, data }) => {
@@ -140,12 +213,13 @@ $("wf-go").addEventListener("click", async () => {
         parties: form.parties || null, pdfBase64: toBase64(data) };
     });
     say("Opening Real Signature…", "busy");
-    const r = await chrome.runtime.sendMessage({ type: "job:create", job: {
+    const r = await chrome.runtime.sendMessage({ type: "job:create", background: POPUP, job: {
       title: $("wf-title").value.trim() || forms[0].name,
-      source: wfState.sel.source, address: wfState.address, webformsUserName: wfState.userName, forms,
+      source: wfState.sel.source, address: wfState.address, webformsUserName: wfState.userName, webformsUserEmail: wfState.userEmail, forms,
     } });
     if (r?.error) throw new Error(r.error);
     say("");
+    if (POPUP) await goToRealSignature(r.tabId);
   } catch (e) {
     say(String(e.message || e), "err");
     $("wf-go").disabled = false;
@@ -154,6 +228,28 @@ $("wf-go").addEventListener("click", async () => {
   }
 });
 $("wf-refresh").addEventListener("click", () => refresh());
+
+/** Popup only: switch to the new Real Signature tab with the side panel open there.
+ *  Chrome opens a side panel only straight after a click, and the download may have taken
+ *  long enough to lose that; if so, one more click (a fresh one) does it. */
+async function goToRealSignature(tabId) {
+  const go = async () => {
+    const opening = chrome.sidePanel.open({ tabId }); // called first, while the click still counts
+    await opening;
+    await chrome.tabs.update(tabId, { active: true });
+    window.close();
+  };
+  try {
+    await go();
+  } catch {
+    const b = el("button", "Go to Real Signature");
+    b.addEventListener("click", () => go().catch(async () => {
+      await chrome.tabs.update(tabId, { active: true });
+      window.close();
+    }));
+    $("msg").replaceChildren(el("div", "Your forms are ready in Real Signature.", "ok"), b);
+  }
+}
 
 // The WEBForms tab says something was clicked: re-read the picks, redraw only if they changed
 // (so a typed title survives clicks elsewhere on the page).
@@ -222,8 +318,9 @@ async function showRealsig(tab, job) {
     pick.onchange = () => updateDeal(); // a template can change who signs and how many
     const none = "No template — I'll place blocks in Real Signature";
     if (!usable.length) {
+      // The option text says it; why none fit is in the Templates ⓘ.
       pick.replaceChildren(option("none", none, { selected: true }));
-      div.append(pick, el("div", "None of your Real Signature templates fit this form, so you'll place the signature blocks yourself in Real Signature.", "note"));
+      div.append(pick);
     } else {
       const opts = [option("", "Choose a template…", { selected: !s.remembered, disabled: true })];
       if (s.remembered) opts.push(option(s.remembered.id, `${s.remembered.name} (last used)`, { selected: true }));
@@ -273,16 +370,22 @@ function updateDeal() {
   }
   if (deal) {
     notes.push(...wrongDealWarnings({ webformsAddress: job.address, webformsAgentName: null, deal }));
-    notes.push(...actingNotes({ me: c.me, deal, webformsUserName: job.webformsUserName }));
+    notes.push(...actingNotes({ me: c.me, deal, webformsUserName: job.webformsUserName, webformsUserEmail: job.webformsUserEmail }));
     const n = { BUYER: Number($("rs-buyers").value) || 0, SELLER: Number($("rs-sellers").value) || 0 };
     for (const p of signersWithoutEmail(deal, n)) {
       const who = `${p.role === "BUYER" ? "Buyer" : "Seller"} ${p.slot}${p.name ? ` (${p.name})` : ""}`;
       notes.push(`${who} has no email in reZEN, so they're left off — add them in Real Signature before sending.`);
     }
   } else if (id === "none") {
-    notes.push(...actingNotes({ me: c.me, deal: null, webformsUserName: job.webformsUserName }));
+    notes.push(...actingNotes({ me: c.me, deal: null, webformsUserName: job.webformsUserName, webformsUserEmail: job.webformsUserEmail }));
   }
-  $("rs-warn").replaceChildren(...notes.map((t) => el("div", t, "warn")));
+  // Plain strings are warnings; actingNotes gives {level, text}. Warnings first, then the
+  // quiet context lines.
+  const all = notes.map((n) => (typeof n === "string" ? { level: "warn", text: n } : n));
+  $("rs-warn").replaceChildren(
+    ...all.filter((n) => n.level !== "info").map((n) => el("div", n.text, "warn")),
+    ...all.filter((n) => n.level === "info").map((n) => el("div", n.text, "info")),
+  );
   updateAgent();
 }
 
@@ -305,7 +408,7 @@ function updateAgent() {
   }
   const forms = roles.filter(Boolean);
   const role = forms[0];
-  const people = role ? agentPeople({ deal, role, me: c.me, webformsUserName: job.webformsUserName }) : [];
+  const people = role ? agentPeople({ deal, role, me: c.me, webformsUserName: job.webformsUserName, webformsUserEmail: job.webformsUserEmail }) : [];
   const on = $("rs-agent").checked;
 
   // Two or more agents on the deal (a team): one signs, or all of them. The panel remembers
@@ -326,22 +429,29 @@ function updateAgent() {
     pick.replaceChildren();
   }
 
-  let text = "";
+  // Visible: one short line of what will happen. The why goes in the agent ⓘ.
+  let text = "", more = "";
   if (!forms.length) {
-    text = "None of these forms has a place for the agent to sign (their templates have no agent blocks).";
+    text = on ? "No form here has agent blocks." : "";
+    more = "These forms' templates have no agent blocks, so the agent isn't added to any of them.";
   } else if (!people.length) {
-    text = "Couldn't find the agent's email on this deal — add the agent in Real Signature.";
+    text = "No agent email on this deal — add the agent in Real Signature.";
   } else if (on) {
-    const where = forms.length === job.forms.length ? "" : ` on ${forms.length} of ${job.forms.length} forms (the others' templates have no agent blocks)`;
     const label = ROLE_LABEL[role] || "agent";
+    const where = forms.length === job.forms.length ? "" : ` on ${forms.length} of ${job.forms.length} forms`;
+    if (forms.length !== job.forms.length) more = "The other forms' templates have no agent blocks, so the agent isn't added to them. ";
     if (people.length > 1 && pick.value === "all") {
-      text = `Adds all ${people.length} agents as ${label}s${where}. Templates have blocks for one agent, so place the others' blocks in Real Signature.`;
+      text = `Adds all ${people.length} agents as ${label}s${where}.`;
+      more += "Templates have blocks for one agent, so place the other agents' blocks in Real Signature.";
     } else {
       const who = people.find((p) => p.email === pick.value) || people[0];
       text = `Adds ${who.name} as ${label}${where}.`;
+      if (people.length > 1) more += "Your choice of one agent or all of them is remembered for next time.";
     }
   }
   $("rs-agent-who").textContent = text;
+  $("rs-agent-more").textContent = more;
+  syncTips();
 }
 
 /** What rs:create is told: null (agent not added), "all", or the chosen agent's email. */
@@ -388,7 +498,7 @@ $("rs-go").addEventListener("click", async () => {
     // up long enough to read, then close. sidePanel.close() is newer Chrome (141+);
     // window.close() closes a side panel on older versions. Failures stay open (catch below).
     setTimeout(() => {
-      Promise.resolve(chrome.sidePanel?.close?.({ windowId: tab.windowId }))
+      Promise.resolve(chrome.sidePanel?.close?.({ tabId: tab.id }))
         .catch(() => {}).finally(() => window.close());
     }, 1500);
   } catch (e) {
@@ -419,7 +529,7 @@ $("setup-run").addEventListener("click", async () => {
   const rs = rsAsk.r, wf = wfAsk.r;
   const rsTab = rsAsk.tabs > 0, wfTab = wfAsk.tabs > 0;
   if (wf && rs?.signedIn && wf.signedIn) {
-    wf.samePerson = String(wf.userName || "").trim().toLowerCase() === String(rs.fullName || "").trim().toLowerCase();
+    wf.samePerson = samePerson({ wfEmail: wf.userEmail, rsEmail: rs.email }); // null → "unknown"
   }
   let text = setupReport({ rs, wf });
   if (!rsTab) text += "\n(open Real Signature in a tab to check it)";
@@ -460,4 +570,5 @@ async function refresh() {
 
 chrome.tabs.onActivated.addListener(() => refresh());
 chrome.tabs.onUpdated.addListener((_id, info) => info.status === "complete" && refresh());
+syncTips();
 refresh();
