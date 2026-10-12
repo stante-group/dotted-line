@@ -8,6 +8,15 @@
     h1 { font-size: 16px; margin: 0 0 12px; }
     h2 { font-size: 13px; margin: 16px 0 6px; text-transform: uppercase; letter-spacing: .04em; color: #5b6475; }
     .note { color: #5b6475; font-size: 13px; }
+    label.check { display: flex; align-items: center; gap: 6px; margin-top: 10px; font-weight: normal; }
+    label.check input { width: auto; margin: 0; }
+    /* "Still working" — every wait on WEBForms or Real Signature shows this, so a slow
+       lookup never looks like a frozen panel. */
+    .busy { display: flex; align-items: center; gap: 8px; color: #5b6475; font-size: 13px; margin: 8px 0; }
+    .busy::before { content: ""; flex: none; width: 14px; height: 14px; border-radius: 50%;
+      border: 2px solid #d5d9e0; border-top-color: #2f6fed; animation: spin 0.8s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    @media (prefers-reduced-motion: reduce) { .busy::before { animation-duration: 2.4s; } }
     .warn { background: #fff7e6; border: 1px solid #f0c36d; border-radius: 6px; padding: 8px 10px; font-size: 13px; margin: 8px 0; }
     .err { background: #fdecec; border: 1px solid #e59a9a; border-radius: 6px; padding: 8px 10px; font-size: 13px; margin: 8px 0; }
     .ok { background: #eaf6ee; border: 1px solid #8cc9a0; border-radius: 6px; padding: 8px 10px; font-size: 13px; margin: 8px 0; }
@@ -60,10 +69,17 @@
       <div id="rs-warn"></div>
       <h2>Signers</h2>
       <div class="row">
-        <label>Buyers <input id="rs-buyers" type="number" min="0" max="4" value="1"></label>
-        <label>Sellers <input id="rs-sellers" type="number" min="0" max="4" value="1"></label>
+        <label>Buyers <input id="rs-buyers" type="number" min="0" max="4" value="2"></label>
+        <label>Sellers <input id="rs-sellers" type="number" min="0" max="4" value="2"></label>
       </div>
-      <p class="note">Blocks for signers beyond these numbers are left off.</p>
+      <p class="note" id="rs-counts-why"></p>
+      <p class="note">At least two per signing side, because deleting an unused signer in Real Signature is easier than placing their blocks. Blocks for signers beyond these numbers are left off.</p>
+      <label class="check"><input id="rs-agent" type="checkbox"> Add the agent as a signer</label>
+      <div id="rs-agent-pick-wrap" hidden>
+        <label for="rs-agent-pick">Who signs as agent</label>
+        <select id="rs-agent-pick"></select>
+      </div>
+      <p class="note" id="rs-agent-who"></p>
       <h2>Templates</h2>
       <div id="rs-templates"></div>
       <button id="rs-go">Create draft</button>

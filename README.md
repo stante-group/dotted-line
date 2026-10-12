@@ -7,8 +7,8 @@ Real Signature templates. You review the draft and press Send yourself.
 
 Open source, so anyone can check exactly what it does.
 
-**Status: in development.** First working version being tested; not in the Chrome Web
-Store yet. See [PLAN.md](PLAN.md).
+**Status: in development.** Working end to end in testing; not in the Chrome Web Store
+yet. See [PLAN.md](PLAN.md).
 
 ## How it works
 
@@ -16,10 +16,13 @@ Store yet. See [PLAN.md](PLAN.md).
    them to the **Basket** inside each form's folder.
 2. Open the Dotted Line side panel, check the title, click **Create Real Signature draft**.
    It uses WEBForms' own zip download and keeps the PDFs exactly as WEBForms made them.
-3. Real Signature opens. In the panel, pick the reZEN deal (best address match first) and a
-   template for each form — it remembers your choice next time.
+3. Real Signature opens. In the panel, check the reZEN deal (best address match first,
+   picked for you when it's clear) and pick a template for each form — it remembers your
+   choice next time. The signers are worked out for you: your side's clients from the deal
+   (at least two slots each — deleting a spare is easier than adding one), and optionally
+   the agent. The panel says why, and you can change the numbers.
 4. **Create draft.** You land on the draft (or a packet, for several forms) in Real
-   Signature. Check it and press Send yourself.
+   Signature, deal and signers filled in. Check it and press Send yourself.
 
 ## What it does — and doesn't
 

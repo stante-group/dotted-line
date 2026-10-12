@@ -60,7 +60,23 @@ export class RealSignature {
     if (form) body = form;
     const r = await this.fetch(url.toString(), { method, headers, body });
     if (r.status === 401) throw new NotSignedIn("Real Signature sign-in expired");
-    if (!r.ok) throw new Error(`${method} ${path} → ${r.status}`);
+    if (!r.ok) {
+      // A bare "→ 400" can't be diagnosed. Real answers with a problem+json body whose
+      // detail/message says which field it refused; keep a short, single-line copy.
+      let why = "";
+      try {
+        const t = await r.text();
+        let j = null;
+        try { j = JSON.parse(t); } catch { /* not JSON */ }
+        // Real wraps it: {"com.real.commons.apierror.ApiError": {message, …}}.
+        if (j && typeof j === "object" && Object.keys(j).length === 1 && typeof Object.values(j)[0] === "object") {
+          j = Object.values(j)[0];
+        }
+        why = String((j && (j.detail || j.message || j.error || j.title)) || t || "")
+          .replace(/\s+/g, " ").trim().slice(0, 300);
+      } catch { /* no body */ }
+      throw new Error(`${method} ${path} → ${r.status}${why ? `: ${why}` : ""}`);
+    }
     if (r.status === 204) return null;
     const text = await r.text();
     return text ? JSON.parse(text) : null;

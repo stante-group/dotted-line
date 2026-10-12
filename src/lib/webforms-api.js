@@ -99,6 +99,35 @@ export function zipEntryName(formName) {
   return `${String(formName).replace(/[/:]/g, "_")}.pdf`;
 }
 
+// Alberta (AREA) forms hold the parties in txtbuyer1/2 and txtseller1/2, with the names
+// under the signature lines in txtbuyersig1/2 and txtsellersig1/2 (checked on 10 forms,
+// 2026-10-11). Two lines per side, so a couple often shares one ("Jordan & Riley Sample").
+const PARTY_FIELDS = {
+  BUYER: [["txtbuyer1", "txtbuyer2"], ["txtbuyersig1", "txtbuyersig2"]],
+  SELLER: [["txtseller1", "txtseller2"], ["txtsellersig1", "txtsellersig2"]],
+};
+const COMPANY = /\b(ltd|limited|inc|incorporated|corp|corporation|company|co|llp|lp|trust|estate)\b\.?/i;
+
+/** How many people one name line holds: 1, plus one per "&" / "and" / "+" — unless it's a
+ *  company ("Example Holdings Ltd. and Sons" is one signer). A guess, never authoritative. */
+function peopleOnLine(s) {
+  const t = String(s ?? "").trim();
+  if (!t) return 0;
+  if (COMPANY.test(t)) return 1;
+  return 1 + (t.match(/&|\+|\band\b/gi) || []).length;
+}
+
+/** WEBForms form values → how many buyers and sellers the agent typed in, as counts only
+ *  (no names leave the content script). Each side takes the larger of its party lines and
+ *  its signature-name lines. A form without these fields → 0s. */
+export function partiesFromFormValues(values) {
+  const out = {};
+  for (const [side, sets] of Object.entries(PARTY_FIELDS)) {
+    out[side] = Math.max(...sets.map((keys) => keys.reduce((n, k) => n + peopleOnLine(values?.[k]), 0)));
+  }
+  return out;
+}
+
 /** Pair each picked form with its zip entry by name. Two forms with the same name can't be
  *  told apart in the zip, so that's refused rather than risking swapped contracts. */
 export function pairEntries(forms, entries) {

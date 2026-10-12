@@ -49,6 +49,19 @@ export function rankDeals(webformsAddress, deals) {
     .sort((x, y) => y.score - x.score);
 }
 
+/** Which side the deal's agent represents: "BUYER", "SELLER", "DUAL" or null (unknown).
+ *  The deal LIST carries no buySide/listingSide flags; the owner's `represents` string does:
+ *  "Buy Side Representation" / "Listing Side Representation" (all 27 open deals checked,
+ *  2026-10-11; no dual one was open, so "dual" is matched loosely). A listing is the
+ *  seller's side by definition. */
+export function representedSide(t, { listing = false } = {}) {
+  const r = String(t.transactionOwner?.represents ?? "").toLowerCase();
+  if (/dual|both/.test(r) || (/buy/.test(r) && /list|sell/.test(r))) return "DUAL";
+  if (/buy/.test(r)) return "BUYER";
+  if (/list|sell/.test(r)) return "SELLER";
+  return listing ? "SELLER" : null;
+}
+
 /** arrakis deal → what the picker and the draft need. Hand-typed fields carry stray
  *  whitespace (a TAB before an MLS number has been seen), so trim everything. */
 export function summarizeDeal(t, { listing = false } = {}) {
@@ -56,6 +69,7 @@ export function summarizeDeal(t, { listing = false } = {}) {
   return {
     id: t.id,
     kind: listing ? "listing" : "deal",
+    side: representedSide(t, { listing }),
     address: trim(t.address?.oneLine),
     agentName: trim(t.transactionOwner?.name),
     ownerId: t.transactionOwner?.id ?? null,

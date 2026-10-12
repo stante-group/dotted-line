@@ -21,8 +21,8 @@ let clientP;
 function client() {
   clientP ??= (async () => {
     const lib = (p) => import(chrome.runtime.getURL(`src/lib/${p}`));
-    const [{ WebForms, readBearer }, pdf] = await Promise.all([lib("webforms-api.js"), lib("pdf.js")]);
-    return { wf: new WebForms({ getToken: () => readBearer(localStorage.getItem("ls.lastBearer")) }), pdf };
+    const [{ WebForms, readBearer, partiesFromFormValues }, pdf] = await Promise.all([lib("webforms-api.js"), lib("pdf.js")]);
+    return { wf: new WebForms({ getToken: () => readBearer(localStorage.getItem("ls.lastBearer")) }), pdf, partiesFromFormValues };
   })();
   return clientP;
 }
@@ -30,7 +30,7 @@ function client() {
 const ADDRESS_VARS = ["txtp_streetnum", "txtp_street", "txtp_city"];
 
 async function details({ transactionId, formIds }) {
-  const { wf } = await client();
+  const { wf, partiesFromFormValues } = await client();
   const [userName, transaction] = await Promise.all([
     wf.userName(),
     transactionId ? wf.transaction(transactionId) : null,
@@ -46,10 +46,38 @@ async function details({ transactionId, formIds }) {
       Name: transaction.Name, Address: transaction.Address, StreetNumber: transaction.StreetNumber,
       StreetName: transaction.StreetName, City: transaction.City,
     },
-    forms: forms.map(({ id, pageCount, formGuid }) => ({ id, pageCount, formGuid })),
+    // Buyer and seller COUNTS from the typed-in names, a hint for the signer numbers.
+    forms: forms.map(({ id, pageCount, formGuid, values }) => ({ id, pageCount, formGuid, parties: partiesFromFormValues(values) })),
     firstFormValues,
   };
 }
+
+// Ticking a form or adding it to the Basket fires no tab event, so an open panel would keep
+// showing the old picks. Tell the panel something was clicked; it re-reads the selection
+// itself and redraws only if it changed. Passive listeners: nothing on the page is altered
+// or blocked, no request is made, and only the word "changed" leaves this script.
+// Debounced so Angular has finished updating before the panel looks.
+// When the extension is reloaded or updated, this copy keeps running in already-open tabs
+// but is cut off: sendMessage then THROWS "Extension context invalidated" synchronously
+// (a .catch never sees it) and Chrome lists it as an extension error on every click
+// (2026-10-12). So check first, and an orphaned copy removes its own listeners.
+const NUDGE_EVENTS = ["click", "change", "keyup"];
+let nudge;
+function onPageEvent() {
+  clearTimeout(nudge);
+  nudge = setTimeout(() => {
+    if (!chrome.runtime?.id) { stopNudging(); return; }
+    try {
+      chrome.runtime.sendMessage({ type: "webforms:changed" }).catch(() => {});
+    } catch {
+      stopNudging();
+    }
+  }, 400);
+}
+function stopNudging() {
+  for (const type of NUDGE_EVENTS) document.removeEventListener(type, onPageEvent, { capture: true });
+}
+for (const type of NUDGE_EVENTS) document.addEventListener(type, onPageEvent, { capture: true, passive: true });
 
 chrome.runtime.onMessage.addListener((msg, _sender, reply) => {
   if (msg.type === "webforms:where") { reply(where()); return false; }

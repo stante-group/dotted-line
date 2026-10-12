@@ -57,6 +57,8 @@ async function summary() {
     me: c.me,
     templates: [...c.templates.values()].map(({ t, shared }) => ({
       id: t.id, name: t.name, pagesCount: t.pagesCount ?? null, blocks: blockCount(t), shared,
+      slots: c.lib.templateSlots(t.fieldDefinitions),
+      agentRole: c.lib.agentRoleFor({ layout: { signeeConfigs: t.signeeConfigs || [] } }),
     })),
     deals: [...c.deals.values()],
   };
@@ -86,7 +88,9 @@ async function setup() {
 
 const fileName = (name) => `${String(name).replace(/\.pdf$/i, "").replace(/[\\/:*?"<>|]+/g, "_")}.pdf`;
 
-async function create({ jobId, title, dealId, templateIds, counts }) {
+// agentChoice: null = don't add the agent; "all" = every agent on the deal; else the email
+// of the one agent who signs (see chooseAgents).
+async function create({ jobId, title, dealId, templateIds, counts, agentChoice = null }) {
   const c = await context();
   const { rs, lib } = c;
   const job = await chrome.runtime.sendMessage({ type: "job:get", id: jobId });
@@ -111,10 +115,18 @@ async function create({ jobId, title, dealId, templateIds, counts }) {
         const t = c.templates.get(templateIds[i])?.t || (await rs.getTemplate(templateIds[i]));
         layout = lib.dropUnusedSlots(lib.stripTemplate(t), counts);
       }
+      // The agent signs this form only if its template has an agent slot, or it has no
+      // template (blocks placed by hand); see agentRoleFor.
+      let agents = null;
+      if (agentChoice) {
+        const role = lib.agentRoleFor({ layout, counts });
+        const people = role ? lib.chooseAgents(lib.agentPeople({ deal, role, me: c.me, webformsUserName: job.webformsUserName }), agentChoice) : [];
+        if (people.length) agents = { signeeType: role, people };
+      }
       await rs.putDraft(up.id, lib.buildDraftBody({
         draft, layout,
         name: job.forms.length > 1 ? String(form.name).replace(/\.pdf$/i, "") : title,
-        pageCount: form.pageCount, transactionId: deal?.id, counts, signees, sender,
+        pageCount: form.pageCount, transactionId: deal?.id, counts, signees, sender, agents,
       }));
     }
     if (created.length > 1) {
@@ -123,7 +135,10 @@ async function create({ jobId, title, dealId, templateIds, counts }) {
       packetId = p.id;
       return { url: `/one-time-documents/packet/${packetId}`, drafts: created.length, packet: true };
     }
-    return { url: `/prepare/${created[0]}`, drafts: 1, packet: false };
+    // The page Real's own Drafts pencil opens: Transaction → Edit details (signers, names,
+    // emails) → Prepare → Review. /prepare/{id} jumped past the first two, so an agent
+    // couldn't see who the draft was going to (2026-10-12).
+    return { url: `/one-time-documents/document/${created[0]}`, drafts: 1, packet: false };
   } catch (e) {
     if (packetId) await rs.deletePacketDraft(packetId).catch(() => {});
     for (const id of created) await rs.deleteDraft(id).catch(() => {});

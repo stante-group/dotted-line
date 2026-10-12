@@ -67,8 +67,11 @@ Real's UI has no "packet" choice at upload: each PDF uploads as its own one-time
   `null` and accepted as `null`.
 - Fields also carry `defaultValue` and `readonly`; set `defaultValue: null` when copying so
   a template's typed-in text doesn't ride along.
-- Editor URL for a template or draft: `/prepare/{id}` (Upload → Edit details → Prepare →
-  Review).
+- Editor URL for a template: `/prepare/{id}` (Upload → Edit details → Prepare → Review).
+  For a one-time DRAFT use `/one-time-documents/document/{id}` — what the Drafts pencil
+  opens: Transaction → Edit details (signers with names and emails) → Prepare → Review.
+  `/prepare/{id}` on a draft skips straight to block placement, and the signers are
+  nowhere to be seen (2026-10-12). Packets: `/one-time-documents/packet/{id}`, same steps.
 - Many real templates are text-fill only (`STRING`/`SENDER`, no signature blocks). Layout
   reuse only helps where a template actually has SIGNATURE/INITIALS/SIGNED_DATE fields.
 
@@ -125,8 +128,15 @@ before an MLS number has been seen) — normalise before comparing.
 - **No auto-save.** Save = `PUT /api/formeditor/saveForm/{formId}` then
   `POST /api/formeditor/saveMarkups/{formId}`. A `beforeunload` guard marks unsaved edits.
 - Signed-in user: `GET /api/systems/GetPopulatedGlobalJson` → `UserID`, `UserName`,
-  `OfficeID`, `IsBroker`, `Roles`, … (loaded by every page). How impersonation shows here
-  is Phase 0 item 7.
+  `OfficeID`, `IsBroker`, `Roles`, … (loaded by every page). **Impersonation (checked
+  2026-10-12, a team lead impersonating a teammate):** `UserName` is the IMPERSONATED
+  agent, and `formfields` and the zip download still work (a full hand-off to Real
+  Signature ran while impersonating; the panel matched the teammate's deal and showed the
+  others'-deal and different-sign-in notes). So
+  `UserName` says whose forms these are — the panel uses it to warn
+  ("WEBForms is signed in as X; Real Signature as Y") and to suggest that agent as the
+  agent signer. Real Signature has no equivalent: drafts are made in the signed-in Real
+  account, which for a team lead already sees teammates' deals.
 - **Auth (Phase 0, 2026-10-11):** `Authorization: Bearer <token>`. The token is opaque (not
   a JWT, ~580 chars) and JS-readable in two places that hold the same value: localStorage
   `ls.lastBearer` (JSON-quoted string) and cookie `bearer`.

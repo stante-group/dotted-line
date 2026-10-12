@@ -12,18 +12,125 @@ export function countsFromDeal(deal) {
   return counts;
 }
 
+// Forms that only one side ever signs, by WEBForms form name. Deliberately narrow: a
+// purchase contract, amendment or waiver can be signed by either side (or both, in dual),
+// so those give no clue and fall through to the deal.
+const SELLER_FORM = /\b(sellers?'?s?|vendors?'?s?|listing|property disclosure)\b/i;
+const BUYER_FORM = /\b(buyers?'?s?|purchasers?'?s?)\b/i;
+
+/** "BUYER" / "SELLER" if every named form is one-sided the same way, else null. */
+export function sideFromFormNames(names) {
+  const sides = new Set();
+  for (const n of names || []) {
+    const s = SELLER_FORM.test(n), b = BUYER_FORM.test(n);
+    if (s === b) return null; // neither, or both ("Seller's Acceptance of Buyer's Offer")
+    sides.add(s ? "SELLER" : "BUYER");
+  }
+  return sides.size === 1 ? [...sides][0] : null;
+}
+
+/** A signing side gets at least this many slots. Deleting an unused signer in Real Signature
+ *  is one click; adding one back means placing all their blocks by hand (Dan, 2026-10-11). */
+export const MIN_SIGNERS = 2;
+const atLeast = (n) => Math.max(MIN_SIGNERS, n);
+
+/** A template's signer slots: for each side, how many signers it has blocks for
+ *  (highest signeeIndex + 1). Name fields count too — a "Buyer 2 name" line still needs a
+ *  Buyer 2. */
+export function templateSlots(fieldDefinitions) {
+  const out = { BUYER: 0, SELLER: 0 };
+  for (const f of fieldDefinitions || []) {
+    if (f.signeeType in out) out[f.signeeType] = Math.max(out[f.signeeType], (f.signeeIndex ?? 0) + 1);
+  }
+  out.AGENT = (fieldDefinitions || []).filter((f) => AGENT_ROLES.includes(f.signeeType)).length;
+  return out;
+}
+
+/** "BUYER" / "SELLER" if the picked templates only ever have blocks for one side. */
+function sideFromTemplates(slots) {
+  const b = slots.some((x) => x.BUYER > 0), s = slots.some((x) => x.SELLER > 0);
+  return b === s ? null : b ? "BUYER" : "SELLER";
+}
+
+/** How many buyers and sellers sign, and why (for the panel to say).
+ *
+ *  Which side signs: the agent's own clients do; the other side's sign through their own
+ *  agent, and reZEN holds them without an email anyway (every open deal checked,
+ *  2026-10-11). So a buy-side deal → buyers, listing side → sellers. When the deal can't
+ *  say (dual, unknown, or no deal): the picked templates first — an agent who built a
+ *  template with seller blocks only meant it for sellers — then the form names, else both.
+ *
+ *  How many on a signing side: the most of the deal's people, the picked templates' slots,
+ *  the names typed into the WEBForms forms, and MIN_SIGNERS. The WEBForms names are only a
+ *  hint (a side has two name lines, so "A & B" on one line is guessed as two people), but
+ *  they never lower a count, so a wrong guess costs one deleted slot at most. Too many is
+ *  one click to fix in Real Signature; too few means placing blocks by hand. The agent can
+ *  always change the numbers.
+ *
+ *  templates: templateSlots() of each picked template (none picked → []).
+ *  webforms: partiesFromFormValues() of each form ({BUYER, SELLER} counts). */
+export function signerCounts({ deal, formNames, templates = [], webforms = [] }) {
+  const n = deal ? countsFromDeal(deal) : { BUYER: 0, SELLER: 0 };
+  const byTemplate = sideFromTemplates(templates);
+  const byName = sideFromFormNames(formNames);
+  const many = (xs) => (xs || []).length > 1;
+  const named = (side) => `${many(formNames) ? "these are" : "this is a"} ${side === "BUYER" ? "buyer" : "seller"}'s form${many(formNames) ? "s" : ""}`;
+  const tpl = (side) => `your template${many(templates) ? "s only have" : " only has"} ${side === "BUYER" ? "buyer" : "seller"} blocks`;
+
+  let side, why;
+  if (deal?.side === "BUYER") { side = "BUYER"; why = "This deal is buy-side, so its buyers sign; the sellers sign with their own agent."; }
+  else if (deal?.side === "SELLER") { side = "SELLER"; why = "This deal is listing-side, so its sellers sign; the buyers sign with their own agent."; }
+  else {
+    const lead = deal?.side === "DUAL" ? "Dual representation" : deal ? "Couldn't tell which side this deal is" : "No deal";
+    if (byTemplate) { side = byTemplate; why = `${lead}, and ${tpl(side)}, so only the ${side === "BUYER" ? "buyers" : "sellers"} sign.`; }
+    else if (byName) { side = byName; why = `${lead}, and ${named(side)}, so only the ${side === "BUYER" ? "buyers" : "sellers"} sign.`; }
+    else { side = "BOTH"; why = `${lead}, so buyers and sellers are both included.`; }
+  }
+
+  const counts = {};
+  const raised = [];
+  for (const role of SIGNER_ROLES) {
+    if (side !== "BOTH" && side !== role) { counts[role] = 0; continue; }
+    const fromTemplates = Math.max(0, ...templates.map((x) => x[role] || 0));
+    const fromForms = Math.max(0, ...webforms.map((x) => x[role] || 0));
+    const base = Math.max(MIN_SIGNERS, n[role]);
+    counts[role] = Math.max(base, fromTemplates, fromForms);
+    const who = role === "BUYER" ? "buyers" : "sellers";
+    if (fromTemplates > base && fromTemplates >= fromForms) raised.push(`your template has blocks for ${fromTemplates} ${who}`);
+    else if (fromForms > base) raised.push(`the WEBForms names look like ${fromForms} ${who}`);
+  }
+  if (raised.length) why += ` More than usual because ${raised.join(" and ")}.`;
+  return { counts, why };
+}
+
+const hasEmail = (p) => String(p.email || "").trim() !== "";
+
+/** Deal signers Real Signature can't take yet: reZEN often has a buyer or seller with no
+ *  email, and Real refuses the whole draft ("defaults.signees[n].email: must not be blank",
+ *  2026-10-11). They're left out; the panel names them so the agent adds them by hand. */
+export function signersWithoutEmail(deal, counts) {
+  const out = [];
+  for (const role of SIGNER_ROLES) {
+    (deal?.participants || []).filter((p) => p.role === role).slice(0, counts[role] ?? 0)
+      .forEach((p, i) => { if (!hasEmail(p)) out.push({ role, slot: i + 1, name: [p.firstName, p.lastName].filter(Boolean).join(" ") }); });
+  }
+  return out;
+}
+
 /** reZEN participants → Real Signature signees, Buyer 1 = BUYER/0. Only as many per role as
  *  `counts` allows; everyone signs in parallel (signOrder 1) — the agent can change the
- *  order in Real Signature before sending. */
+ *  order in Real Signature before sending. Anyone without an email is skipped (see
+ *  signersWithoutEmail) but keeps their slot number, so Buyer 2 stays Buyer 2 and the
+ *  template's blocks still point at the right person. */
 export function signeesFromDeal(deal, counts) {
   const out = [];
   for (const role of SIGNER_ROLES) {
     const people = (deal?.participants || []).filter((p) => p.role === role).slice(0, counts[role] ?? 0);
-    people.forEach((p, i) => out.push({
+    people.forEach((p, i) => hasEmail(p) && out.push({
       signeeType: role,
       signeeIndex: i,
       name: [p.firstName, p.lastName].filter(Boolean).join(" "),
-      email: p.email || "",
+      email: String(p.email).trim(),
       signOrder: 1,
     }));
   }
@@ -31,21 +138,95 @@ export function signeesFromDeal(deal, counts) {
 }
 
 /** Without a template the draft still needs to say who signs, so Real Signature offers
- *  those signers on its Prepare step. */
+ *  those signers on its Prepare step. minNum 0, like the agents' own templates: the
+ *  defaults deliberately over-provide (MIN_SIGNERS), and a minimum would stop the agent
+ *  deleting the spare. */
 function configsFromCounts(counts) {
   return Object.entries(counts)
     .filter(([, n]) => n > 0)
-    .map(([signeeType, n]) => ({ signeeType, minNum: n, maxNum: n }));
+    .map(([signeeType, n]) => ({ signeeType, minNum: 0, maxNum: n }));
+}
+
+// ---- the agent as a signer ----
+// Real Signature's "SENDER" slots are fill-before-send fields (text, dates, checkboxes),
+// never signatures; agents sign as BUYERS_AGENT / SELLERS_AGENT (checked on the agents'
+// templates, and Real accepts both as signees on a draft, 2026-10-12).
+export const AGENT_ROLES = ["BUYERS_AGENT", "SELLERS_AGENT"];
+const AGENT_FOR_SIDE = { BUYER: "BUYERS_AGENT", SELLER: "SELLERS_AGENT" };
+
+/** Which agent role signs one document, or null.
+ *  A template that has agent blocks decides (its role). A template WITHOUT agent blocks says
+ *  the agent doesn't sign this form → null. No template: the side that signs (from counts);
+ *  both sides (dual) → null, since one person can't be told which role to take. */
+export function agentRoleFor({ layout, counts }) {
+  if (layout) {
+    const roles = [...new Set((layout.signeeConfigs || []).map((c) => c.signeeType).filter((t) => AGENT_ROLES.includes(t)))];
+    return roles.length === 1 ? roles[0] : null;
+  }
+  const sides = Object.keys(AGENT_FOR_SIDE).filter((s) => (counts?.[s] ?? 0) > 0);
+  return sides.length === 1 ? AGENT_FOR_SIDE[sides[0]] : null;
+}
+
+const norm = (s) => String(s ?? "").replace(/\s+/g, " ").trim().toLowerCase();
+
+/** Everyone who could sign as the agent, best first: the deal's participants in that role
+ *  with an email — the signed-in agent first, then the deal owner by name, then the rest in
+ *  reZEN's order. A team deal often lists two or more; some teams have one sign, some
+ *  jurisdictions want all (the panel asks). With no deal, or a deal that lists nobody in the
+ *  role, the signed-in user if they are an agent and it's theirs. A TC is never put in as
+ *  the agent. → [{name, email}] */
+export function agentPeople({ deal, role, me, webformsUserName = null }) {
+  const full = (p) => [p.firstName, p.lastName].filter(Boolean).join(" ");
+  const seen = new Set();
+  const people = (deal?.participants || [])
+    .filter((p) => p.role === role && hasEmail(p))
+    .filter((p) => !seen.has(norm(p.email)) && seen.add(norm(p.email)));
+  // Whose forms these are comes first: a team lead impersonating a teammate in WEBForms (or
+  // a TC working in an agent's account) is doing that agent's file, even when the signed-in
+  // Real user is also on the deal. Then the signed-in agent, then the deal owner.
+  const rank = (p) => (webformsUserName && norm(full(p)) === norm(webformsUserName) ? 0
+    : norm(p.email) === norm(me?.email) ? 1 : norm(full(p)) === norm(deal?.agentName) ? 2 : 3);
+  const sorted = people.map((p, i) => [rank(p), i, p]).sort((a, b) => a[0] - b[0] || a[1] - b[1]).map(([, , p]) => p);
+  if (sorted.length) return sorted.map((p) => ({ name: full(p), email: String(p.email).trim() }));
+  const meIsAgent = me?.type === "AGENT" && hasEmail(me);
+  if (meIsAgent && (!deal || deal.ownerId === me.id)) {
+    return [{ name: me.fullName || full(me), email: String(me.email).trim() }];
+  }
+  return [];
+}
+
+/** The one agent who signs when only one does. → {name, email} or null. */
+export function agentPerson(args) {
+  return agentPeople(args)[0] || null;
+}
+
+/** Which of agentPeople() sign: "all", or one person by email (falls back to the best match
+ *  when that person isn't on this role's list, e.g. a different role on another form). */
+export function chooseAgents(people, choice) {
+  if (!people.length) return [];
+  if (choice === "all") return people;
+  return [people.find((p) => norm(p.email) === norm(choice)) || people[0]];
 }
 
 /** draft: GET /document-templates/{id} straight after upload. layout: stripped and
  *  slot-trimmed template, or null. PUT is a FULL replace, so every key the draft had is
- *  carried through. */
-export function buildDraftBody({ draft, layout, name, pageCount, transactionId, counts, signees, sender }) {
+ *  carried through. agents: {signeeType, people: [{name, email}]} to add the agent(s) as
+ *  signers, or null. Agent 1 takes the template's agent blocks; any more are added as
+ *  signers whose blocks the agent places in Real Signature. */
+export function buildDraftBody({ draft, layout, name, pageCount, transactionId, counts, signees, sender, agents = null }) {
   const pages = layout?.pagesCount ?? pageCount ?? draft.pagesCount ?? null;
   const base = layout
     ? applyToDraft({ ...draft, pagesCount: pageCount ?? draft.pagesCount }, layout)
     : { ...draft, fieldDefinitions: [], documentFieldValidations: [], signeeConfigs: configsFromCounts(counts) };
+  const all = [...signees];
+  if (agents?.people?.length) {
+    const type = agents.signeeType, n = agents.people.length;
+    const has = base.signeeConfigs.find((c) => c.signeeType === type);
+    base.signeeConfigs = has
+      ? base.signeeConfigs.map((c) => (c === has ? { ...c, maxNum: Math.max(c.maxNum ?? 0, n) } : c))
+      : [...base.signeeConfigs, { signeeType: type, minNum: 0, maxNum: n }];
+    agents.people.forEach((p, i) => all.push({ signeeType: type, signeeIndex: i, name: p.name, email: p.email, signOrder: 1 }));
+  }
   const types = new Set(base.signeeConfigs.map((c) => c.signeeType));
   const prev = draft.defaults || {};
   return {
@@ -55,7 +236,7 @@ export function buildDraftBody({ draft, layout, name, pageCount, transactionId, 
     defaults: {
       ...prev,
       transactionId: transactionId || null,
-      signees: signees.filter((s) => types.has(s.signeeType)),
+      signees: all.filter((s) => types.has(s.signeeType)),
       recipients: prev.recipients || [],
       sender,
       emailSubject: prev.emailSubject ?? null,

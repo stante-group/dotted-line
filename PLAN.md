@@ -129,10 +129,38 @@ flattened PDF per form, and ticked forms can be read from the page. Standalone f
 draft is `POST /packet-templates` (`oneTimeUse`) over one-time drafts; `/packets` is the
 send. **Open:** 7 (TC delegation). Its harness is built: `src/lib/actor.js` (who is
 acting for whom, `DELEGATION_VERIFIED = false`), the panel's "Check my setup" report, and
-the session script in `docs/tc-delegation-test.md`.
+the session script in `docs/tc-delegation-test.md`. **2026-10-12:** the WEBForms half of 7
+ran on a team lead impersonating a teammate — WEBForms reports the impersonated agent, the
+download works, and the panel warns. Left for the TC: Real Signature's side (who is sender
+on a draft she makes for an agent; whether `sender.agentYentaId` is the hook).
 
-**Phase 1 status (2026-10-11):** code complete, unit-tested (33 tests); not yet run end to
-end in a browser.
+**Phase 1 status (2026-10-12): working end to end** in Dan's browser — deal forms and
+Basket, single drafts and packets, with and without templates, no deal and matched deals.
+38 unit tests. What the browser runs changed or added beyond the bullets below:
+
+- **Signers.** Which side signs: a buy-side deal → buyers, listing side → sellers (reZEN's
+  `transactionOwner.represents`; the other side's clients are held without emails anyway);
+  dual / unknown / no deal → the picked templates' slots, then one-sided form names, else
+  both. How many: the most of the deal's people, the templates' slots, the names typed in
+  WEBForms (`txtbuyer1/2`, `txtseller1/2` and the signature-name lines; "A & B" counts two),
+  and **2** — a spare slot is one click to delete, a missing one means placing blocks by
+  hand. The panel says why. `src/lib/draft.js` `signerCounts`.
+- **No email, no signer.** reZEN people without an email are left off (Real refuses a blank
+  one) and the panel names them.
+- **The agent as a signer** (opt-in box, on when a template has agent blocks): Buyer's or
+  Seller's agent from the template or the side; the deal's agent, the WEBForms
+  (impersonated) agent first, else the signed-in agent, else the deal owner; one agent or
+  all, remembered per browser. A TC is never put in as the agent. Real's `SENDER` slots are
+  fill-before-send fields, not signatures.
+- **Landing.** One form → `/one-time-documents/document/{id}`, several →
+  `/one-time-documents/packet/{id}`: both open on Transaction → Edit details (signers) →
+  Prepare → Review. The panel closes itself after a successful create.
+- **Panel.** Follows ticks live (the WEBForms page nudges it), lists only templates with
+  blocks that fit the page count, flags a deal it picked by address, shows a spinner on
+  every wait, and Real's own error text on failure.
+
+Not yet seen: what Real does with an agent signer at send time; reZEN's label for a dual
+deal; other provinces' name fields.
 
 ### Phase 1 — MVP: ticked forms → draft
 
@@ -160,8 +188,9 @@ end in a browser.
   address match to the WEBForms transaction, **showing agent name and address**.
 - Form → template mapping: chosen once, remembered in the browser, suggested by name after;
   **refused when page counts differ** (form revised).
-- Signer slots: unused Buyer 2 / Seller 2 blocks removed; names and emails pre-filled from
-  the reZEN deal's clients when available.
+- Signer slots: blocks beyond the signer counts removed (counts default to at least 2 per
+  signing side — see Phase 1 status); names and emails pre-filled from the reZEN deal's
+  clients when available.
 - One form → one-time document draft; several → each uploaded as a one-time draft, then
   grouped with `POST /packet-templates`, the same call as Real's own "create packet". Land
   the agent on `/one-time-documents/packet/{id}`.
@@ -213,8 +242,9 @@ Install from an **unlisted** Chrome Web Store link during beta.
 ## Open questions
 
 - CREA's own WEBForms terms (not public) and AREA form copyright — ask before public release.
-- Delegation model (Phase 0 step 7). Where a packet's deal is stored (likely each
-  document's `defaults.transactionId`; check when building).
+- Delegation model (Phase 0 step 7, Real Signature side).
+- ~~Where a packet's deal is stored~~ — each document's `defaults.transactionId`; Real's
+  packet editor shows it as the selected transaction (seen 2026-10-12).
 - Repo: `stante-group/dotted-line`. Store name "Dotted Line by Deal Dates" — chosen 2026-10-10 over RealDealForms, which read as an official Real tool (Web Store affiliation rule, Real, Lone Wolf).
 
 ## Reference

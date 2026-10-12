@@ -45,6 +45,14 @@ should do the same. Delete the test draft afterwards.
 
 ## 3. WEBForms impersonation (3 min)
 
+**Partly answered 2026-10-12** by a team lead impersonating a teammate (no TC needed):
+the setup check ran in both tabs, and "Same person in both" went to **no** — WEBForms
+reports the impersonated agent (see `docs/api-notes.md`, WEBForms signed-in user). Then a
+full hand-off while impersonating: the forms downloaded, Real Signature opened, the panel
+picked the teammate's deal and showed all three notes (picked for you; another agent's
+deal, you as sender; WEBForms and Real signed in as different people). Still to see with
+the TC: whether her WEBForms access is impersonation or a login of her own.
+
 If she works in agents' WEBForms accounts by impersonating them: impersonate one, open a
 deal's Forms list, tick a form, and open the Dotted Line panel. Note:
 
