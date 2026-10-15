@@ -7,3 +7,5 @@ node_modules/
 *.har
 captures/
 .DS_Store
+
+store/demo/panel.html

@@ -27,9 +27,19 @@ const POPUP = "src/panel/panel.html?popup=1";
 chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(() => {});
 chrome.sidePanel.setOptions({ enabled: false }).catch(() => {});
 chrome.action.setPopup({ popup: POPUP }).catch(() => {});
+// The icon is live on WEBForms and Real Signature only, greyed (disabled) everywhere else
+// (Dan, 2026-10-15): on other sites the popup only said "open WEBForms", and a blue icon
+// suggested it would do something there. Disabled by default; placeUi turns it on per tab.
+// Settings stays in the icon's right-click menu (Options) on every site.
+chrome.action.disable().catch(() => {});
+const WF = "https://pr.transactiondesk.com/";
 
 async function placeUi(tabId, url) {
-  const rs = String(url || "").startsWith(RS);
+  const u = String(url || "");
+  const rs = u.startsWith(RS);
+  // Without the "tabs" permission Chrome only gives us the URL of our two sites; any other
+  // tab's url is undefined, which correctly reads as "not ours".
+  await (rs || u.startsWith(WF) ? chrome.action.enable(tabId) : chrome.action.disable(tabId)).catch(() => {});
   await chrome.action.setPopup({ tabId, popup: rs ? "" : POPUP }).catch(() => {});
   await chrome.sidePanel.setOptions(rs ? { tabId, path: PANEL, enabled: true } : { tabId, enabled: false }).catch(() => {});
 }

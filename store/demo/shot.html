@@ -1,0 +1,42 @@
+<!doctype html>
+<!-- One 1280×800 store screenshot: a caption beside the real panel running on mock.js.
+     ?scene=wf (the WEBForms popup) or rs (the Real Signature side panel). -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Dotted Line screenshot</title>
+<style>
+  html, body { margin: 0; }
+  body { width: 1280px; height: 800px; overflow: hidden; display: flex; align-items: center; gap: 72px;
+    padding: 0 96px; box-sizing: border-box; background: #f4f5f7;
+    font: 16px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; color: #1d2330; }
+  .copy { flex: 1; }
+  .copy img { width: 56px; height: 56px; }
+  h1 { font-size: 44px; line-height: 1.15; margin: 20px 0 16px; letter-spacing: -0.01em; }
+  p { font-size: 20px; color: #4a5263; margin: 0 0 12px; max-width: 30em; }
+  .frame { width: 400px; height: 700px; background: #fff; border-radius: 12px; overflow: hidden;
+    box-shadow: 0 1px 2px rgba(0,0,0,.06), 0 12px 40px rgba(20,30,50,.14); border: 1px solid #e3e6eb; }
+  iframe { width: 100%; height: 100%; border: 0; }
+</style>
+</head>
+<body>
+  <div class="copy">
+    <img src="../../icons/icon-128.png" alt="">
+    <h1 id="h"></h1>
+    <p id="p1"></p>
+    <p id="p2"></p>
+  </div>
+  <div class="frame"><iframe id="f" title="Dotted Line panel"></iframe></div>
+<script>
+  const scene = new URLSearchParams(location.search).get("scene") || "rs";
+  const text = {
+    wf: ["Start from the forms you ticked in WEBForms.", "Dotted Line reads the forms you ticked and names the draft for you.", "Nothing changes in WEBForms — your PDFs go over exactly as they are."],
+    rs: ["A Real Signature draft, on the right deal.", "It picks the matching reZEN deal, adds your clients as signers and places your template's signature blocks.", "It stops at a draft. You check it and press Send yourself."],
+  }[scene];
+  ["h", "p1", "p2"].forEach((id, i) => { document.getElementById(id).textContent = text[i]; });
+  // The popup is short; the side panel needs nearly the full height to show its last line.
+  document.querySelector(".frame").style.height = scene === "wf" ? "480px" : "760px";
+  document.getElementById("f").src = `panel.html?scene=${scene}${scene === "wf" ? "&popup" : ""}`;
+</script>
+</body>
+</html>
