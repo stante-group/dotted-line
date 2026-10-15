@@ -275,7 +275,38 @@ async function openActing() {
   }, 1000);
 }
 
+// A hand-off from WEBForms still under way when the agent clicks over to this tab — before
+// the side panel could open here — used to look like nothing at all (2026-10-15). A small
+// notice says what's happening; it goes once the side panel shows, or the draft opens.
+// Shadow DOM, so Real's styles and ours never mix; text only, never Real's look.
+let notice = null;
+function showNotice(p) {
+  if (!p || p.hide) { notice?.remove(); notice = null; return; }
+  if (!notice) {
+    notice = document.createElement("div");
+    const root = notice.attachShadow({ mode: "closed" });
+    root.innerHTML = `<style>
+      div { position: fixed; right: 16px; bottom: 16px; z-index: 2147483647; max-width: 320px;
+        background: #fff; color: #1f2937; border: 1px solid #d1d5db; border-left: 4px solid #2563eb;
+        border-radius: 8px; box-shadow: 0 4px 16px rgba(0,0,0,.15); padding: 10px 12px;
+        font: 13px/1.4 system-ui, sans-serif; }
+      b { display: block; margin-bottom: 2px; } div.err { border-left-color: #b91c1c; }
+    </style><div><b>Dotted Line</b><span></span></div>`;
+    document.documentElement.append(notice);
+    notice.box = root.querySelector("div");
+    notice.text = root.querySelector("span");
+  }
+  notice.box.className = p.error ? "err" : "";
+  notice.text.textContent = p.error ? `Couldn't bring your forms over: ${p.error}`
+    : p.busy ? `${p.busy} Stay on this tab or go back — it carries on either way.`
+    : "Your forms are here. Click the Dotted Line icon in the toolbar to finish the draft.";
+}
+chrome.runtime.sendMessage({ type: "job:status" }).then(showNotice, () => {});
+
 chrome.runtime.onMessage.addListener((msg, _sender, reply) => {
+  // Notices about this tab's hand-off: no reply needed.
+  if (msg?.type === "rs:handoff") { showNotice(msg); return false; }
+  if (msg?.type === "rs:notice-hide") { showNotice(null); return false; }
   const run = {
     "rs:open-acting": openActing,
     "rs:context": summary,

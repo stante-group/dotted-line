@@ -1,9 +1,6 @@
 // The side panel: all of the extension's UI lives here, never in WEBForms' pages (rule 3).
 // Text from WEBForms and reZEN is only ever set with textContent.
 
-import { unzip } from "../lib/unzip.js";
-import { isPdf, hasAcroForm, countPages, fromBase64, toBase64 } from "../lib/pdf.js";
-import { pairEntries } from "../lib/webforms-api.js";
 import { suggestTitle, matchAddress } from "../lib/title.js";
 import { wrongDealWarnings } from "../lib/deals.js";
 import { confidentDeal, usableTemplates } from "../lib/auto.js";
@@ -270,7 +267,6 @@ async function showWebforms(tab) {
   }
 }
 
-let rsTab = null; // Promise<tabId|null> while a Create is under way, before the job owns the tab
 $("wf-go").addEventListener("click", async () => {
   if (!wfState) return;
   $("wf-go").disabled = true;
@@ -290,40 +286,22 @@ $("wf-go").addEventListener("click", async () => {
       await showWebforms(await chrome.tabs.get(wfState.tabId));
       return;
     }
-    // Real Signature loads in its tab while WEBForms makes the zip, not after it (speed,
-    // 2026-10-14). If the forms don't come through, that tab is closed again.
-    rsTab = chrome.runtime.sendMessage({ type: "rs:open", background: POPUP }).then((r) => r?.tabId ?? null, () => null);
-    const tZip = Date.now();
-    const z = await send(wfState.tabId, { type: "webforms:zip", forms: wfState.forms.map((f) => ({ id: f.id, name: f.name })) });
-    const timings = { pdfDownload: Math.round((Date.now() - tZip) / 100) / 10 };
-    const pairs = pairEntries(wfState.forms, await unzip(fromBase64(z.zipBase64)));
-    const forms = pairs.map(({ form, data }) => {
-      if (!isPdf(data)) throw new Error(`"${form.name}" didn't come back as a PDF.`);
-      if (hasAcroForm(data)) throw new Error(`"${form.name}" came back as a fillable PDF, not the flattened form. Not using it.`);
-      // From here on a form is known by its TYPE's name (template suggestions, the buyer or
-      // seller side, Real's document names); WEBForms' own name was only for the zip.
-      return { id: form.id, name: form.typeName || form.name, library: form.library || null,
-        formGuid: form.formGuid, pageCount: form.pageCount ?? countPages(data),
-        parties: form.parties || null, pdfBase64: toBase64(data) };
-    });
-    say("Opening Real Signature…", "busy");
-    const r = await chrome.runtime.sendMessage({ type: "job:create", background: POPUP, tabId: await rsTab, job: {
-      timings,
-      title: $("wf-title").value.trim() || forms[0].name,
-      source: wfState.sel.source, address: wfState.address, buyerNames: wfState.buyerNames, agentSide: wfState.agentSide, parties: wfState.parties, contactPeople: wfState.contactPeople, titleValues: wfState.titleValues, webformsUserName: wfState.userName, webformsUserEmail: wfState.userEmail, forms,
+    // The rest runs in the service worker (job:start): this popup closes the moment the
+    // agent clicks anything else, and the hand-off must finish anyway (2026-10-15).
+    const auto = POPUP && (await settings()).autoCreate;
+    const r = await chrome.runtime.sendMessage({ type: "job:start", wfTabId: wfState.tabId, wfForms: wfState.forms, background: POPUP, auto, meta: {
+      title: $("wf-title").value.trim() || wfState.forms[0].typeName || wfState.forms[0].name,
+      source: wfState.sel.source, address: wfState.address, buyerNames: wfState.buyerNames, agentSide: wfState.agentSide, parties: wfState.parties, contactPeople: wfState.contactPeople, titleValues: wfState.titleValues, webformsUserName: wfState.userName, webformsUserEmail: wfState.userEmail,
     } });
-    if (r?.error) throw new Error(r.error);
-    rsTab = null; // bound to the job now
-    if (POPUP && (await settings()).autoCreate) {
-      // One click: the service worker makes the draft when nothing needs the agent, and
-      // switches to it (which closes this popup). It does the work, not this page: a popup
-      // closes the moment the agent clicks elsewhere, and a draft half-handled by a closed
-      // popup would be left bound to its tab for the panel to make a second time.
-      say("Making your draft in Real Signature…", "busy");
-      const a = await chrome.runtime.sendMessage({ type: "job:auto", id: r.id });
-      if (a?.done || a?.busy) { window.close(); return; } // busy: that same draft is already being made
+    if (r?.error) {
+      // Still here, so the agent hasn't gone to that tab: close it, the error is shown here.
+      if (r.tabId) chrome.tabs.remove(r.tabId).catch(() => {});
+      throw new Error(r.error);
+    }
+    if (auto) {
+      if (r.auto?.done || r.auto?.busy) { window.close(); return; } // busy: that same draft is already being made
       say("");
-      await goToRealSignature(r.tabId, !!a?.needs?.length);
+      await goToRealSignature(r.tabId, !!r.auto?.needs?.length);
       return;
     }
     say("");
@@ -331,11 +309,8 @@ $("wf-go").addEventListener("click", async () => {
   } catch (e) {
     say(String(e.message || e), "err");
     $("wf-go").disabled = false;
-    const t = await rsTab;
-    if (t) chrome.tabs.remove(t).catch(() => {}); // opened for forms that never came
   } finally {
     wfBusy = false;
-    rsTab = null;
   }
 });
 $("wf-refresh").addEventListener("click", () => refresh());
@@ -399,6 +374,7 @@ function option(value, text, { selected = false, disabled = false } = {}) {
 
 async function showRealsig(tab, job) {
   show("rs");
+  hideNotice();
   $("rs-form").hidden = true;
   $("rs-status").textContent = "Loading your deals and templates…";
   $("rs-status").className = "busy";
@@ -756,6 +732,28 @@ $("rs-go").addEventListener("click", async () => {
   }
 });
 
+// ---------- a hand-off still under way (job:start) ----------
+
+// The Real Signature tab's own notice ("click the Dotted Line icon…") — this panel is open now.
+function hideNotice() {
+  activeTab().then((t) => t && chrome.tabs.sendMessage(t.id, { type: "rs:notice-hide" }).catch(() => {}));
+}
+
+function showHandoff(p) {
+  show("rs");
+  hideNotice();
+  $("rs-form").hidden = true;
+  $("rs-status").textContent = p.error ? `Couldn't bring your forms over: ${p.error}` : p.busy;
+  $("rs-status").className = p.error ? "err" : "busy";
+}
+chrome.runtime.onMessage.addListener((msg) => {
+  if (msg?.type !== "rs:handoff" || POPUP) return;
+  activeTab().then((tab) => {
+    if (tab?.id !== msg.tabId) return;
+    if (msg.ready) refresh(); else showHandoff(msg);
+  });
+});
+
 // ---------- which screen ----------
 
 let refreshing = null;
@@ -770,6 +768,9 @@ async function refresh() {
       const tab = await activeTab();
       if (tab?.url?.startsWith(WF)) { await showWebforms(tab); return; }
       if (tab?.url?.startsWith(RS)) {
+        // Clicked over before the forms arrived: say what's happening; job:ready redraws.
+        const pending = await chrome.runtime.sendMessage({ type: "job:pending", tabId: tab.id });
+        if (pending) { showHandoff(pending); return; }
         const job = await chrome.runtime.sendMessage({ type: "job:forTab", tabId: tab.id });
         if (job && !job.error) {
           // Same hand-off as before (back from Settings, say): show it again with the agent's

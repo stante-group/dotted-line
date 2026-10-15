@@ -16,6 +16,10 @@ export async function runSetupCheck() {
     wf.samePerson = samePerson({ wfEmail: wf.userEmail, rsEmail: rs.email }); // null → "unknown"
   }
   let text = setupReport({ rs, wf });
+  // Which build answered: test copies carry a version_name stamped when they're made
+  // (commit, uncommitted changes, time), so a pasted report says what was loaded.
+  const m = chrome.runtime.getManifest();
+  text = text.replace("\n", `\nVersion: ${m.version_name || m.version}\n`);
   if (!rsAsk.tabs) text += "\n(open Real Signature in a tab to check it)";
   else if (!rs) text += `\n(${rsAsk.tabs === 1 ? "the Real Signature tab" : `none of the ${rsAsk.tabs} Real Signature tabs`} answered — reload ${rsAsk.tabs === 1 ? "it" : "them"} once and run the check again)`
     + (rsAsk.error ? `\n  error: ${rsAsk.error}` : "");

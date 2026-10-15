@@ -7,6 +7,9 @@
 import { planDraft } from "./lib/auto.js";
 import { DEFAULT_SETTINGS, subjectFor } from "./lib/pattern.js";
 import { sendToTab } from "./messaging.js";
+import { unzip } from "./lib/unzip.js";
+import { isPdf, hasAcroForm, countPages, fromBase64, toBase64 } from "./lib/pdf.js";
+import { pairEntries } from "./lib/webforms-api.js";
 
 const DB = "wfrs";
 const STORE = "jobs";
@@ -66,13 +69,17 @@ async function purgeOld() {
 purgeOld().catch(() => {});
 
 // Messages:
-//   {type: "rs:open", background?}   → opens a Real Signature tab now, so it loads while the
-//       PDFs download → {tabId}
-//   {type: "job:create", job: {title, forms: [{id, name, pageCount, formGuid, pdfBase64}], …}, background?, tabId?}
-//       → stores it, binds it to that tab (or opens a new one) → {id, tabId}
 //   {type: "job:forTab", tabId}       → that tab's job without the PDFs (for the panel)
 //   {type: "job:get", id}             → the whole job (for the Real Signature content script)
 //   {type: "job:done", id}            → deletes it
+//   {type: "job:start", wfTabId, wfForms, meta, background, auto}
+//       → the whole hand-off from the WEBForms click: opens Real Signature, downloads the
+//       forms, stores the job, and (auto) makes the draft → {id, tabId, auto} or
+//       {error, tabId}. Here, not in the popup: Chrome closes a popup the moment the agent
+//       clicks anything else — the Real Signature tab it opened included — and the hand-off
+//       died with it, silently (Dan, 2026-10-15).
+//   {type: "job:status"} (from a Real Signature tab) / {type: "job:pending", tabId} (from the
+//       panel) → that tab's hand-off in progress, {busy} or {error}, or null
 //   {type: "job:auto", id}            → one click: makes the draft if nothing needs the
 //       agent and switches to it → {done: true}; else stores why on the job, for the
 //       panel → {done: false, needs}
@@ -152,20 +159,56 @@ async function openRealSignature(background) {
   return tab.id;
 }
 
+// A hand-off under way, per Real Signature tab: {busy: text} or {error: text}. In memory —
+// if the worker stops mid-way, that hand-off is gone anyway; the tab then says nothing,
+// as before. Told to the tab (its notice) and to the panel as it changes.
+const handoffs = new Map();
+function setHandoff(tabId, status) {
+  if (status) handoffs.set(tabId, status); else handoffs.delete(tabId);
+  const msg = { type: "rs:handoff", tabId, ...(status || { ready: true }) };
+  sendToTab(tabId, msg).catch(() => { /* still loading: it asks when it's ready */ });
+  chrome.runtime.sendMessage(msg).catch(() => { /* no panel open */ });
+}
+
+async function startJob({ wfTabId, wfForms, meta, background, auto }) {
+  // Real Signature loads in its tab while WEBForms makes the zip (speed, 2026-10-14).
+  const tabId = await openRealSignature(background);
+  setHandoff(tabId, { busy: "Getting your forms from WEBForms…" });
+  try {
+    const tZip = Date.now();
+    const z = await sendToTab(wfTabId, { type: "webforms:zip", forms: wfForms.map((f) => ({ id: f.id, name: f.name })) });
+    const timings = { ...(meta.timings || {}), pdfDownload: Math.round((Date.now() - tZip) / 100) / 10 };
+    const forms = pairEntries(wfForms, await unzip(fromBase64(z.zipBase64))).map(({ form, data }) => {
+      if (!isPdf(data)) throw new Error(`"${form.name}" didn't come back as a PDF.`);
+      if (hasAcroForm(data)) throw new Error(`"${form.name}" came back as a fillable PDF, not the flattened form. Not using it.`);
+      // From here on a form is known by its TYPE's name (template suggestions, the buyer or
+      // seller side, Real's document names); WEBForms' own name was only for the zip.
+      return { id: form.id, name: form.typeName || form.name, library: form.library || null,
+        formGuid: form.formGuid, pageCount: form.pageCount ?? countPages(data),
+        parties: form.parties || null, pdfBase64: toBase64(data) };
+    });
+    await purgeOld();
+    const id = crypto.randomUUID();
+    await tx("readwrite", (s) => s.put({ id, createdAt: Date.now(), ...meta, timings, forms, tabId }));
+    if (!auto) { setHandoff(tabId, null); return { id, tabId }; }
+    setHandoff(tabId, { busy: "Making your draft…" });
+    const a = await autoCreate(id);
+    // Made: the tab is on the draft already — nothing to tell it. Not made: the panel
+    // takes over there, with what it needs.
+    if (a.done) handoffs.delete(tabId); else setHandoff(tabId, null);
+    return { id, tabId, auto: a };
+  } catch (e) {
+    const error = String(e?.message || e);
+    setHandoff(tabId, { error });
+    return { error, tabId };
+  }
+}
+
 chrome.runtime.onMessage.addListener((msg, sender, reply) => {
   (async () => {
-    if (msg.type === "rs:open") return { tabId: await openRealSignature(msg.background) };
-    if (msg.type === "job:create") {
-      await purgeOld();
-      const id = crypto.randomUUID();
-      const job = { id, createdAt: Date.now(), ...msg.job };
-      await tx("readwrite", (s) => s.put(job));
-      // A tab opened by rs:open while the PDFs downloaded, if it's still there.
-      const ready = msg.tabId && await chrome.tabs.get(msg.tabId).catch(() => null);
-      const tabId = ready ? ready.id : await openRealSignature(msg.background);
-      await tx("readwrite", (s) => s.put({ ...job, tabId }));
-      return { id, tabId };
-    }
+    if (msg.type === "job:start") return startJob(msg);
+    if (msg.type === "job:status") return handoffs.get(sender.tab?.id) || null;
+    if (msg.type === "job:pending") return handoffs.get(msg.tabId) || null;
     if (msg.type === "job:forTab") {
       const cutoff = Date.now() - JOB_TTL_MS;
       const j = (await allJobs()).filter((x) => x.tabId === msg.tabId && x.createdAt >= cutoff)
