@@ -3,7 +3,7 @@
   "name": "Dotted Line by Deal Dates",
   "short_name": "Dotted Line",
   "version": "0.1.0",
-  "description": "Turn the forms you filled in WEBForms into a Real Signature draft on your reZEN deal, with signature blocks placed. You review it and press Send yourself. Free.",
+  "description": "Turn your WEBForms forms into a Real Signature draft on your reZEN deal, signature blocks placed. You review it and send it. Free.",
   "minimum_chrome_version": "116",
   "permissions": ["sidePanel", "storage", "scripting"],
   "host_permissions": [

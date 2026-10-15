@@ -9,7 +9,7 @@ something we do; no live client names, addresses or screenshots of real deals.
 **Name** (from the manifest): Dotted Line by Deal Dates
 
 **Summary** (manifest description, 132 chars max):
-Turn the forms you filled in WEBForms into a Real Signature draft on your reZEN deal, with signature blocks placed. You review it and press Send yourself. Free.
+Turn your WEBForms forms into a Real Signature draft on your reZEN deal, signature blocks placed. You review it and send it. Free.
 
 **Category:** Productivity → Workflow & Planning
 **Language:** English (Canada)
