@@ -16,13 +16,56 @@ yet. See [PLAN.md](PLAN.md).
    them to the **Basket** inside each form's folder.
 2. Click the Dotted Line icon (a small popup opens over WEBForms), check the title, click **Create Real Signature draft**.
    It uses WEBForms' own zip download and keeps the PDFs exactly as WEBForms made them.
-3. Real Signature opens. In the panel, check the reZEN deal (best address match first,
-   picked for you when it's clear) and pick a template for each form — it remembers your
-   choice next time. The signers are worked out for you: your side's clients from the deal
-   (at least two slots each — deleting a spare is easier than adding one), and optionally
-   the agent. The panel says why, and you can change the numbers.
-4. **Create draft.** You land on the draft (or a packet, for several forms) in Real
-   Signature, deal and signers filled in. Check it and press Send yourself.
+3. **When the choices are clear, that's it.** If one reZEN deal clearly matches the
+   address and every form has its usual template, the draft is made straight away and
+   you land on it (or a packet, for several forms), deal and signers filled in. Check it
+   and press Send yourself.
+4. **Otherwise Real Signature opens with a panel** that says what needs you. Check the
+   reZEN deal (best address match first) and pick a template for each form — it's
+   remembered, so next time that form goes through in one click. It's remembered per side,
+   because Real Signature ties every block to a role: a form both sides sign, like the
+   Consumer Relationships Guide, wants a buyer template and a seller one, and a template
+   with blocks only for the side that isn't signing is never applied. The signers are worked
+   out for you: your side's clients from the deal (as many as are named on the form, or two
+   when the form names nobody), and the agent when the template has agent blocks.
+   **Create draft** and you land on it, as above.
+
+It falls back to the panel, too, when the deal is another agent's or a client on it has no
+email in reZEN — both are worth a look before the draft exists.
+
+## Settings
+
+Optional. **Settings** at the bottom of the panel opens a page where you can:
+
+- turn off the one-click draft, so the panel always opens for you to check first — or go
+  further and start as soon as you click the Dotted Line icon, with no Create button;
+- choose the draft title: the suggested one, blank, or your own pattern such as
+  `{address} – {forms}`, built by clicking words, with a preview;
+- choose the email subject signers see: the same as the title, your own pattern, or Real
+  Signature's default;
+- see the template remembered for each kind of form, and remove any you want to choose
+  again.
+
+Left alone, you get the suggested title, used as the email subject too. Title and subject
+settings follow your Chrome sign-in (Chrome sync); remembered templates stay in this browser.
+
+### How the address in the title is written
+
+The address comes from the WEBForms transaction when the forms belong to one, otherwise
+from the first form that has an address. It is written Canada Post style, unit first:
+
+| Typed in WEBForms | In the title |
+|---|---|
+| Unit `#120`, number `1234`, street `Example Street NW`, city `Calgary` | `120-1234 Example Street NW, Calgary` |
+| Whole address in the street field: `120, 1234 Example Street NW, Calgary AB T2X 0A1` | `120, 1234 Example Street NW, Calgary` |
+| The same, plus `#120` in the unit field | `120-1234 Example Street NW, Calgary` |
+| No civic number anywhere (`Lot 4, Example Estates`) | no address |
+
+- `Unit`, `Suite`, `Apt` and `#` in front of a unit are dropped.
+- A province and postal code in the city or street field are dropped; the city is kept.
+- The title is built from the form **as last saved** — the copy Real Signature gets. Save in
+  WEBForms first; with unsaved changes, Create stays off.
+- The title is always editable before you create the draft.
 
 ## What it does — and doesn't
 

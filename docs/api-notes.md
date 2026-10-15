@@ -105,10 +105,58 @@ Real's UI has no "packet" choice at upload: each PDF uploads as its own one-time
 - One-time drafts and packets list via `GET /one-time-templates?page=&size=&sort.dir=&sort.property=`
   (what the Drafts tab calls), not `/document-templates?oneTimeUse=true`, which returns 0.
 
+### Copying a template (done 2026-10-14, on the agent's own template, with permission)
+
+Made a buyer copy of a seller-only template, the way a template import would build one:
+
+1. `POST /document-templates/{id}/clone` (no body) → `201 {id}`. A full copy: same PDF
+   (page images present), name, blocks, roles; `oneTimeUse: false`, so it is a template,
+   not a draft. The SOURCE's `updatedAt` changed to the clone time; nothing else on it did.
+2. `GET` the copy, then `PUT /document-templates/{copyId}` with the whole object back,
+   `name` changed and `signeeType` changed on `signeeConfigs[]` and every
+   `fieldDefinitions[]` → `204`. Positions, validations and page count came through
+   unchanged, and Real's editor (`/prepare/{id}`, Edit details) lists the new roles
+   ("Buyer 1", "Buyer 2") with fields assigned.
+
+So a template can be made entirely by API: clone, then one full-replace `PUT` with the
+blocks. From a new PDF (a DocuSign import) it would be `POST /document-templates?
+documentType=USER_PDF&oneTimeUse=false` then the same `PUT` — the drafts' route with the
+flag flipped; untested.
+
+### Real's packet "Add Signees" box pre-fills a wrong row (2026-10-14)
+
+On a PACKET draft, Edit details → **Add Signees** opens a box with one row per role slot.
+When a document in the packet already has a signer (the agent, added by Dotted Line as
+SELLERS_AGENT), the box copies that signer's NAME — no email — into its FIRST row, whatever
+role that row is (a Seller row, there). Reproduced on throwaway packets built by API without
+the extension: agent signer on one document → the agent's name in Seller row 1; no signer
+anywhere → both rows empty (so not the sender). Single documents don't do it. The saved
+data is right (agent as SELLERS_AGENT with email); it's Real's box. Worth reporting to Real;
+nothing to change here.
+
+### Edit details → Next deletes roles nobody is assigned to (2026-10-14)
+
+A draft can carry signer roles (signeeConfigs) and their blocks with no one assigned —
+Dotted Line does that when a buyer or seller has no email. The API keeps them: PUT and
+read back, opening the draft, and Skip on the Transaction step all leave every block. But
+clicking **Next** on Edit details deletes every role that has no recipient row, blocks and
+signeeConfig both (throwaway draft, agreement-to-represent-both layout: BUYER#0, SELLER#0
+and SELLERS_AGENT#0 blocks before; only SELLERS_AGENT after Next). Edit details lists only
+named recipients, so the empty Buyer and Seller roles are invisible there and gone a click
+later. The agent has to add those signers (Add Another Recipient, with the role) BEFORE
+Next; added afterwards, their blocks must be placed by hand.
+
+A PACKET of one document behaves the other way (same layout, throwaway, 2026-10-14):
+`POST /packet-templates` takes a single document (200). Its Transaction step lists every
+role (Buyer 1, Seller 1, Sellers Agent 1); Edit details says "Number of Signees: 3", keeps
+Next greyed out until all are filled, and **Add Signees** has a row per role — the blocks
+stay. The packet box's name quirk (above) shows here too: the agent's name lands in the
+Buyer row.
+
 ### Other routes the app's client has (not yet observed)
 
 `GET /document-templates` (`sharedWithMe`, `oneTimeUse`, `page`, `size`),
-`GET /document-templates/{id}`, `POST /document-templates/{id}/clone`,
+`GET /document-templates/{id}`,
 `PUT /document-templates/{id}/pdf` (multipart `file`), `DELETE /document-templates/{id}`,
 `GET /documents/timezone?transactionId=`,
 `GET /reference/document-signee-types`.
@@ -130,6 +178,27 @@ what Real Signature's own deal picker calls. A TC appears as a participant on ev
 coordinates, so her list covers the team. Hand-typed fields carry stray whitespace (a TAB
 before an MLS number has been seen) — normalise before comparing.
 
+### Buyer Records (observed 2026-10-14, reZEN's Buyers tab, read only)
+
+Since 2026-10-12 every buy-side and dual deal starts as a reZEN **Buyer Record** (the client
+file before contract: buyers, BBA dates, pre-contract documents); "Mark In Contract" turns
+it into a transaction. So a new buyer's BBA and first offer have no transaction to attach
+to — the OPEN deal lists above don't include them.
+
+- `GET /buyer-record?pageNumber&pageSize&sortDirection&sortBy=BBA_START_DATE&ownerIds={yentaUserId}&lifecycleStates=ACTIVE&lifecycleStates=IN_CONTRACT&lifecycleStates=TERMINATION_REQUESTED`
+  → `{pageNumber, pageSize, hasNext, totalCount, buyerRecords[]}`. Each: `id, code,
+  lifecycleState, associatedTransaction (null until In Contract), bbaDates {start, end},
+  geographicInterest, teamId, teamName, participants[] {id, role, userId, owner, firstName,
+  lastName, entityName}` — **no emails in the list**.
+- `GET /buyer-record/{id}` → the same plus `participants[] = {internalParticipant,
+  externalParticipant}`, one of them null. Internal (agents, TC): `userId, role, owner,
+  names`, no email (it's in yenta). External (the clients): `role "BUYER", firstName,
+  lastName, emailAddress, phoneNumber, address, entityName, externalParticipantType`.
+- Roles seen: `BUYER`, `BUYERS_AGENT`, `TRANSACTION_COORDINATOR`.
+- Real Signature's own Transaction step does **not** list Buyer Records (checked
+  2026-10-14), so a draft isn't attached to one. Dotted Line fills the buyers in from the
+  record and leaves the draft unattached (`BUYER_RECORDS_ATTACH = false` in deals.js).
+
 ## WEBForms (`pr.transactiondesk.com`)
 
 - Forms on a deal: `GET /api/transactionforms/index/{transactionId}` →
@@ -138,7 +207,14 @@ before an MLS number has been seen) — normalise before comparing.
   token; then `GET /api/Transfer/downloadmany?token=` (single:
   `DownloadSingleWithCriteria?token=`).
 - Open form editor `/form/{formId}/{bool}` loads `GET /api/formeditor/formfields/{formId}`
-  (`FormGUID`, `PageCount`, …) and `GET /api/forms/single/{formId}` (`LastModified`, …).
+  (`FormGUID`, `PageCount`, …) and `GET /api/forms/single/{formId}` (`LastModified`,
+  `Library`, …).
+- **A form's type is `Library`** (e.g. `AREA0287`), from `/api/forms/single/{formId}`
+  (checked 2026-10-12). Not `FormGUID` — that is the form's own id, the same value as its
+  `ID` — and not `Name`: a standalone form is named after what's typed in it (the civic
+  number, "120"). The type's title comes from `GET /api/forms/index` (the Forms page's
+  folder tree, ~650 KB): each form-type folder has `Misc` = the library code and `Name` =
+  the title, e.g. "Agreement to Represent Both Seller and Buyer (Designated Agency)".
 - **No auto-save.** Save = `PUT /api/formeditor/saveForm/{formId}` then
   `POST /api/formeditor/saveMarkups/{formId}`. A `beforeunload` guard marks unsaved edits.
 - Signed-in user: `GET /api/systems/GetPopulatedGlobalJson` → `UserID`, `UserName`,
@@ -223,7 +299,23 @@ before an MLS number has been seen) — normalise before comparing.
   and the parties are `txtseller1/2`, `txtbuyer1/2`, `txts_broker`/`txtl_broker`. These
   variables give a standalone form an address for the title and deal match, and could
   pre-fill signer names. Field names will vary by form and province, so match loosely and
-  never require them.
+  never require them. Purchase forms also carry each side's agent: `txtl_brkagent`,
+  `…ph`, `…email` (listing side) and `txts_brkagent…` (selling = buyer's side).
+- **Transaction Contacts** (read-only, 2026-10-14): `GET /api/transactioncontacts/index/{txId}`
+  → `[{TransactionContactTypeName, ContactTypeClassCode, ContactData: {General: {FirstName,
+  LastName, Email, AlternateEmail, Company, AgentID, …}, HomeAddress, WorkAddress, …}, …}]`.
+  **Each field is an input description, not a string**: `{InputLabel, Value, Type,
+  Visible, Disabled, Required, …}` — read `.Value`. `String()` of the field gives
+  "[object Object]", which went to Real Signature as an email once.
+  A contact has several names: `FirstName`/`LastName` (read for signers and Buyer Record
+  matching), `PreferredName` (what the Contacts list shows, and the top-level `Name`) and
+  `PreferredSignature`. Editing Preferred Name alone leaves First/Last unchanged, so the list
+  and the signer can disagree. Editing the name on a form updates the contact's names
+  together (2026-10-14).
+  Types (`GET /api/transactioncontacts/GetTxContactTypes/`, an id → name map): Buyer, Seller,
+  Buying Agent, Selling Agent (= listing side), Buying/Selling Broker, lawyers, Landlord,
+  Tenant, … The signed-in user's email on a Buying/Selling Agent row says which side they
+  represent — read before the form fields, which standalone forms fall back to.
 - "Save as Editable PDF" exists in the form editor; don't use it. Fields stay editable and
   Real Signature renders pages as images anyway. If a PDF arrives with an AcroForm, tell
   the agent to use "Save as PDF" or the zip download.

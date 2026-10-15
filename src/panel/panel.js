@@ -5,9 +5,12 @@ import { unzip } from "../lib/unzip.js";
 import { isPdf, hasAcroForm, countPages, fromBase64, toBase64 } from "../lib/pdf.js";
 import { pairEntries } from "../lib/webforms-api.js";
 import { suggestTitle, matchAddress } from "../lib/title.js";
-import { rankDeals, wrongDealWarnings } from "../lib/deals.js";
-import { suggestTemplate, formKey } from "../lib/match.js";
-import { signerCounts, signersWithoutEmail, agentRoleFor, agentPeople } from "../lib/draft.js";
+import { wrongDealWarnings } from "../lib/deals.js";
+import { confidentDeal, usableTemplates } from "../lib/auto.js";
+import { sendToTab } from "../messaging.js";
+import { suggestTemplate, rememberKey, normalizeName, rememberEntry, pruneRemembered, signingSide, sideMismatch } from "../lib/match.js";
+import { titleValues, titleFor, subjectFor, DEFAULT_SETTINGS } from "../lib/pattern.js";
+import { signerCounts, signersWithoutEmail, signeesFromDeal, agentRoleFor, agentPeople } from "../lib/draft.js";
 import { actingNotes, setupReport, samePerson } from "../lib/actor.js";
 
 // The same page is the popup (WEBForms and other sites) and the side panel (Real Signature);
@@ -19,6 +22,17 @@ const WF = "https://pr.transactiondesk.com/";
 const RS = "https://signature.therealbrokerage.com/";
 const $ = (id) => document.getElementById(id);
 const el = (tag, text, cls) => { const e = document.createElement(tag); if (text != null) e.textContent = text; if (cls) e.className = cls; return e; };
+
+// The Settings page's choices (chrome.storage.sync, so they follow the agent's Chrome
+// sign-in). Missing or unreadable → the defaults, which are what Dotted Line always did.
+async function settings() {
+  try {
+    const { settings: s } = await chrome.storage.sync.get("settings");
+    return { ...DEFAULT_SETTINGS, ...(s || {}) };
+  } catch {
+    return { ...DEFAULT_SETTINGS };
+  }
+}
 
 // ⓘ buttons: click opens the explanation under it; hover shows the same text as a tooltip
 // (kept in step with the tip, which may change as the agent picks things).
@@ -49,14 +63,7 @@ async function activeTab() {
   return tab || null;
 }
 
-async function send(tabId, msg) {
-  const r = await chrome.tabs.sendMessage(tabId, msg).catch((e) => ({ error: String(e?.message || e) }));
-  if (r?.error) {
-    throw new Error(/Receiving end does not exist/.test(r.error)
-      ? "Reload this tab once (the extension was installed or updated after it opened)." : r.error);
-  }
-  return r;
-}
+const send = sendToTab;
 
 // ---------- WEBForms: which forms are picked ----------
 
@@ -67,6 +74,15 @@ function readSelection() {
   const ng = window.angular;
   if (!ng) return { error: "WEBForms is still loading." };
   const pick = (x) => (x && x.ID ? { id: x.ID, name: x.Name, transactionId: x.TransactionID || "", lastModified: x.LastModified || null } : null);
+  // Speed (2026-10-14): what the page already holds is read here rather than asked of
+  // WEBForms again — who's signed in (the same object GetPopulatedGlobalJson answers, on
+  // every page) and, on a deal, the deal itself. Missing → the content script asks as before.
+  let user = null;
+  try {
+    const g = ng.element(document.body).injector().get("globalVariablesSvc").globalJson;
+    const email = g?.GtmDataLayer?.TransactionDesk?.Account?.Email;
+    if (g && typeof g.UserName === "string") user = { name: g.UserName, email: typeof email === "string" && email.includes("@") ? email : null };
+  } catch { /* asked for instead */ }
   const deal = location.pathname.match(/^\/transaction\/detail\/([^/]+)/i);
   if (deal) {
     const out = new Map();
@@ -76,12 +92,19 @@ function readSelection() {
       const f = pick(s && (s.form || s.instance));
       if (f) out.set(f.id, f);
     }
-    return { source: "deal", transactionId: deal[1], forms: [...out.values()] };
+    let transaction = null;
+    try {
+      const t = ng.element(document.querySelector('[ng-controller^="transactionDetailCtrl"]')).scope()?.transaction;
+      if (t && typeof t.Name === "string") {
+        transaction = Object.fromEntries(["Name", "Address", "StreetNumber", "StreetName", "City", "MLSNumber", "UnitNumber"].map((k) => [k, t[k] ?? null]));
+      }
+    } catch { /* asked for instead */ }
+    return { source: "deal", transactionId: deal[1], user, transaction, forms: [...out.values()] };
   }
   if (/^\/forms(\/|$)/i.test(location.pathname)) {
     try {
       const items = ng.element(document.body).injector().get("commonSvc").basket.baskets.forms || [];
-      return { source: "basket", transactionId: "", forms: items.map(pick).filter(Boolean) };
+      return { source: "basket", transactionId: "", user, forms: items.map(pick).filter(Boolean) };
     } catch {
       return { error: "Couldn't read the Basket — WEBForms may have changed." };
     }
@@ -99,11 +122,36 @@ function readSelection() {
     const o = vm?.formObj;
     if (!o || !o.ID) return { source: "open", forms: [], loading: true };
     const saved = vm.savedFormFieldValues || {}, cur = vm.formFieldValues || {};
-    let unsaved = Object.keys(saved).some((k) => cur[k] !== saved[k])
+    // Money fields are saved as "500000.00" but shown as "500,000.00": an untouched form
+    // in a transaction read as unsaved on price and deposit (2026-10-14). The same number,
+    // give or take commas, a $ and spaces, is the same value.
+    const money = /^\s*\$?\s*-?[\d,]*\.?\d+\s*$/;
+    const same = (a, b) => a === b
+      || (typeof a === "string" && typeof b === "string" && money.test(a) && money.test(b)
+        && Number(a.replace(/[$,\s]/g, "")) === Number(b.replace(/[$,\s]/g, "")));
+    let unsaved = Object.keys(saved).some((k) => !same(cur[k], saved[k]))
       || Object.keys(cur).some((k) => !(k in saved) && cur[k] != null && cur[k] !== "");
     try { unsaved = unsaved || !!vm.hasUnsavedFieldSettings?.(); } catch { /* treat as unknown below */ }
     const name = o.Name || vm.formData?.FormName || "This form";
-    return { source: "open", transactionId: o.TransactionID || "", unsaved,
+    // The address as last SAVED, straight from the page. Asking WEBForms' API right after a
+    // Save could still answer with the copy from before it (2026-10-12: the first draft
+    // after typing an address and saving was titled with the form name alone; the same
+    // form a reload later got the address).
+    const address = { txtp_unitNumber: saved.txtp_unitNumber ?? "", txtp_streetnum: saved.txtp_streetnum ?? "", txtp_street: saved.txtp_street ?? "", txtp_city: saved.txtp_city ?? "" };
+    // Speed (2026-10-14): the editor already holds what GET formfields answers — page count,
+    // FormGUID, the saved values — plus the form type. Asking WEBForms again took ~4 s on
+    // every icon click. Handed to the WEBForms content script for the same derivations,
+    // never stored.
+    const fd = vm.formData || {};
+    const preloaded = {
+      [o.ID]: {
+        pageCount: Number.isInteger(fd.PageCount) ? fd.PageCount : null,
+        formGuid: typeof fd.FormGUID === "string" ? fd.FormGUID : null,
+        library: typeof o.Library === "string" && o.Library.trim() ? o.Library.trim() : null,
+        values: saved,
+      },
+    };
+    return { source: "open", transactionId: o.TransactionID || "", unsaved, address, preloaded, user,
       forms: [{ id: o.ID, name, transactionId: o.TransactionID || "", lastModified: null }] };
   }
   return { source: "other", forms: [] };
@@ -118,6 +166,7 @@ async function selection(tabId) {
 let wfState = null;
 let wfShown = null; // which picks the panel is showing, so a click that changed nothing doesn't redraw
 let wfBusy = false;
+let autoStarted = false; // Settings → "start when I click the icon": once per popup
 // The unsaved flag is part of the key, so pressing Save in WEBForms redraws the panel.
 const selKey = (tabId, sel) => `${tabId}|${sel.source}|${sel.forms.map((f) => f.id).sort().join()}|${sel.unsaved ? "unsaved" : ""}`;
 const UNSAVED = "This form has unsaved changes. Press Save in WEBForms first — the draft is made from the last saved copy.";
@@ -167,14 +216,33 @@ async function showWebforms(tab) {
   // Same-origin, read-only lookups for the title and the deal match (rule 2).
   const transactionId = sel.transactionId
     || (new Set(sel.forms.map((f) => f.transactionId)).size === 1 ? sel.forms[0].transactionId : "");
-  const d = await send(tab.id, { type: "webforms:details", transactionId, formIds: sel.forms.map((f) => f.id) });
+  const d = await send(tab.id, { type: "webforms:details", transactionId, formIds: sel.forms.map((f) => f.id),
+    preloaded: sel.preloaded || null, user: sel.user || null, transaction: sel.transaction || null });
   const info = new Map(d.forms.map((f) => [f.id, f]));
+  if (sel.address) d.firstFormValues = sel.address; // an open form: the page's saved copy is the freshest
   wfState = {
     tabId: tab.id, sel, userName: d.userName, userEmail: d.userEmail || null,
     forms: sel.forms.map((f) => ({ ...f, ...info.get(f.id) })),
     address: matchAddress({ transaction: d.transaction, firstFormValues: d.firstFormValues }),
+    buyerNames: d.buyerNames || [],
+    agentSide: d.agentSide || null,
+    parties: d.parties || null,
+    contactPeople: d.contactPeople || [],
   };
-  $("wf-title").value = suggestTitle({ transaction: d.transaction, forms: sel.forms, firstFormValues: d.firstFormValues });
+  // List each form by its type, with WEBForms' own name after it when that says something
+  // else (a standalone form is often named after its civic number, e.g. "120").
+  $("wf-forms").replaceChildren(...wfState.forms.map((f) => {
+    const li = el("li", f.typeName || f.name);
+    if (f.typeName && normalizeName(f.name) !== normalizeName(f.typeName)) li.append(el("span", ` · ${f.name}`, "note"));
+    return li;
+  }));
+  const titled = wfState.forms.map((f) => ({ ...f, name: f.typeName || f.name }));
+  // The words a title or subject pattern can use; kept with the hand-off so the subject can
+  // be made from them on the Real Signature side, after the title's final edit.
+  wfState.titleValues = titleValues({ transaction: d.transaction, forms: titled, firstFormValues: d.firstFormValues, agent: d.userName });
+  const suggested = suggestTitle({ transaction: d.transaction, forms: titled, firstFormValues: d.firstFormValues });
+  const s = await settings();
+  $("wf-title").value = titleFor(s, wfState.titleValues, suggested);
   say("");
   $("wf-title-wrap").hidden = false;
   if (sel.unsaved) {
@@ -183,8 +251,15 @@ async function showWebforms(tab) {
     return; // Create stays off until WEBForms says it's saved
   }
   $("wf-go").disabled = false;
+  // Opt-in (Settings): the icon click is the Create click. Once per popup, so a redraw
+  // after a fallback to the panel can't start a second hand-off.
+  if (POPUP && s.startOnOpen && !autoStarted) {
+    autoStarted = true;
+    $("wf-go").click();
+  }
 }
 
+let rsTab = null; // Promise<tabId|null> while a Create is under way, before the job owns the tab
 $("wf-go").addEventListener("click", async () => {
   if (!wfState) return;
   $("wf-go").disabled = true;
@@ -204,27 +279,52 @@ $("wf-go").addEventListener("click", async () => {
       await showWebforms(await chrome.tabs.get(wfState.tabId));
       return;
     }
+    // Real Signature loads in its tab while WEBForms makes the zip, not after it (speed,
+    // 2026-10-14). If the forms don't come through, that tab is closed again.
+    rsTab = chrome.runtime.sendMessage({ type: "rs:open", background: POPUP }).then((r) => r?.tabId ?? null, () => null);
+    const tZip = Date.now();
     const z = await send(wfState.tabId, { type: "webforms:zip", forms: wfState.forms.map((f) => ({ id: f.id, name: f.name })) });
+    const timings = { pdfDownload: Math.round((Date.now() - tZip) / 100) / 10 };
     const pairs = pairEntries(wfState.forms, await unzip(fromBase64(z.zipBase64)));
     const forms = pairs.map(({ form, data }) => {
       if (!isPdf(data)) throw new Error(`"${form.name}" didn't come back as a PDF.`);
       if (hasAcroForm(data)) throw new Error(`"${form.name}" came back as a fillable PDF, not the flattened form. Not using it.`);
-      return { id: form.id, name: form.name, formGuid: form.formGuid, pageCount: form.pageCount ?? countPages(data),
+      // From here on a form is known by its TYPE's name (template suggestions, the buyer or
+      // seller side, Real's document names); WEBForms' own name was only for the zip.
+      return { id: form.id, name: form.typeName || form.name, library: form.library || null,
+        formGuid: form.formGuid, pageCount: form.pageCount ?? countPages(data),
         parties: form.parties || null, pdfBase64: toBase64(data) };
     });
     say("Opening Real Signature…", "busy");
-    const r = await chrome.runtime.sendMessage({ type: "job:create", background: POPUP, job: {
+    const r = await chrome.runtime.sendMessage({ type: "job:create", background: POPUP, tabId: await rsTab, job: {
+      timings,
       title: $("wf-title").value.trim() || forms[0].name,
-      source: wfState.sel.source, address: wfState.address, webformsUserName: wfState.userName, webformsUserEmail: wfState.userEmail, forms,
+      source: wfState.sel.source, address: wfState.address, buyerNames: wfState.buyerNames, agentSide: wfState.agentSide, parties: wfState.parties, contactPeople: wfState.contactPeople, titleValues: wfState.titleValues, webformsUserName: wfState.userName, webformsUserEmail: wfState.userEmail, forms,
     } });
     if (r?.error) throw new Error(r.error);
+    rsTab = null; // bound to the job now
+    if (POPUP && (await settings()).autoCreate) {
+      // One click: the service worker makes the draft when nothing needs the agent, and
+      // switches to it (which closes this popup). It does the work, not this page: a popup
+      // closes the moment the agent clicks elsewhere, and a draft half-handled by a closed
+      // popup would be left bound to its tab for the panel to make a second time.
+      say("Making your draft in Real Signature…", "busy");
+      const a = await chrome.runtime.sendMessage({ type: "job:auto", id: r.id });
+      if (a?.done) { window.close(); return; }
+      say("");
+      await goToRealSignature(r.tabId, !!a?.needs?.length);
+      return;
+    }
     say("");
     if (POPUP) await goToRealSignature(r.tabId);
   } catch (e) {
     say(String(e.message || e), "err");
     $("wf-go").disabled = false;
+    const t = await rsTab;
+    if (t) chrome.tabs.remove(t).catch(() => {}); // opened for forms that never came
   } finally {
     wfBusy = false;
+    rsTab = null;
   }
 });
 $("wf-refresh").addEventListener("click", () => refresh());
@@ -232,7 +332,7 @@ $("wf-refresh").addEventListener("click", () => refresh());
 /** Popup only: switch to the new Real Signature tab with the side panel open there.
  *  Chrome opens a side panel only straight after a click, and the download may have taken
  *  long enough to lose that; if so, one more click (a fresh one) does it. */
-async function goToRealSignature(tabId) {
+async function goToRealSignature(tabId, needsYou = false) {
   const go = async () => {
     const opening = chrome.sidePanel.open({ tabId }); // called first, while the click still counts
     await opening;
@@ -247,7 +347,9 @@ async function goToRealSignature(tabId) {
       await chrome.tabs.update(tabId, { active: true });
       window.close();
     }));
-    $("msg").replaceChildren(el("div", "Your forms are ready in Real Signature.", "ok"), b);
+    $("msg").replaceChildren(el("div", needsYou
+      ? "Your forms are in Real Signature, with a choice or two to make before the draft."
+      : "Your forms are ready in Real Signature.", needsYou ? "warn" : "ok"), b);
   }
 }
 
@@ -279,6 +381,9 @@ async function showRealsig(tab, job) {
   $("rs-status").textContent = "Loading your deals and templates…";
   $("rs-status").className = "busy";
   const c = await send(tab.id, { type: "rs:context" }).finally(() => { $("rs-status").className = "note"; });
+  // A failed earlier try (tab still loading) left its error in #msg; this one worked, so
+  // clear it — otherwise the error stays on screen above a panel that loaded fine.
+  say("");
   if (!c.signedIn) {
     $("rs-status").textContent = "Sign in to Real Signature in this tab, then click the extension again.";
     return;
@@ -290,27 +395,50 @@ async function showRealsig(tab, job) {
   $("rs-status").textContent = `${job.forms.length} form(s) from WEBForms.`;
   $("rs-title").value = job.title;
 
+  // A failed one-click attempt goes on top. What's left to choose is said in the section it
+  // belongs to (the deal hint, each form's template), not repeated up here.
+  $("rs-needs").replaceChildren(...(job.autoError ? [el("div", job.autoError, "err")] : []));
+  $("rs-deal-first").textContent = job.address || job.buyerNames?.length
+    ? "No reZEN deal or Buyer Record clearly matches — choose one (or No deal). It decides who signs."
+    : "Choose the deal (or No deal) first — it decides who signs.";
+
   // Deals: everything, best address match first — a bad match never hides the right deal.
-  const ranked = job.address ? rankDeals(job.address, c.deals) : c.deals.map((deal) => ({ deal, score: 0 }));
-  const confident = ranked[0] && ranked[0].score >= 0.75 && !(ranked[1] && ranked[1].score === ranked[0].score);
+  const { ranked, deal: best, by } = confidentDeal(job.address, c.deals, job.buyerNames);
+  const confident = !!best;
+  rsState.autoBy = by;
   const sel = $("rs-deal");
   sel.replaceChildren(
     option("", "Choose a deal…", { selected: !confident, disabled: true }),
     option("none", "No deal (standalone)"),
-    ...ranked.map(({ deal }, i) => option(deal.id,
-      `${deal.address || "(no address)"} · ${deal.agentName || "?"}${deal.kind === "listing" ? " · listing" : ""}`,
+    ...ranked.map(({ deal }, i) => option(deal.id, deal.kind === "buyer"
+      ? `Buyer Record: ${deal.buyerNames.join(" & ") || "(no buyer)"} · ${deal.agentName || "?"}`
+      : `${deal.address || "(no address)"} · ${deal.agentName || "?"}${deal.kind === "listing" ? " · listing" : ""}`,
       { selected: confident && i === 0 })),
   );
 
-  // Templates per form.
+  // A deal picked for the agent must be visible as such — one agent didn't notice the
+  // pre-selection and thought they had chosen No deal (2026-10-11).
+  rsState.autoPicked = confident ? ranked[0].deal.id : null;
+  rsState.tplSide = undefined; // templates are drawn by updateDeal, once the side is known
+  $("rs-templates").replaceChildren(); // not the last hand-off's picks
+  sel.onchange = updateDeal;
+  updateDeal();
+  $("rs-form").hidden = false;
+}
+
+/** The template choice per form, for the side that signs. Remembered choices are per side
+ *  (rememberKey), so it's redrawn when the deal changes the side, keeping any pick the
+ *  agent already made that's still on offer. */
+function renderTemplates(side) {
+  const { c, job, remembered } = rsState;
+  const before = job.forms.map((_, i) => $(`tpl-${i}`)?.value || "");
   const box = $("rs-templates");
   box.replaceChildren();
   job.forms.forEach((form, i) => {
-    // Only templates that can help: same page count AND at least one signature, initial or
-    // date block. Agents who rarely use Real Signature have many text-only templates, and
-    // a long greyed-out list just asks them a question they can't answer.
-    const usable = c.templates.filter((t) => t.blocks > 0 && form.pageCount && t.pagesCount === form.pageCount);
-    const s = suggestTemplate(form, usable, remembered);
+    // Only templates that can help (see usableTemplates): a long greyed-out list just asks
+    // the agent a question they can't answer.
+    const usable = usableTemplates(form, c.templates);
+    const s = suggestTemplate(form, usable, remembered, side);
     const div = el("div", null, "form");
     div.append(el("b", `${form.name}${form.pageCount ? ` · ${form.pageCount} page(s)` : ""}`));
     const pick = document.createElement("select");
@@ -331,42 +459,66 @@ async function showRealsig(tab, job) {
         opts.push(option(t.id, `${t.name}${t.shared ? " (shared)" : ""}`));
       }
       pick.replaceChildren(...opts);
+      if (before[i] && opts.some((o) => o.value === before[i])) pick.value = before[i];
       div.append(pick);
+      // Nothing remembered yet: the one thing between this form and one click next time.
+      const forSide = side ? ` for ${side === "BUYER" ? "buyer" : "seller"} deals` : "";
+      if (!s.remembered) div.append(el("div", `Choose once — it's remembered${forSide}, so next time this form goes straight to a draft.`, "note"));
     }
-    // A remembered template that stopped fitting (form revised) is filtered out above, so
-    // check it against the full list to say why it's gone.
-    const refused = suggestTemplate(form, c.templates, remembered).refused;
-    if (refused) div.append(el("div", `Your usual template "${refused.template.name}" no longer fits: ${refused.reason}.`, "warn"));
+    // A remembered template that stopped fitting (form revised, or no blocks for this side)
+    // is filtered out above, so check it against the full list to say why it's gone.
+    const refused = suggestTemplate(form, c.templates, remembered, side).refused;
+    if (refused) {
+      div.append(el("div", refused.kind === "side"
+        ? `Your usual template "${refused.template.name}" isn't used here: ${refused.reason}. Choose one with ${side === "BUYER" ? "buyer" : "seller"} blocks — it's remembered for ${side === "BUYER" ? "buyer" : "seller"} deals.`
+        : `Your usual template "${refused.template.name}" no longer fits: ${refused.reason}.`, "warn"));
+    }
     box.append(div);
   });
-
-  // A deal picked for the agent must be visible as such — one agent didn't notice the
-  // pre-selection and thought they had chosen No deal (2026-10-11).
-  rsState.autoPicked = confident ? ranked[0].deal.id : null;
-  sel.onchange = updateDeal;
-  updateDeal();
-  $("rs-form").hidden = false;
+  rsState.tplSide = side;
 }
 
 function updateDeal() {
   const { c, job } = rsState;
   const id = $("rs-deal").value;
   const deal = c.deals.find((d) => d.id === id) || null;
+  // Step by step: the rest shows once the deal (or No deal) is chosen — it decides who
+  // signs. A deal picked for the agent shows everything at once, no extra click.
+  const chosen = !!deal || id === "none";
+  $("rs-after-deal").hidden = !chosen;
+  $("rs-deal-first").hidden = chosen;
+  $("rs-go").disabled = !chosen;
+  // Before the counts: they read the template picks, and the side picks the templates.
+  const side = signingSide({ deal, agentSide: job.agentSide });
+  if (side !== rsState.tplSide) renderTemplates(side);
   const notes = [];
+  // A template picked by hand that has blocks only for the side that isn't signing.
+  job.forms.forEach((form, i) => {
+    const t = c.templates.find((x) => x.id === $(`tpl-${i}`)?.value);
+    const why = t && sideMismatch(t, side);
+    if (why) notes.push(`${form.name}: "${t.name}" would place no blocks — ${why}.`);
+  });
   if (deal && deal.id === rsState.autoPicked) {
-    notes.push("Picked for you because the address matches. Check it's the right deal, or choose another (or No deal).");
+    notes.push(rsState.autoBy === "name"
+      ? "Picked for you because the buyer's name matches this Buyer Record. Check it's the right one, or choose another (or No deal)."
+      : "Picked for you because the address matches. Check it's the right deal, or choose another (or No deal).");
   }
-  if (deal || id === "none") {
+  if (deal?.kind === "buyer") {
+    notes.push({ level: "info", text: "The buyers are filled in from the Buyer Record. The draft isn't attached to it in reZEN — attach the deal in Real Signature once there is one." });
+  }
+  // Always worked out, deal picked or not: before a pick the boxes showed the HTML's
+  // starting 2 and 2, which read as the answer (2026-10-14). With no deal yet, the numbers
+  // are the no-deal ones (WEBForms Contacts and forms, the agent's side there).
+  {
     // The picked templates' signer slots count too (see signerCounts).
     const templates = job.forms.map((_, i) => $(`tpl-${i}`)?.value)
       .map((tid) => c.templates.find((t) => t.id === tid)?.slots).filter(Boolean);
-    const webforms = job.forms.map((f) => f.parties).filter(Boolean);
-    const { counts: n, why } = signerCounts({ deal, formNames: job.forms.map((f) => f.name), templates, webforms });
+    // Contacts and forms already merged on the WEBForms side; older hand-offs per form.
+    const webforms = job.parties ? [job.parties] : job.forms.map((f) => f.parties).filter(Boolean);
+    const { counts: n, why } = signerCounts({ deal, formNames: job.forms.map((f) => f.name), templates, webforms, agentSide: job.agentSide });
     $("rs-buyers").value = n.BUYER;
     $("rs-sellers").value = n.SELLER;
     $("rs-counts-why").textContent = why;
-  } else {
-    $("rs-counts-why").textContent = "";
   }
   if (deal) {
     notes.push(...wrongDealWarnings({ webformsAddress: job.address, webformsAgentName: null, deal }));
@@ -377,6 +529,20 @@ function updateDeal() {
       notes.push(`${who} has no email in reZEN, so they're left off — add them in Real Signature before sending.`);
     }
   } else if (id === "none") {
+    // No reZEN deal: the signers come from the WEBForms deal's Contacts when they have emails.
+    const n = { BUYER: Number($("rs-buyers").value) || 0, SELLER: Number($("rs-sellers").value) || 0 };
+    const people = { participants: job.contactPeople || [] };
+    const filled = signeesFromDeal(people, n).length;
+    if (filled) {
+      notes.push({ level: "info", text: `${filled === 1 ? "1 signer is" : `${filled} signers are`} filled in from the WEBForms Contacts.` });
+      for (const p of signersWithoutEmail(people, n)) {
+        notes.push(`${p.role === "BUYER" ? "Buyer" : "Seller"} ${p.slot}${p.name ? ` (${p.name})` : ""} has no email in WEBForms, so they're left off — add them in Real Signature before sending.`);
+      }
+    } else {
+      // Real's own Transaction step attaches a deal but doesn't fill in its clients on a draft
+      // whose signer roles are already set up (tried 2026-10-12) — only picking it here does.
+      notes.push({ level: "info", text: "Signers are left blank (no emails in the WEBForms Contacts). To have a deal's clients filled in, choose the deal here — choosing it later in Real Signature attaches the deal but doesn't add its clients." });
+    }
     notes.push(...actingNotes({ me: c.me, deal: null, webformsUserName: job.webformsUserName, webformsUserEmail: job.webformsUserEmail }));
   }
   // Plain strings are warnings; actingNotes gives {level, text}. Warnings first, then the
@@ -390,6 +556,12 @@ function updateDeal() {
 }
 
 const ROLE_LABEL = { BUYERS_AGENT: "Buyer's agent", SELLERS_AGENT: "Seller's agent" };
+const ROLE_WORD = { BUYER: "buyer", SELLER: "seller", BUYERS_AGENT: "buyer's agent", SELLERS_AGENT: "seller's agent" };
+/** ["BUYER", "SELLER"] → "buyer and seller roles" (words for the draft-ready line). */
+function roleWords(types = []) {
+  const w = types.map((t) => ROLE_WORD[t] || "signer");
+  return `${w.length > 1 ? `${w.slice(0, -1).join(", ")} and ${w.at(-1)}` : w[0] || "signer"} role${w.length > 1 ? "s" : ""}`;
+}
 
 /** The "Add the agent as a signer" box: which forms it would touch, and as whom. Mirrors
  *  what rs:create does per form (agentRoleFor + agentPerson), so the note is the truth. */
@@ -399,8 +571,18 @@ function updateAgent() {
   const counts = { BUYER: Number($("rs-buyers").value) || 0, SELLER: Number($("rs-sellers").value) || 0 };
   const picked = job.forms.map((_, i) => $(`tpl-${i}`)?.value);
   const roles = picked.map((tid) => (!tid ? null : tid === "none"
-    ? agentRoleFor({ layout: null, counts })
+    ? agentRoleFor({ layout: null, counts, dealSide: deal?.side || job.agentSide })
     : c.templates.find((t) => t.id === tid)?.agentRole ?? null));
+  // Why a form gets no agent, in words about the TEMPLATE — the form itself may well have
+  // agent lines printed on it; what's missing is a template block or a role to put them in.
+  const skipped = job.forms.map((f, i) => {
+    if (roles[i]) return null;
+    const tid = picked[i];
+    if (!tid) return { form: f.name, why: "pick a template (or No template) first" };
+    if (tid !== "none") return { form: f.name, why: "its template has no agent blocks" };
+    if (!counts.BUYER && !counts.SELLER) return { form: f.name, why: "no template and no buyers or sellers, so it can't tell whether the agent signs as buyer's or seller's agent" };
+    return { form: f.name, why: "no template, and both buyers and sellers sign, so it can't tell whether the agent signs as buyer's or seller's agent" };
+  }).filter(Boolean);
   // Ticked for the agent when a picked template already has agent blocks — the template
   // says the agent signs. Otherwise off. Once the agent touches the box, theirs stands.
   if (!rsState.agentTouched) {
@@ -431,15 +613,20 @@ function updateAgent() {
 
   // Visible: one short line of what will happen. The why goes in the agent ⓘ.
   let text = "", more = "";
+  const skippedText = skipped.map((s) => `${s.form}: ${s.why}.`).join(" ");
   if (!forms.length) {
-    text = on ? "No form here has agent blocks." : "";
-    more = "These forms' templates have no agent blocks, so the agent isn't added to any of them.";
+    if (on) {
+      text = skipped.length === 1 && picked[0] === "none" && job.forms.length === 1
+        ? "Can't tell which agent role to use without a template — add the agent in Real Signature."
+        : "Not added to any form here — add the agent in Real Signature.";
+    }
+    more = `${skippedText} `;
   } else if (!people.length) {
     text = "No agent email on this deal — add the agent in Real Signature.";
   } else if (on) {
     const label = ROLE_LABEL[role] || "agent";
     const where = forms.length === job.forms.length ? "" : ` on ${forms.length} of ${job.forms.length} forms`;
-    if (forms.length !== job.forms.length) more = "The other forms' templates have no agent blocks, so the agent isn't added to them. ";
+    if (skipped.length) more = `Not added to: ${skippedText} `;
     if (people.length > 1 && pick.value === "all") {
       text = `Adds all ${people.length} agents as ${label}s${where}.`;
       more += "Templates have blocks for one agent, so place the other agents' blocks in Real Signature.";
@@ -470,7 +657,7 @@ $("rs-agent-pick").addEventListener("change", () => {
 for (const id of ["rs-buyers", "rs-sellers"]) $(id).addEventListener("input", () => rsState && updateAgent());
 
 $("rs-go").addEventListener("click", async () => {
-  const { tab, job, c, remembered } = rsState;
+  const { tab, job, c } = rsState;
   const dealId = $("rs-deal").value;
   if (!dealId) { say("Choose a deal, or No deal (standalone).", "warn"); return; }
   const templateIds = job.forms.map((_, i) => $(`tpl-${i}`).value);
@@ -479,18 +666,35 @@ $("rs-go").addEventListener("click", async () => {
   $("rs-go").disabled = true;
   say(job.forms.length > 1 ? `Creating ${job.forms.length} drafts and grouping them as a packet…` : "Creating your draft…", "busy");
   try {
+    const t1 = Date.now();
     const r = await send(tab.id, {
       type: "rs:create", jobId: job.id, title: $("rs-title").value.trim() || job.title,
       dealId: dealId === "none" ? null : dealId,
       templateIds: templateIds.map((t) => (t === "none" ? null : t)), counts,
       agentChoice: agentChoice(),
+      emailSubject: subjectFor(await settings(), job.titleValues || {}, $("rs-title").value.trim() || job.title),
     });
-    // Remember each form's template choice for next time (this browser only).
-    job.forms.forEach((f, i) => { if (templateIds[i] !== "none") remembered[formKey(f)] = templateIds[i]; });
-    await chrome.storage.local.set({ templateFor: remembered });
+    // Timings for "Check my setup": a draft finished here (one click stopped to ask
+    // something) only had the steps up to the stop — add the making of it (numbers only).
+    const draftMade = Math.round((Date.now() - t1) / 100) / 10;
+    chrome.storage.local.get("lastTimings").then(({ lastTimings: t }) => chrome.storage.local.set({ lastTimings: {
+      ...(t?.job === job.id ? t : { job: job.id, forms: job.forms.length }), at: Date.now(), draftMade, ...(r.timings || {}) } })).catch(() => {});
+    // Remember each form's template choice for next time (this browser only), for this
+    // side when the deal says which (rememberKey). Re-read first: the Settings page may have
+    // removed some since this panel loaded.
+    const { templateFor: stored = {} } = await chrome.storage.local.get("templateFor");
+    const next = pruneRemembered(stored);
+    const side = signingSide({ deal: c.deals.find((d) => d.id === dealId) || null, agentSide: job.agentSide });
+    job.forms.forEach((f, i) => {
+      const tid = templateIds[i];
+      if (tid === "none") return;
+      next[rememberKey(f, side)] = rememberEntry(f, c.templates.find((t) => t.id === tid) || { id: tid });
+    });
+    await chrome.storage.local.set({ templateFor: next });
     await chrome.runtime.sendMessage({ type: "job:done", id: job.id });
     await chrome.tabs.update(tab.id, { url: new URL(r.url, RS).toString() });
-    say(r.packet ? `Packet draft ready (${r.drafts} documents). Check it, then press Send in Real Signature when you're happy.`
+    say(r.packet && r.drafts === 1 ? `Draft ready, as a packet so Real Signature keeps the ${roleWords(r.unfilled)} — add them in Add Signees. Then press Send in Real Signature when you're happy.`
+      : r.packet ? `Packet draft ready (${r.drafts} documents). Check it, then press Send in Real Signature when you're happy.`
       : "Draft ready. Check it, then press Send in Real Signature when you're happy.", "ok");
     $("rs-form").hidden = true;
     rsState = null;
@@ -538,6 +742,16 @@ $("setup-run").addEventListener("click", async () => {
   if (!wfTab) text += "\n(open WEBForms in a tab to check it)";
   else if (!wf) text += `\n(${wfAsk.tabs === 1 ? "the WEBForms tab" : `none of the ${wfAsk.tabs} WEBForms tabs`} answered — reload ${wfAsk.tabs === 1 ? "it" : "them"} once and run the check again)`
     + (wfAsk.error ? `\n  error: ${wfAsk.error}` : "");
+  // The last draft's steps in seconds — where the wait went. Numbers only: `job` is an
+  // internal id, kept out of the report.
+  try {
+    const { lastTimings: t } = await chrome.storage.local.get("lastTimings");
+    if (t) {
+      const ago = Math.round((Date.now() - t.at) / 60000);
+      const steps = Object.entries(t).filter(([k]) => !["at", "forms", "job"].includes(k)).map(([k, v]) => `${k} ${v}s`).join(", ");
+      text += `\nLast draft (${t.forms} form${t.forms === 1 ? "" : "s"}, ${ago} min ago): ${steps}`;
+    }
+  } catch { /* none yet */ }
   $("setup-out").textContent = text;
 });
 
@@ -545,6 +759,10 @@ $("setup-run").addEventListener("click", async () => {
 
 let refreshing = null;
 async function refresh() {
+  // Not while a Create is under way: the Real Signature tab it opened finishes loading
+  // mid-way, and a redraw then switched Create back on before the draft was made
+  // (2026-10-14). The Create click sees its own ending through (draft, panel or error).
+  if (wfBusy) return;
   if (refreshing) return refreshing;
   refreshing = (async () => {
     try {
@@ -568,6 +786,7 @@ async function refresh() {
   return refreshing;
 }
 
+$("open-settings").addEventListener("click", () => chrome.runtime.openOptionsPage());
 chrome.tabs.onActivated.addListener(() => refresh());
 chrome.tabs.onUpdated.addListener((_id, info) => info.status === "complete" && refresh());
 syncTips();

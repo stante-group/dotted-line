@@ -83,10 +83,60 @@ export function summarizeDeal(t, { listing = false } = {}) {
   };
 }
 
+/** Whether a draft's `defaults.transactionId` may be a Buyer Record's id. No: Real
+ *  Signature's own Transaction step doesn't list Buyer Records (Dan, 2026-10-14), so the
+ *  draft takes its buyers from the record and stays unattached until "Mark In Contract"
+ *  makes a transaction. Flip only if Real Signature starts offering them. */
+export const BUYER_RECORDS_ATTACH = false;
+
+/** arrakis GET /buyer-record/{id} → the same shape as summarizeDeal, kind "buyer". Its
+ *  clients are external participants (with emails); agents and TCs are internal (no email
+ *  here), so only the clients become participants. No address: a buyer before contract has
+ *  no property yet. */
+export function summarizeBuyerRecord(r) {
+  if (!r || typeof r.id !== "string" || !Array.isArray(r.participants)) throw new Error("reZEN's Buyer Record changed shape");
+  const trim = (s) => String(s ?? "").replace(/\s+/g, " ").trim();
+  const clients = r.participants.map((p) => p.externalParticipant).filter(Boolean);
+  const owner = r.participants.map((p) => p.internalParticipant).find((p) => p?.owner);
+  return {
+    id: r.id,
+    kind: "buyer",
+    side: "BUYER",
+    address: "",
+    code: trim(r.code),
+    agentName: owner ? trim(`${owner.firstName ?? ""} ${owner.lastName ?? ""}`) : "",
+    ownerId: owner?.userId ?? null,
+    mlsNum: "",
+    buyerNames: clients.filter((p) => p.role === "BUYER")
+      .map((p) => trim(p.entityName) || trim(`${p.firstName ?? ""} ${p.lastName ?? ""}`)).filter(Boolean),
+    participants: clients.map((p) => ({
+      role: p.role,
+      firstName: trim(p.firstName),
+      lastName: trim(p.lastName),
+      email: trim(p.emailAddress),
+    })),
+  };
+}
+
+const nameWords = (s) => String(s ?? "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "")
+  .replace(/[^a-z0-9]+/g, " ").trim().split(" ").filter((w) => w.length > 1 && !["and", "ltd", "inc"].includes(w));
+
+/** Does a Buyer Record's buyer appear among the names typed in WEBForms? Every word of one
+ *  of its buyers' names (first and last) must be on one typed line, so a couple typed as
+ *  "Jordan & Riley Sample" matches "Jordan Sample", and a shared surname alone doesn't. */
+export function matchesBuyerNames(typedLines, record) {
+  const lines = (typedLines || []).map((l) => new Set(nameWords(l)));
+  return (record.buyerNames || []).some((n) => {
+    const words = nameWords(n);
+    return words.length > 0 && lines.some((l) => words.every((w) => l.has(w)));
+  });
+}
+
 /** Warnings to show before creating the draft. Empty array = nothing to flag. */
 export function wrongDealWarnings({ webformsAddress, webformsAgentName, deal }) {
   const out = [];
-  if (webformsAddress && addressScore(webformsAddress, deal.address || "") < 0.75) {
+  // A Buyer Record has no address to compare (there's no property yet).
+  if (webformsAddress && deal.kind !== "buyer" && addressScore(webformsAddress, deal.address || "") < 0.75) {
     out.push("The WEBForms address doesn't match this deal's address.");
   }
   if (webformsAgentName && deal.agentName

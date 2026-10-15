@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { stripTemplate, dropUnusedSlots, offsetPages, mergeLayouts, applyToDraft } from "../src/lib/layout.js";
-import { suggestTemplate, checkPages, formKey } from "../src/lib/match.js";
+import { suggestTemplate, checkPages, formKey, rememberEntry, rememberedId, pruneRemembered, signingSide, rememberKey, sideMismatch } from "../src/lib/match.js";
 import { normalizeAddress, addressScore, rankDeals, wrongDealWarnings } from "../src/lib/deals.js";
 import { sampleTemplate, sampleDeals } from "./fixtures.js";
 
@@ -69,6 +69,34 @@ test("template matching: name suggestions only when pages fit", () => {
   assert.deepEqual(r.suggestions.map((t) => t.id), ["a"]);
 });
 
+test("template matching: remembered per side, and a template with no blocks for this side is refused", () => {
+  // a form both sides sign: one template per side, since every block belongs to a role
+  const form = { name: "Consumer Relationships Guide", library: "AREA0001", pageCount: 2 };
+  const seller = { id: "s", name: "Consumer Relationships Guide - Seller", pagesCount: 2, slots: { BUYER: 0, SELLER: 2, AGENT: 0 } };
+  const buyer = { id: "b", name: "Consumer Relationships Guide - Buyer", pagesCount: 2, slots: { BUYER: 2, SELLER: 0, AGENT: 0 } };
+  assert.equal(signingSide({ deal: { side: "BUYER" } }), "BUYER");
+  assert.equal(signingSide({ deal: { side: "DUAL" }, agentSide: "SELLER" }), "SELLER", "the WEBForms side when the deal can't say");
+  assert.equal(signingSide({ deal: null, agentSide: "DUAL" }), null);
+  assert.equal(rememberKey(form, "BUYER"), "lib:AREA0001|BUYER");
+  assert.equal(rememberKey(form, null), formKey(form));
+  // chosen before choices were per side: kept for the seller side, refused on a buyer deal
+  const old = { [formKey(form)]: rememberEntry(form, seller) };
+  assert.equal(suggestTemplate(form, [seller, buyer], old, "SELLER").remembered.id, "s");
+  const r = suggestTemplate(form, [seller, buyer], old, "BUYER");
+  assert.equal(r.remembered, null);
+  assert.equal(r.refused.kind, "side");
+  assert.match(r.refused.reason, /seller blocks only.*buyers/);
+  assert.deepEqual(r.suggestions.map((t) => t.id), ["b"], "the buyer version is offered instead");
+  // once the buyer one is chosen on a buyer deal, each side gets its own
+  const both = { ...old, [rememberKey(form, "BUYER")]: rememberEntry(form, buyer) };
+  assert.equal(suggestTemplate(form, [seller, buyer], both, "BUYER").remembered.id, "b");
+  assert.equal(suggestTemplate(form, [seller, buyer], both, "SELLER").remembered.id, "s");
+  // side unknown, or a template with both sides' blocks: nothing to refuse
+  assert.equal(sideMismatch(seller, null), null);
+  assert.equal(sideMismatch({ slots: { BUYER: 1, SELLER: 1 } }, "BUYER"), null);
+  assert.equal(sideMismatch({ slots: { BUYER: 0, SELLER: 0, AGENT: 2 } }, "BUYER"), null, "agent-only: not a client-side mismatch");
+});
+
 test("addresses: tabs, spelled-out types and unit marks normalise", () => {
   assert.equal(normalizeAddress("\t120  Example Street, N.W."), "120 EXAMPLE ST NW");
   assert.equal(addressScore("120 Example Street, N.W.", "120 Example St NW"), 1);
@@ -86,4 +114,16 @@ test("wrong-deal guard flags another agent's deal and a different address", () =
   const w = wrongDealWarnings({ webformsAddress: "120 Example St NW", webformsAgentName: "Alex Example", deal: sampleDeals[1] });
   assert.equal(w.length, 2);
   assert.deepEqual(wrongDealWarnings({ webformsAddress: "120 Example St NW", webformsAgentName: "Alex Example", deal: sampleDeals[0] }), []);
+});
+
+test("remembered templates: new entries carry names, old ids still work, per-form keys are dropped", () => {
+  const t = { id: "a", name: "Both Agency template", pagesCount: 4 };
+  const form = { name: "Agreement to Represent Both.pdf", library: "AREA0287", pageCount: 4 };
+  const entry = rememberEntry(form, t, 1);
+  assert.deepEqual(entry, { id: "a", template: "Both Agency template", form: "Agreement to Represent Both", at: 1 });
+  assert.equal(suggestTemplate(form, [t], { [formKey(form)]: entry }).remembered.id, "a", "new shape");
+  assert.equal(suggestTemplate(form, [t], { [formKey(form)]: "a" }).remembered.id, "a", "a bare id from before still works");
+  assert.equal(rememberedId(null), null);
+  const pruned = pruneRemembered({ "guid:x": "a", "lib:AREA0287": entry, "name:addendum": "b", "lib:BAD": { nope: 1 } });
+  assert.deepEqual(Object.keys(pruned).sort(), ["lib:AREA0287", "name:addendum"]);
 });

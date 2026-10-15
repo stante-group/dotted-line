@@ -46,6 +46,12 @@ and AREA's form-copyright page (404). Not legal advice.
 
 **Design rules that follow:**
 1. Act only on the agent's click. No timers, no background batches; downloads spaced out.
+   (2026-10-14: the per-form lookups for the forms the agent picked now go up to 4 at a time
+   — a smaller burst than WEBForms' own page makes opening one form. The point of the rule
+   is not overburdening WEBForms, AUP §1, and it still holds: nothing beyond the picked forms.
+   Dan, same day: the agent's TICK in a deal's Forms list counts as the click — ticking a form
+   starts its lookup, so the icon click finds it done. Memory only, 2 minutes, that page
+   only; at most 4 at once, so ticking "all" can't fire twenty.)
 2. **Use WEBForms' own zip download — the same two requests its button sends — only on the
    agent's click, with their own session, and keep the bytes unchanged.** No other WEBForms
    endpoints, no saving forms on the agent's behalf. (Decided 2026-10-11: Dan wants the

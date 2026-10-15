@@ -82,6 +82,7 @@
   <section id="rs" hidden>
     <p id="rs-status" class="note"></p>
     <div id="rs-form" hidden>
+      <div id="rs-needs"></div>
       <label for="rs-title">Title</label>
       <input id="rs-title" type="text" maxlength="120">
       <div class="with-i">
@@ -91,9 +92,16 @@
       <div id="tip-deal" class="tip" hidden>Your open deals and listings, best address match first. The draft is attached to this deal, and its clients fill in the signers. Choose <b>No deal</b> for a standalone form.</div>
       <select id="rs-deal"></select>
       <div id="rs-warn"></div>
+      <p id="rs-deal-first" class="note" hidden>Choose the deal (or No deal) first — it decides who signs.</p>
+      <!-- Step 2, once there's a deal (or No deal): templates, then signers, because a
+           template can change who signs. -->
+      <div id="rs-after-deal" hidden>
+      <h2>Templates<button class="i" type="button" aria-expanded="false" aria-controls="tip-templates" aria-label="About templates">i</button></h2>
+      <div id="tip-templates" class="tip" hidden>A template places the signature, initial and date blocks for you. Only your Real Signature templates that have blocks and the same number of pages as the form are listed. Your choice is remembered for next time. With no template, you place the blocks in Real Signature.</div>
+      <div id="rs-templates"></div>
       <h2>Signers<button class="i" type="button" aria-expanded="false" aria-controls="tip-signers" aria-label="How the signers are set">i</button></h2>
       <div id="tip-signers" class="tip" hidden><span id="rs-counts-why"></span>
-        At least two per signing side: deleting a spare signer in Real Signature is one click, adding one means placing their blocks. Blocks for signers beyond these numbers are left off.</div>
+        As many as are named on the form; two when the form names nobody on that side. Blocks for signers beyond these numbers are left off.</div>
       <div class="row">
         <label>Buyers <input id="rs-buyers" type="number" min="0" max="4" value="2"></label>
         <label>Sellers <input id="rs-sellers" type="number" min="0" max="4" value="2"></label>
@@ -102,16 +110,14 @@
         <label class="check"><input id="rs-agent" type="checkbox"> Add the agent as a signer</label>
         <button class="i" type="button" aria-expanded="false" aria-controls="tip-agent" aria-label="About the agent as a signer">i</button>
       </div>
-      <div id="tip-agent" class="tip" hidden>Adds the deal's agent as Buyer's or Seller's agent, on the forms whose template has agent blocks (or no template). Ticked for you when a template has agent blocks. <span id="rs-agent-more"></span></div>
+      <div id="tip-agent" class="tip" hidden>Adds the deal's agent as Buyer's or Seller's agent, on the forms whose template has agent blocks, or that have no template. With no template on a form both sides sign, the deal's side decides which agent role. Ticked for you when a template has agent blocks. <span id="rs-agent-more"></span></div>
       <div id="rs-agent-pick-wrap" hidden>
         <label for="rs-agent-pick">Who signs as agent</label>
         <select id="rs-agent-pick"></select>
       </div>
       <p class="note" id="rs-agent-who"></p>
-      <h2>Templates<button class="i" type="button" aria-expanded="false" aria-controls="tip-templates" aria-label="About templates">i</button></h2>
-      <div id="tip-templates" class="tip" hidden>A template places the signature, initial and date blocks for you. Only your Real Signature templates that have blocks and the same number of pages as the form are listed. Your choice is remembered for next time. With no template, you place the blocks in Real Signature.</div>
-      <div id="rs-templates"></div>
-      <button id="rs-go">Create draft</button>
+      </div>
+      <button id="rs-go" disabled>Create draft</button>
       <p class="note">Nothing is sent. You'll land on the draft to check it and press Send yourself.</p>
     </div>
   </section>
@@ -127,6 +133,7 @@
   </details>
 
   <footer>
+    <button id="open-settings" class="link" type="button">Settings</button><br>
     Free, from <a href="https://dealdates.app" target="_blank" rel="noopener">Deal Dates</a>: your deal deadlines in your inbox at 6am.<br>
     Not affiliated with or endorsed by Lone Wolf Technologies, CREA or The Real Brokerage Inc.
   </footer>

@@ -25,11 +25,14 @@ async function context({ fresh = false } = {}) {
   const lib = await load();
   const rs = new lib.RealSignature({ getToken: () => lib.readToken(document.cookie) });
   const me = lib.meFromYenta(await rs.me());
-  const [mine, shared, deals, listings] = await Promise.all([
+  const [mine, shared, deals, listings, buyers] = await Promise.all([
     rs.allTemplates(),
     rs.allTemplates({ sharedWithMe: true }),
     rs.allOpenDeals(me.id),
     rs.allOpenDeals(me.id, { listings: true }),
+    // Newer than the rest of reZEN (2026-10-12) and only a convenience: if it fails or
+    // changes shape, the picker carries on without Buyer Records.
+    rs.activeBuyerRecords(me.id).catch(() => []),
   ]);
   const templates = new Map();
   for (const t of mine) templates.set(t.id, { t, shared: false });
@@ -37,7 +40,9 @@ async function context({ fresh = false } = {}) {
   const dealMap = new Map();
   for (const d of deals) dealMap.set(d.id, lib.summarizeDeal(d));
   for (const d of listings) if (!dealMap.has(d.id)) dealMap.set(d.id, lib.summarizeDeal(d, { listing: true }));
-  ctx = { rs, lib, me, templates, deals: dealMap, roles: null };
+  for (const b of buyers) {
+    try { const s = lib.summarizeBuyerRecord(b); if (!dealMap.has(s.id)) dealMap.set(s.id, s); } catch { /* skip one odd record */ }
+  }  ctx = { rs, lib, me, templates, deals: dealMap, roles: null };
   return ctx;
 }
 
@@ -91,7 +96,7 @@ const fileName = (name) => `${String(name).replace(/\.pdf$/i, "").replace(/[\\/:
 
 // agentChoice: null = don't add the agent; "all" = every agent on the deal; else the email
 // of the one agent who signs (see chooseAgents).
-async function create({ jobId, title, dealId, templateIds, counts, agentChoice = null }) {
+async function create({ jobId, title, dealId, templateIds, counts, agentChoice = null, emailSubject = null }) {
   const c = await context();
   const { rs, lib } = c;
   const job = await chrome.runtime.sendMessage({ type: "job:get", id: jobId });
@@ -101,16 +106,21 @@ async function create({ jobId, title, dealId, templateIds, counts, agentChoice =
   if (dealId && !deal) throw new Error("That deal is no longer in your open deals.");
 
   const sender = lib.senderFor(c.me, deal);
-  const signees = deal ? lib.signeesFromDeal(deal, counts) : [];
+  // No reZEN deal: the WEBForms deal's Buyer and Seller contacts, those with an email.
+  const signees = lib.signeesFromDeal(deal || { participants: job.contactPeople || [] }, counts);
   const created = [];
   let packetId = null;
+  const unfilled = new Set(); // signer roles left for the agent to fill (see unfilledRoles)
+  // Seconds per step, summed over the forms (numbers only, for "Check my setup").
+  const timings = { upload: 0, readBack: 0, save: 0 };
+  const timed = async (k, p) => { const s = Date.now(); try { return await p; } finally { timings[k] = Math.round(((timings[k] || 0) + (Date.now() - s) / 1000) * 10) / 10; } };
   try {
     for (const [i, form] of job.forms.entries()) {
       const pdf = new Blob([lib.fromBase64(form.pdfBase64)], { type: "application/pdf" });
-      const up = await rs.uploadDraft(pdf, fileName(form.name));
+      const up = await timed("upload", rs.uploadDraft(pdf, fileName(form.name)));
       if (!up?.id) throw new Error("Real Signature's upload answer changed shape");
       created.push(up.id);
-      const draft = await rs.getTemplate(up.id);
+      const draft = await timed("readBack", rs.getTemplate(up.id));
       let layout = null;
       if (templateIds[i]) {
         const t = c.templates.get(templateIds[i])?.t || (await rs.getTemplate(templateIds[i]));
@@ -120,26 +130,36 @@ async function create({ jobId, title, dealId, templateIds, counts, agentChoice =
       // template (blocks placed by hand); see agentRoleFor.
       let agents = null;
       if (agentChoice) {
-        const role = lib.agentRoleFor({ layout, counts });
+        const role = lib.agentRoleFor({ layout, counts, dealSide: deal?.side || job.agentSide });
         const people = role ? lib.chooseAgents(lib.agentPeople({ deal, role, me: c.me, webformsUserName: job.webformsUserName, webformsUserEmail: job.webformsUserEmail }), agentChoice) : [];
         if (people.length) agents = { signeeType: role, people };
       }
-      await rs.putDraft(up.id, lib.buildDraftBody({
+      const body = lib.buildDraftBody({
         draft, layout,
         name: job.forms.length > 1 ? String(form.name).replace(/\.pdf$/i, "") : title,
-        pageCount: form.pageCount, transactionId: deal?.id, counts, signees, sender, agents,
-      }));
+        // A Buyer Record gives the buyers; whether a draft can be attached to one is untested.
+        pageCount: form.pageCount, transactionId: deal?.kind === "buyer" && !lib.BUYER_RECORDS_ATTACH ? null : deal?.id, counts, signees, sender, agents,
+        // From the panel (the title, the agent's pattern, or null = Real's own). A packet has
+        // no settings of its own, so every document carries the same subject.
+        emailSubject,
+      });
+      for (const r of lib.unfilledRoles(body)) unfilled.add(r);
+      await timed("save", rs.putDraft(up.id, body));
     }
-    if (created.length > 1) {
-      const p = await rs.createPacketDraft(title, created);
+    // One form with a signer role nobody fills (no email for the buyer, say) goes in a packet
+    // of one: a single document's Edit details hides empty roles and its Next deletes them,
+    // blocks and all; a packet lists every role and asks for each (2026-10-14, see
+    // docs/api-notes.md). All filled → a plain single draft, as before.
+    if (created.length > 1 || unfilled.size) {
+      const p = await timed("packet", rs.createPacketDraft(title, created));
       if (!p?.id) throw new Error("Real Signature's packet answer changed shape");
       packetId = p.id;
-      return { url: `/one-time-documents/packet/${packetId}`, drafts: created.length, packet: true };
+      return { url: `/one-time-documents/packet/${packetId}`, drafts: created.length, packet: true, unfilled: [...unfilled], timings };
     }
     // The page Real's own Drafts pencil opens: Transaction → Edit details (signers, names,
     // emails) → Prepare → Review. /prepare/{id} jumped past the first two, so an agent
     // couldn't see who the draft was going to (2026-10-12).
-    return { url: `/one-time-documents/document/${created[0]}`, drafts: 1, packet: false };
+    return { url: `/one-time-documents/document/${created[0]}`, drafts: 1, packet: false, timings };
   } catch (e) {
     if (packetId) await rs.deletePacketDraft(packetId).catch(() => {});
     for (const id of created) await rs.deleteDraft(id).catch(() => {});

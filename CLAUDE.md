@@ -25,3 +25,9 @@ Public repo. Read PLAN.md first; API shapes are in docs/api-notes.md.
 
 `npm test` (Node ≥ 20, no dependencies). `src/lib/` is pure and tested; content scripts
 load it with `import(chrome.runtime.getURL(...))`.
+
+Code-quality baseline: `.claude/skills/coding-standards` (vendored from affaan-m/ECC at
+`d29cf65`, MIT — LICENSE beside it; re-copy to update, don't edit in place). It is written
+for TypeScript, React and Next.js; this repo is plain JavaScript with no build step, no
+dependencies and no server, so its typing, React, API-design, Zod and folder-layout advice
+doesn't apply. Where it and this file disagree, this file wins.

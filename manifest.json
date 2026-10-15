@@ -13,6 +13,7 @@
   "background": { "service_worker": "src/background.js", "type": "module" },
   "side_panel": { "default_path": "src/panel/panel.html" },
   "action": { "default_title": "Dotted Line" },
+  "options_ui": { "page": "src/options/options.html", "open_in_tab": true },
   "content_scripts": [
     {
       "matches": ["https://pr.transactiondesk.com/*"],

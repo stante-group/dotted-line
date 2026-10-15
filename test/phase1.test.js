@@ -6,8 +6,9 @@ import { deflateRawSync, crc32 as zcrc } from "node:zlib";
 import { unzip, crc32 } from "../src/lib/unzip.js";
 import { isPdf, hasAcroForm, countPages, toBase64, fromBase64 } from "../src/lib/pdf.js";
 import { suggestTitle, matchAddress, addressLine } from "../src/lib/title.js";
-import { WebForms, isAllowed, readBearer, zipEntryName, pairEntries, WebFormsSignedOut, partiesFromFormValues } from "../src/lib/webforms-api.js";
-import { buildDraftBody, signeesFromDeal, countsFromDeal, signersWithoutEmail, signerCounts, sideFromFormNames, templateSlots, agentRoleFor, agentPerson, agentPeople, chooseAgents } from "../src/lib/draft.js";
+import { WebForms, isAllowed, readBearer, zipEntryName, pairEntries, WebFormsSignedOut, partiesFromFormValues, libraryNamesFrom, agentSideFromFormValues, agentSideFromContacts, combineSides, partiesFromContacts, buyerNamesFromContacts, mergeParties, peopleFromContacts } from "../src/lib/webforms-api.js";
+import { formKey } from "../src/lib/match.js";
+import { buildDraftBody, signeesFromDeal, countsFromDeal, signersWithoutEmail, signerCounts, sideFromFormNames, templateSlots, isEmail, agentRoleFor, agentPerson, agentPeople, chooseAgents, unfilledRoles } from "../src/lib/draft.js";
 import { stripTemplate, dropUnusedSlots } from "../src/lib/layout.js";
 import { summarizeDeal } from "../src/lib/deals.js";
 import { actingNotes, setupReport, senderFor, meFromYenta, DELEGATION_VERIFIED, samePerson } from "../src/lib/actor.js";
@@ -88,14 +89,35 @@ test("title: deal name, address appended only when complete and not already ther
   const t = { Name: "Offer - Jordan Sample", StreetNumber: "120", StreetName: "Example Street NW", City: "Calgary" };
   assert.equal(suggestTitle({ transaction: t, forms: [] }), "Offer - Jordan Sample – 120 Example Street NW, Calgary");
   assert.equal(suggestTitle({ transaction: { ...t, Name: "Offer 120 Example St NW" }, forms: [] }), "Offer 120 Example St NW");
-  assert.equal(suggestTitle({ transaction: { ...t, City: "" }, forms: [] }), "Offer - Jordan Sample");
+  assert.equal(suggestTitle({ transaction: { ...t, City: "" }, forms: [] }), "Offer - Jordan Sample – 120 Example Street NW", "no city: number and street still go in");
+  assert.equal(suggestTitle({ transaction: { ...t, StreetNumber: "" }, forms: [] }), "Offer - Jordan Sample", "no civic number: no address");
+  const oneLine = { Name: "Offer - Jordan Sample", StreetNumber: "", StreetName: "", City: "", Address: "120 Example Street NW, Calgary" };
+  assert.equal(suggestTitle({ transaction: oneLine, forms: [] }), "Offer - Jordan Sample – 120 Example Street NW, Calgary", "only the one-line Address filled in");
+  assert.equal(suggestTitle({ transaction: { ...oneLine, Address: "Lot 4, Example Estates" }, forms: [] }), "Offer - Jordan Sample", "one-line Address without a civic number: no address");
+  // The whole address typed into the street field, civic number blank, city with province and postal code.
+  const typed = { Name: "Offer - Jordan Sample", StreetNumber: "", StreetName: "12, 120-5 Example St SE", City: "Calgary AB T2G 0A1", Address: " 12, 120-5 Example St SE" };
+  assert.equal(suggestTitle({ transaction: typed, forms: [] }), "Offer - Jordan Sample – 12, 120-5 Example St SE, Calgary");
+  assert.equal(addressLine({ streetNumber: "", streetName: "12, 120-5 Example St SE", city: "Calgary, Alberta" }), "12, 120-5 Example St SE, Calgary");
+  assert.equal(addressLine({ streetNumber: "", streetName: "Example Estates", city: "Calgary" }), null, "no number anywhere");
+  assert.equal(addressLine({ streetNumber: "", streetName: "12, 120 5 Street SE, Calgary AB T2G0A1", city: "" }), "12, 120 5 Street SE, Calgary", "province and postal code trimmed from a whole address");
+  assert.equal(addressLine({ streetNumber: "", streetName: "12, 120 5 Street SE, Calgary AB T2G0A1", city: "Calgary" }), "12, 120 5 Street SE, Calgary", "city not added twice");
+  assert.equal(addressLine({ unit: "#12", streetNumber: "", streetName: "12, 120 5 Street SE, Calgary AB T2G0A1", city: "" }), "12-120 5 Street SE, Calgary", "unit typed in both places: once, in front");
+  assert.equal(addressLine({ unit: "12", streetNumber: "", streetName: "120 5 Street SE", city: "Calgary" }), "12-120 5 Street SE, Calgary", "unit only in its own field");
 });
 
 test("title: standalone forms use form names and the typed-in address", () => {
   const v = { txtp_streetnum: "12", txtp_street: "Sample Avenue SW", txtp_city: "Calgary" };
   assert.equal(suggestTitle({ transaction: null, forms: [{ name: "Addendum.pdf" }], firstFormValues: v }), "Addendum – 12 Sample Avenue SW, Calgary");
-  assert.equal(suggestTitle({ transaction: null, forms: [{ name: "A" }, { name: "B" }], firstFormValues: null }), "2 forms");
+  assert.equal(suggestTitle({ transaction: null, forms: [{ name: "A" }, { name: "B" }], firstFormValues: null }), "A + B");
+  const both = "Agreement to Represent Both Seller and Buyer (Designated Agency)";
+  assert.equal(suggestTitle({ transaction: null, forms: [{ name: both }, { name: "Addendum" }, { name: "Addendum" }], firstFormValues: v }),
+    "Agreement to Represent Both Seller and Buyer + Addendum ×2 – 12 Sample Avenue SW, Calgary", "asides dropped, repeats counted");
+  assert.equal(suggestTitle({ transaction: null, forms: [{ name: both }, { name: "Addendum - Purchase Contract" }, { name: "Property Disclosure Statement" }] }),
+    "Agreement to Represent Both Seller and Buyer + 2 more", "too long: first and a count");
   assert.equal(addressLine({ streetNumber: "12", streetName: "", city: "Calgary" }), null);
+  assert.equal(addressLine({ unit: "1234", streetNumber: "120", streetName: "Example Street", city: "" }), "1234-120 Example Street", "unit first, Canada Post style");
+  assert.equal(addressLine({ unit: "Unit 5", streetNumber: "120", streetName: "Example Street", city: "Calgary" }), "5-120 Example Street, Calgary");
+  assert.equal(suggestTitle({ transaction: null, forms: [{ name: "Addendum" }], firstFormValues: { ...v, txtp_unitNumber: "1234" } }), "Addendum – 1234-12 Sample Avenue SW, Calgary");
   assert.equal(matchAddress({ transaction: null, firstFormValues: v }), "12 Sample Avenue SW Calgary");
   assert.equal(suggestTitle({ transaction: null, forms: [{ name: "x".repeat(200) }] }).length, 120);
 });
@@ -105,6 +127,9 @@ test("WEBForms client: only the allowlisted requests, nothing that saves or send
   assert.ok(isAllowed("GET", "/api/formeditor/formfields/abc"));
   assert.ok(isAllowed("POST", "/api/Transfer/CreateDownloadRequest"));
   assert.ok(isAllowed("GET", "/api/Transfer/downloadmany"));
+  assert.ok(isAllowed("GET", "/api/forms/single/abc"));
+  assert.ok(isAllowed("GET", "/api/forms/index"));
+  assert.ok(!isAllowed("POST", "/api/forms/single/abc"), "read-only: GET only");
   for (const [m, p] of [["PUT", "/api/formeditor/saveForm/abc"], ["POST", "/api/formeditor/saveMarkups/abc"],
     ["POST", "/api/AppsStore/SendItems"], ["GET", "/api/Transfer/printpdf"], ["GET", "/api/Transfer/downloadsingle"],
     ["DELETE", "/api/forms/abc"], ["POST", "/api/transactions/Basic/abc"]]) {
@@ -112,6 +137,20 @@ test("WEBForms client: only the allowlisted requests, nothing that saves or send
   }
   assert.equal(readBearer('"tok"'), "tok");
   assert.equal(readBearer("not json"), null);
+});
+
+test("form types: library code → type name, and the template choice is keyed on the type", () => {
+  const tree = [{ Name: "Individual Forms", Misc: null, Folders: [{ Name: "Alberta Real Estate Association", Misc: "", Folders: [
+    { Name: "Agreement to Represent Both Seller and Buyer (Designated Agency)", Misc: "AREA0287", Folders: [] },
+    { Name: "Addendum - Purchase Contract", Misc: "AREA0123", Folders: [] },
+  ] }] }, { Name: "Transaction Forms", Folders: [{ Name: "Renamed copy", Misc: "AREA0287", Folders: [] }] }];
+  const names = libraryNamesFrom(tree);
+  assert.equal(names.AREA0287, "Agreement to Represent Both Seller and Buyer (Designated Agency)", "first one wins");
+  assert.equal(names.AREA0123, "Addendum - Purchase Contract");
+  assert.equal(Object.keys(names).length, 2, "folders without a code are skipped");
+  // Two forms of one type, named after their civic numbers, share a remembered template.
+  assert.equal(formKey({ library: "AREA0287", name: "120" }), formKey({ library: "AREA0287", name: "12" }));
+  assert.equal(formKey({ name: "Addendum.pdf" }), "name:addendum");
 });
 
 test("WEBForms client: zip download is the two requests WEBForms' button sends", async () => {
@@ -180,6 +219,22 @@ test("draft body: template blocks, deal, signers within the counts, sender", () 
   assert.equal(body.defaults.sender.agentYentaId, null);
   assert.equal(body.fieldDefinitions.length, 3);
   assert.ok(!JSON.stringify(body).includes("Hi Jordan"), "template's email body must not ride along");
+  assert.equal(body.defaults.emailSubject, null, "no title given: no subject, and never the template's");
+  const titled = buildDraftBody({ draft, layout, name: "x", pageCount: 3, transactionId: null, counts, signees: [],
+    sender: senderFor(me, null), emailSubject: "Offer – 120 Example Street NW" });
+  assert.equal(titled.defaults.emailSubject, "Offer – 120 Example Street NW", "the subject is the panel's title");
+  assert.deepEqual(unfilledRoles(body), [], "every role named: stays a single draft");
+  assert.deepEqual(unfilledRoles(titled).sort(), ["BUYER", "SELLER"], "nobody named: goes in a packet of one");
+});
+
+test("unfilled roles: fewer named than slots, agents included", () => {
+  const body = (configs, signees) => ({ signeeConfigs: configs, defaults: { signees } });
+  const cfg = [{ signeeType: "BUYER", maxNum: 2 }, { signeeType: "SELLER", maxNum: 1 }, { signeeType: "SELLERS_AGENT", maxNum: 1 }];
+  const s = (t, i) => ({ signeeType: t, signeeIndex: i, name: "Jordan Sample", email: "jordan@example.com" });
+  assert.deepEqual(unfilledRoles(body(cfg, [s("BUYER", 0), s("SELLER", 0), s("SELLERS_AGENT", 0)])), ["BUYER"], "one of two buyers");
+  assert.deepEqual(unfilledRoles(body(cfg, [s("SELLERS_AGENT", 0)])), ["BUYER", "SELLER"], "agent only, no clients (the standalone agreement, 2026-10-14)");
+  assert.deepEqual(unfilledRoles(body([{ signeeType: "BUYER", maxNum: 0 }], [])), [], "a zero-slot role isn't waiting for anyone");
+  assert.deepEqual(unfilledRoles({}), []);
 });
 
 test("signer counts follow the side represented, then the form names", () => {
@@ -221,7 +276,7 @@ test("signer counts: the picked templates' slots raise the count and, without a 
   // no deal: template decides the side, and its 3 slots beat the minimum of 2
   const r = signerCounts({ deal: null, formNames: offer, templates: [sellers3] });
   assert.deepEqual(r.counts, { BUYER: 0, SELLER: 3 });
-  assert.match(r.why, /only has seller blocks.*template has blocks for 3 sellers/);
+  assert.match(r.why, /only has seller blocks.*no sellers named in WEBForms, and your template has blocks for 3/);
   // template beats a form name pointing the other way
   assert.deepEqual(signerCounts({ deal: null, formNames: ["Buyer Representation Agreement"], templates: [sellers3] }).counts, { BUYER: 0, SELLER: 3 });
   // a two-sided template gives no side clue; never fewer than 2
@@ -235,6 +290,78 @@ test("signer counts: the picked templates' slots raise the count and, without a 
   assert.deepEqual(signerCounts({ deal: dual, formNames: offer, templates: [sellers3] }).counts, { BUYER: 0, SELLER: 3 });
 });
 
+test("the agent's side from the WEBForms agent emails decides who signs when the deal can't", () => {
+  const offerValues = { txtl_brkagentemail: "lister@example.com", txts_brkagentemail: " Alex@Example.com " };
+  assert.equal(agentSideFromFormValues(offerValues, "alex@example.com"), "BUYER");
+  assert.equal(agentSideFromFormValues(offerValues, "lister@example.com"), "SELLER");
+  assert.equal(agentSideFromFormValues({ txtl_brkagentemail: "a@example.com", txts_brkagentemail: "a@example.com" }, "a@example.com"), "DUAL");
+  assert.equal(agentSideFromFormValues(offerValues, "tc@example.com"), null, "a TC's own login: no side");
+  assert.equal(agentSideFromFormValues(offerValues, null), null);
+  assert.equal(agentSideFromFormValues({}, "alex@example.com"), null);
+  // the transaction's Contacts, WEBForms' wording: "Selling Agent" is the listing side
+  const contact = (type, email) => ({ TransactionContactTypeName: type, ContactData: { General: { FirstName: "X", LastName: "Example", Email: email } } });
+  const contacts = [contact("Buying Agent", "Alex@example.com"), contact("Selling Agent", "lister@example.com"), contact("Buyer", "")];
+  assert.equal(agentSideFromContacts(contacts, "alex@example.com"), "BUYER");
+  assert.equal(agentSideFromContacts(contacts, "lister@example.com"), "SELLER");
+  assert.equal(agentSideFromContacts([contact("Buying Agent", "a@example.com"), contact("Selling Agent", "a@example.com")], "a@example.com"), "DUAL");
+  assert.equal(agentSideFromContacts(contacts, "tc@example.com"), null);
+  assert.equal(agentSideFromContacts(null, "alex@example.com"), null);
+  assert.equal(isAllowed("GET", "/api/transactioncontacts/index/abc"), true);
+  assert.equal(isAllowed("POST", "/api/transactioncontacts/index/abc"), false, "reading Contacts only, never changing them");
+  // buyers and sellers from Contacts, the same in every province; per side, forms fill in
+  const people = [...contacts, contact("Seller", ""), contact("Seller", ""), { TransactionContactTypeName: "Buyer", ContactData: { General: { FirstName: "Jordan", LastName: "Sample" } } }];
+  assert.deepEqual(partiesFromContacts(people), { BUYER: 2, SELLER: 2 });
+  assert.deepEqual(buyerNamesFromContacts(people), ["X Example", "Jordan Sample"]);
+  assert.deepEqual(mergeParties({ BUYER: 1, SELLER: 0 }, [{ BUYER: 2, SELLER: 3 }]), { BUYER: 1, SELLER: 3 }, "Contacts win where they list anyone");
+  assert.deepEqual(mergeParties(partiesFromContacts(null), [{ BUYER: 1, SELLER: 2 }, { BUYER: 2, SELLER: 0 }]), { BUYER: 2, SELLER: 2 });
+  // with no reZEN deal, the Buyer and Seller contacts become the signers; no email, no signer
+  const asPeople = peopleFromContacts([
+    { TransactionContactTypeName: "Buyer", ContactData: { General: { FirstName: " Jordan ", LastName: "Sample", Email: "jordan@example.com" } } },
+    { TransactionContactTypeName: "Seller", ContactData: { General: { FirstName: "Casey", LastName: "Placeholder", Email: "" } } },
+    contact("Buying Agent", "alex@example.com"),
+  ]);
+  assert.deepEqual(asPeople, [
+    { role: "BUYER", firstName: "Jordan", lastName: "Sample", email: "jordan@example.com" },
+    { role: "SELLER", firstName: "Casey", lastName: "Placeholder", email: "" },
+  ]);
+  assert.deepEqual(signeesFromDeal({ participants: asPeople }, { BUYER: 1, SELLER: 1 }).map((s) => [s.signeeType, s.name, s.email]),
+    [["BUYER", "Jordan Sample", "jordan@example.com"]]);
+  assert.deepEqual(signersWithoutEmail({ participants: asPeople }, { BUYER: 1, SELLER: 1 }), [{ role: "SELLER", slot: 1, name: "Casey Placeholder" }]);
+  // WEBForms' real shape: each field is {InputLabel, Value, …}, not a string — String() of it
+  // was "[object Object]", sent to Real as an email (2026-10-14)
+  const asInput = (Value, InputLabel) => ({ InputLabel, Value, Type: 7, Visible: false, Disabled: false });
+  const live = [
+    { TransactionContactTypeName: "Buyer", ContactData: { General: { FirstName: asInput("Jordan", "First Name"), LastName: asInput("Sample", "Last Name"), Email: asInput("jordan@example.com", "Email"), AlternateEmail: asInput("", "Alternate Email") } } },
+    { TransactionContactTypeName: "Seller", ContactData: { General: { FirstName: asInput("Casey", "First Name"), LastName: asInput("Placeholder", "Last Name"), Email: asInput("", "Email") } } },
+    { TransactionContactTypeName: "Buying Agent", ContactData: { General: { FirstName: asInput("Alex", "First Name"), LastName: asInput("Agent", "Last Name"), Email: asInput("Alex@example.com", "Email") } } },
+  ];
+  assert.deepEqual(peopleFromContacts(live), asPeople);
+  assert.deepEqual(buyerNamesFromContacts(live), ["Jordan Sample"]);
+  assert.equal(agentSideFromContacts(live, "alex@example.com"), "BUYER");
+  // anything that isn't an email is no email (Real refuses the whole draft over one)
+  const placeholder = [{ role: "BUYER", firstName: "Jordan", lastName: "Sample", email: "[Client Email]" }];
+  assert.deepEqual(signeesFromDeal({ participants: placeholder }, { BUYER: 1, SELLER: 0 }), []);
+  assert.equal(signersWithoutEmail({ participants: placeholder }, { BUYER: 1, SELLER: 0 }).length, 1);
+  assert.equal(isEmail("jordan@example.com"), true);
+  assert.equal(isEmail(" Jordan.Sample+x@mail.example.ca "), true);
+  assert.equal(isEmail("Jordan Sample <jordan@example.com>"), false);
+  assert.equal(isEmail("jordan@example"), false);
+  assert.equal(combineSides(["BUYER", null, "BUYER"]), "BUYER");
+  assert.equal(combineSides(["BUYER", "SELLER"]), null);
+
+  const offer = ["Residential Purchase Contract"];
+  const webforms = [{ BUYER: 1, SELLER: 2 }];
+  const r = signerCounts({ deal: null, formNames: offer, webforms, agentSide: "BUYER" });
+  assert.deepEqual(r.counts, { BUYER: 1, SELLER: 0 });
+  assert.match(r.why, /buyer's agent on the WEBForms form/);
+  assert.deepEqual(signerCounts({ deal: null, formNames: offer, webforms, agentSide: "SELLER" }).counts, { BUYER: 0, SELLER: 2 });
+  assert.deepEqual(signerCounts({ deal: null, formNames: offer, webforms, agentSide: "DUAL" }).counts, { BUYER: 1, SELLER: 2 });
+  // the reZEN deal's own side still comes first
+  assert.deepEqual(signerCounts({ deal: { side: "SELLER", participants: [] }, formNames: offer, webforms, agentSide: "BUYER" }).counts, { BUYER: 0, SELLER: 2 });
+  // and the agent role follows it with no template
+  assert.equal(agentRoleFor({ layout: null, counts: { BUYER: 1, SELLER: 2 }, dealSide: "BUYER" }), "BUYERS_AGENT");
+});
+
 test("WEBForms name lines → buyer/seller counts; a shared line counts as two, a company as one", () => {
   assert.deepEqual(partiesFromFormValues({ txtbuyer1: "Jordan Sample", txtbuyer2: "", txtseller1: "Casey & Riley Placeholder", txtseller2: "Sam Placeholder" }),
     { BUYER: 1, SELLER: 3 });
@@ -242,12 +369,16 @@ test("WEBForms name lines → buyer/seller counts; a shared line counts as two, 
     { BUYER: 2, SELLER: 0 });
   assert.deepEqual(partiesFromFormValues({}), { BUYER: 0, SELLER: 0 });
   assert.deepEqual(partiesFromFormValues(null), { BUYER: 0, SELLER: 0 });
-  // feeds the count, never lowers it, never picks the side
+  // The names on the form set the number (Dan, 2026-10-14), one named buyer = one slot;
+  // a side with nobody named falls back to 2. They never pick the side.
   const offer = ["Residential Purchase Contract"];
   const r = signerCounts({ deal: null, formNames: offer, webforms: [{ BUYER: 1, SELLER: 3 }] });
-  assert.deepEqual(r.counts, { BUYER: 2, SELLER: 3 });
-  assert.match(r.why, /WEBForms names look like 3 sellers/);
-  assert.deepEqual(signerCounts({ deal: { side: "BUYER", participants: [] }, formNames: offer, webforms: [{ BUYER: 1, SELLER: 3 }] }).counts, { BUYER: 2, SELLER: 0 });
+  assert.deepEqual(r.counts, { BUYER: 1, SELLER: 3 });
+  assert.match(r.why, /1 buyer named in WEBForms; 3 sellers named in WEBForms/);
+  assert.deepEqual(signerCounts({ deal: { side: "BUYER", participants: [] }, formNames: offer, webforms: [{ BUYER: 1, SELLER: 3 }] }).counts, { BUYER: 1, SELLER: 0 });
+  assert.deepEqual(signerCounts({ deal: null, formNames: offer, webforms: [{ BUYER: 0, SELLER: 2 }] }).counts, { BUYER: 2, SELLER: 2 });
+  // fewer named than the template has blocks for: the extra blocks are left off
+  assert.deepEqual(signerCounts({ deal: null, formNames: offer, templates: [{ BUYER: 2, SELLER: 0 }], webforms: [{ BUYER: 1, SELLER: 2 }] }).counts, { BUYER: 1, SELLER: 0 });
 });
 
 test("the agent as a signer: role from the template or the side, person from the deal, never a TC", () => {
@@ -255,7 +386,10 @@ test("the agent as a signer: role from the template or the side, person from the
   assert.equal(agentRoleFor({ layout: cfg("SELLER", "SELLERS_AGENT") }), "SELLERS_AGENT");
   assert.equal(agentRoleFor({ layout: cfg("BUYER") }), null, "template without agent blocks: the agent doesn't sign it");
   assert.equal(agentRoleFor({ layout: null, counts: { BUYER: 2, SELLER: 0 } }), "BUYERS_AGENT");
-  assert.equal(agentRoleFor({ layout: null, counts: { BUYER: 2, SELLER: 2 } }), null, "dual without a template: can't tell");
+  assert.equal(agentRoleFor({ layout: null, counts: { BUYER: 2, SELLER: 2 } }), null, "dual without a template or deal: can't tell");
+  assert.equal(agentRoleFor({ layout: null, counts: { BUYER: 2, SELLER: 2 }, dealSide: "SELLER" }), "SELLERS_AGENT", "both sides sign, no template: the deal's side");
+  assert.equal(agentRoleFor({ layout: null, counts: { BUYER: 2, SELLER: 2 }, dealSide: "DUAL" }), null, "a dual deal doesn't say either");
+  assert.equal(agentRoleFor({ layout: cfg("BUYER"), counts: { BUYER: 2 }, dealSide: "BUYER" }), null, "a template without agent blocks still wins");
 
   const me = meFromYenta({ id: "agent-1", firstName: "Alex", lastName: "Example", emailAddress: "alex@example.com", type: "AGENT" });
   const deal = { ownerId: "agent-2", agentName: "Morgan Example", participants: [
@@ -291,6 +425,20 @@ test("the agent as a signer: role from the template or the side, person from the
     sender: senderFor(me, null), agents: { signeeType: "BUYERS_AGENT", people: team } });
   assert.deepEqual(both.signeeConfigs.find((c) => c.signeeType === "BUYERS_AGENT"), { signeeType: "BUYERS_AGENT", minNum: 0, maxNum: 2 }, "room for both agents");
   assert.deepEqual(both.defaults.signees.map((s) => [s.signeeIndex, s.email]), [[0, "morgan@example.com"], [1, "taylor@example.com"]]);
+
+  // a template built for two agents, one signing: Agent 2's blocks come off, or Real's Edit
+  // details step stops on "Buyer Agent 2" with nobody assigned (2026-10-14)
+  const block = (signeeType, signeeIndex, index) => ({ index, type: "SIGNATURE", signeeType, signeeIndex, fieldLocations: [{ pageNum: 1, position: [0, 0, 1, 1] }] });
+  const twoAgents = { pagesCount: 1,
+    fieldDefinitions: [block("BUYER", 0, 0), block("BUYERS_AGENT", 0, 1), block("BUYERS_AGENT", 1, 2)],
+    documentFieldValidations: [{ fieldIndex: 1, validationType: "REQUIRED" }, { fieldIndex: 2, validationType: "REQUIRED" }],
+    signeeConfigs: [{ signeeType: "BUYER", minNum: 0, maxNum: 2 }, { signeeType: "BUYERS_AGENT", minNum: 0, maxNum: 2 }] };
+  const one = buildDraftBody({ draft, layout: twoAgents, name: "x", pageCount: 1, transactionId: null, counts: { BUYER: 1, SELLER: 0 }, signees: [],
+    sender: senderFor(me, null), agents: { signeeType: "BUYERS_AGENT", people: [team[0]] } });
+  assert.deepEqual(one.fieldDefinitions.map((f) => `${f.signeeType}#${f.signeeIndex}`), ["BUYER#0", "BUYERS_AGENT#0"]);
+  assert.deepEqual(one.documentFieldValidations, [{ fieldIndex: 1, validationType: "REQUIRED" }], "Agent 2's validation goes with its block");
+  assert.deepEqual(one.signeeConfigs.find((c) => c.signeeType === "BUYERS_AGENT"), { signeeType: "BUYERS_AGENT", minNum: 0, maxNum: 1 });
+  assert.deepEqual(one.defaults.signees.filter((s) => s.signeeType === "BUYERS_AGENT").map((s) => s.signeeIndex), [0]);
 });
 
 test("signers without an email are left off (Real refuses a blank one) and named, slots kept", () => {

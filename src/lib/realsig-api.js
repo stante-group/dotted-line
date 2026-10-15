@@ -135,6 +135,27 @@ export class RealSignature {
       { base: ARRAKIS, query: { searchText, pageNumber, pageSize } });
   }
 
+  // ---- reZEN Buyer Records: since 2026-10-12 every buy-side deal starts as one, so a new
+  // buyer's BBA and first offer have no transaction yet. The list has no emails; the
+  // detail does (docs/api-notes.md). The same calls reZEN's own Buyers tab makes.
+  buyerRecords(ownerId, { pageNumber = 0, pageSize = 50 } = {}) {
+    return this.request("GET", "/buyer-record", { base: ARRAKIS,
+      query: { pageNumber, pageSize, ownerIds: ownerId, lifecycleStates: "ACTIVE", sortBy: "BBA_START_DATE", sortDirection: "DESC" } });
+  }
+  buyerRecord(id) { return this.request("GET", `/buyer-record/${encodeURIComponent(id)}`, { base: ARRAKIS }); }
+
+  /** My ACTIVE Buyer Records with their details, newest BBA first, up to `max`. Only
+   *  ACTIVE: one In Contract already has its transaction in the OPEN deals. */
+  async activeBuyerRecords(ownerId, { max = 40 } = {}) {
+    const r = await this.buyerRecords(ownerId, { pageSize: max });
+    if (!r || !Array.isArray(r.buyerRecords)) throw new Error("reZEN's Buyer Record list changed shape");
+    const out = [];
+    for (let i = 0; i < r.buyerRecords.length; i += 5) { // a few at a time, not 40 at once
+      out.push(...await Promise.all(r.buyerRecords.slice(i, i + 5).map((b) => this.buyerRecord(b.id))));
+    }
+    return out;
+  }
+
   /** All OPEN deals or listings I'm a participant on (a TC is on every deal she
    *  coordinates), up to `maxPages` pages. */
   async allOpenDeals(yentaUserId, { listings = false, maxPages = 6 } = {}) {

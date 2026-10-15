@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Dotted Line settings</title>
+  <style>
+    /* Same look as the panel: neutral, with the Deal Dates blue as the only accent. */
+    body { font: 14px/1.5 system-ui, sans-serif; color: #1d2433; background: #fff; margin: 0; }
+    main { max-width: 640px; margin: 0 auto; padding: 32px 16px 48px; }
+    h1 { font-size: 20px; margin: 0 0 4px; }
+    h2 { font-size: 13px; margin: 28px 0 8px; text-transform: uppercase; letter-spacing: .04em; color: #5b6475; }
+    .note { color: #5b6475; font-size: 13px; }
+    fieldset { border: 1px solid #e3e6ec; border-radius: 8px; padding: 12px 14px; margin: 0; }
+    legend { display: none; }
+    label.choice { display: flex; gap: 8px; align-items: baseline; margin: 6px 0; cursor: pointer; }
+    label.choice input { margin: 0; transform: translateY(1px); }
+    .sub { color: #5b6475; font-size: 13px; }
+    .pattern { margin: 8px 0 0 24px; }
+    .pattern[hidden] { display: none; }
+    input[type=text] { width: 100%; box-sizing: border-box; font: 14px ui-monospace, SFMono-Regular, Consolas, monospace;
+      padding: 7px 9px; border: 1px solid #c9cfdb; border-radius: 6px; }
+    input[type=text]:focus { outline: 2px solid #2f6fed; outline-offset: 0; border-color: #2f6fed; }
+    .words { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+    .words button { font: 12px ui-monospace, SFMono-Regular, Consolas, monospace; padding: 2px 8px; border-radius: 999px;
+      border: 1px solid #c9cfdb; background: #f5f6f8; color: #1d2433; cursor: pointer; }
+    .words button:hover, .words button:focus-visible { border-color: #2f6fed; color: #2f6fed; background: #eef3fe; outline: none; }
+    .preview { background: #f5f6f8; border-radius: 6px; padding: 8px 10px; font-size: 13px; margin-top: 8px; }
+    .preview b { font-weight: 600; }
+    .preview .warn { color: #8a5a00; }
+    #saved { position: fixed; bottom: 16px; right: 16px; background: #eaf6ee; border: 1px solid #8cc9a0; border-radius: 6px;
+      padding: 6px 12px; font-size: 13px; opacity: 0; transition: opacity .2s; }
+    #saved.on { opacity: 1; }
+    @media (prefers-reduced-motion: reduce) { #saved { transition: none; } }
+    ul.remembered { list-style: none; padding: 0; margin: 0; border: 1px solid #e3e6ec; border-radius: 8px; }
+    ul.remembered li { display: flex; gap: 12px; align-items: center; padding: 10px 14px; border-top: 1px solid #e3e6ec; }
+    ul.remembered li:first-child { border-top: none; }
+    ul.remembered .what { flex: 1; min-width: 0; }
+    ul.remembered .form { font-weight: 600; overflow-wrap: anywhere; }
+    ul.remembered .tpl { color: #5b6475; font-size: 13px; overflow-wrap: anywhere; }
+    button.remove { font: 13px system-ui, sans-serif; padding: 4px 10px; border-radius: 6px; border: 1px solid #c9cfdb;
+      background: #fff; color: #1d2433; cursor: pointer; flex: none; }
+    button.remove:hover, button.remove:focus-visible { border-color: #b42318; color: #b42318; outline: none; }
+    button.link { font: 13px system-ui, sans-serif; background: none; border: none; color: #1d4ed8; padding: 0; margin-top: 8px;
+      text-decoration: underline; cursor: pointer; }
+    .empty { color: #5b6475; font-size: 13px; border: 1px dashed #d5d9e0; border-radius: 8px; padding: 12px 14px; }
+    footer { margin-top: 40px; border-top: 1px solid #e3e6ec; padding-top: 12px; font-size: 12px; color: #5b6475; }
+    footer a { color: inherit; }
+  </style>
+</head>
+<body>
+<main>
+  <h1>Dotted Line settings</h1>
+  <p class="note">Saved as you change them, and kept with your Chrome sign-in. Leave them alone and you get the suggested title, used as the email subject too.</p>
+
+  <h2>Making the draft</h2>
+  <fieldset>
+    <legend>Making the draft</legend>
+    <label class="choice"><input type="radio" name="autoCreate" value="on">
+      <span>In one click when the choices are clear <span class="sub">— the deal matches the address and every form has its usual template. You land on the draft to check it.</span></span></label>
+    <label class="choice"><input type="radio" name="autoCreate" value="off">
+      <span>Always let me check first <span class="sub">— the deal, signers and templates, in Real Signature's side panel</span></span></label>
+    <label class="choice"><input type="checkbox" id="startOnOpen">
+      <span>Start as soon as I click the Dotted Line icon <span class="sub">— no Create button in WEBForms, so no last look at the title</span></span></label>
+  </fieldset>
+  <p class="note">Either way, nothing is sent: you press Send in Real Signature yourself.</p>
+
+  <h2>Draft title</h2>
+  <fieldset>
+    <legend>Draft title</legend>
+    <label class="choice"><input type="radio" name="titleMode" value="suggested">
+      <span>Suggested <span class="sub">— the deal's name, or the form and its address</span></span></label>
+    <label class="choice"><input type="radio" name="titleMode" value="blank">
+      <span>Blank <span class="sub">— I'll type it each time</span></span></label>
+    <label class="choice"><input type="radio" name="titleMode" value="pattern">
+      <span>My pattern</span></label>
+    <div class="pattern" id="titlePatternWrap" hidden>
+      <input type="text" id="titlePattern" spellcheck="false" aria-label="Title pattern" maxlength="200">
+      <div class="words" id="titleWords" aria-label="Insert a word"></div>
+      <div class="preview" id="titlePreview" aria-live="polite"></div>
+    </div>
+  </fieldset>
+
+  <h2>Email subject for signers</h2>
+  <fieldset>
+    <legend>Email subject</legend>
+    <label class="choice"><input type="radio" name="subjectMode" value="title">
+      <span>Same as the title</span></label>
+    <label class="choice"><input type="radio" name="subjectMode" value="pattern">
+      <span>My pattern</span></label>
+    <label class="choice"><input type="radio" name="subjectMode" value="real">
+      <span>Leave it to Real Signature</span></label>
+    <div class="pattern" id="subjectPatternWrap" hidden>
+      <input type="text" id="subjectPattern" spellcheck="false" aria-label="Subject pattern" maxlength="200">
+      <div class="words" id="subjectWords" aria-label="Insert a word"></div>
+      <div class="preview" id="subjectPreview" aria-live="polite"></div>
+    </div>
+  </fieldset>
+
+  <p class="note">Click a word to add it. A word with nothing to fill in (no MLS® number on a standalone form, say) drops out along with the dash or brackets beside it. The preview uses made-up details.</p>
+
+  <h2>Remembered templates</h2>
+  <p class="note">Each time you create a draft, the template you chose for each kind of form is remembered and picked for you next time. Remove one to choose again. Kept in this browser only.</p>
+  <div id="remembered"></div>
+
+  <footer>
+    Free, from <a href="https://dealdates.app" target="_blank" rel="noopener">Deal Dates</a>: your deal deadlines in your inbox at 6am.<br>
+    Not affiliated with or endorsed by Lone Wolf Technologies, CREA or The Real Brokerage Inc.
+  </footer>
+</main>
+<div id="saved" role="status">Saved</div>
+<script type="module" src="options.js"></script>
+</body>
+</html>
