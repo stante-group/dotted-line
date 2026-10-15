@@ -38,6 +38,7 @@
     pre { white-space: pre-wrap; background: #f5f6f8; padding: 8px; border-radius: 6px; font-size: 12px; }
     footer { margin-top: 32px; border-top: 1px solid #e3e6ec; padding-top: 12px; font-size: 12px; color: #5b6475; }
     footer a { color: inherit; }
+    footer .fine { font-size: 11px; color: #8a91a0; }
     /* ⓘ: explanations live behind these, so the panel shows only what to do and what to
        watch out for. Click (or keyboard) opens the text under it; hover shows the same text
        as the browser's own tooltip. Warnings never go behind one. */
@@ -61,8 +62,7 @@
 
   <!-- Nothing to act on -->
   <section id="idle">
-    <p class="note">Turn the forms you've filled into a Real Signature draft.</p>
-    <p class="note">In WEBForms, open a form (and save it), or tick the forms in a deal's <b>Forms</b> list — or, for standalone forms, add them to the <b>Basket</b> inside each form's folder. Then come back here.</p>
+    <p class="note">In WEBForms, open a form or tick forms on a deal, then click here again.</p>
   </section>
 
   <!-- Step 1: WEBForms -->
@@ -73,8 +73,8 @@
       <label for="wf-title">Title</label>
       <input id="wf-title" type="text" maxlength="120">
     </div>
-    <button id="wf-go" disabled>Create Real Signature draft</button>
-    <p class="note">This makes a <strong>draft</strong> only. Nothing goes to your clients until you press Send in Real Signature.</p>
+    <button id="wf-go" disabled>Prepare in Real Signature</button>
+    <p class="note">Draft only — nothing is sent.</p>
     <button id="wf-refresh" class="link">Refresh</button>
   </section>
 
@@ -92,7 +92,7 @@
       <div id="tip-deal" class="tip" hidden>Your open deals and listings, best address match first. The draft is attached to this deal, and its clients fill in the signers. Choose <b>No deal</b> for a standalone form.</div>
       <select id="rs-deal"></select>
       <div id="rs-warn"></div>
-      <p id="rs-deal-first" class="note" hidden>Choose the deal (or No deal) first — it decides who signs.</p>
+      <p id="rs-deal-first" class="note" hidden>Choose the deal, or No deal.</p>
       <!-- Step 2, once there's a deal (or No deal): templates, then signers, because a
            template can change who signs. -->
       <div id="rs-after-deal" hidden>
@@ -117,8 +117,8 @@
       </div>
       <p class="note" id="rs-agent-who"></p>
       </div>
-      <button id="rs-go" disabled>Create draft</button>
-      <p class="note">Nothing is sent. You'll land on the draft to check it and press Send yourself.</p>
+      <button id="rs-go" disabled>Finish draft</button>
+      <p class="note">Draft only — nothing is sent.</p>
     </div>
   </section>
 
@@ -133,9 +133,8 @@
   </details>
 
   <footer>
-    <button id="open-settings" class="link" type="button">Settings</button><br>
-    Free, from <a href="https://dealdates.app" target="_blank" rel="noopener">Deal Dates</a>: your deal deadlines in your inbox at 6am.<br>
-    Not affiliated with or endorsed by Lone Wolf Technologies, CREA or The Real Brokerage Inc.
+    Free, from <a href="https://dealdates.app" target="_blank" rel="noopener">Deal Dates</a>: your deal deadlines in your inbox at 6am · <button id="open-settings" class="link" type="button">Settings</button><br>
+    <span class="fine">Not affiliated with or endorsed by Lone Wolf Technologies, CREA or The Real Brokerage Inc.</span>
   </footer>
   <script type="module" src="panel.js"></script>
 </body>

@@ -14,7 +14,7 @@ yet. See [PLAN.md](PLAN.md).
 
 1. In WEBForms, tick the forms in a deal's **Forms** list — or, for standalone forms, add
    them to the **Basket** inside each form's folder.
-2. Click the Dotted Line icon (a small popup opens over WEBForms), check the title, click **Create Real Signature draft**.
+2. Click the Dotted Line icon (a small popup opens over WEBForms), check the title, click **Prepare in Real Signature**.
    It uses WEBForms' own zip download and keeps the PDFs exactly as WEBForms made them.
 3. **When the choices are clear, that's it.** If one reZEN deal clearly matches the
    address and every form has its usual template, the draft is made straight away and
@@ -28,7 +28,7 @@ yet. See [PLAN.md](PLAN.md).
    with blocks only for the side that isn't signing is never applied. The signers are worked
    out for you: your side's clients from the deal (as many as are named on the form, or two
    when the form names nobody), and the agent when the template has agent blocks.
-   **Create draft** and you land on it, as above.
+   **Finish draft** and you land on it, as above.
 
 It falls back to the panel, too, when the deal is another agent's or a client on it has no
 email in reZEN — both are worth a look before the draft exists.

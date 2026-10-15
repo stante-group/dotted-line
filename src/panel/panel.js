@@ -169,7 +169,7 @@ let wfBusy = false;
 let autoStarted = false; // Settings → "start when I click the icon": once per popup
 // The unsaved flag is part of the key, so pressing Save in WEBForms redraws the panel.
 const selKey = (tabId, sel) => `${tabId}|${sel.source}|${sel.forms.map((f) => f.id).sort().join()}|${sel.unsaved ? "unsaved" : ""}`;
-const UNSAVED = "This form has unsaved changes. Press Save in WEBForms first — the draft is made from the last saved copy.";
+const UNSAVED = "Unsaved changes — press Save in WEBForms first.";
 
 // While an open form has unsaved changes, look again every 2 s: the Save click's own nudge
 // arrives before the save has finished, and nothing on the page announces it afterwards.
@@ -392,15 +392,17 @@ async function showRealsig(tab, job) {
   const { agentMode = "one" } = await chrome.storage.local.get("agentMode");
   rsState = { tab, job, c, remembered, agentMode };
   $("rs-agent-pick").replaceChildren(); // a fresh hand-off starts from the remembered mode
-  $("rs-status").textContent = `${job.forms.length} form(s) from WEBForms.`;
+  // The second step of the same draft, not a new one: say so, so "Finish draft" reads as
+  // the end of what "Prepare in Real Signature" started (Dan, 2026-10-15).
+  $("rs-status").textContent = "Almost done — check the choices below.";
   $("rs-title").value = job.title;
 
   // A failed one-click attempt goes on top. What's left to choose is said in the section it
   // belongs to (the deal hint, each form's template), not repeated up here.
   $("rs-needs").replaceChildren(...(job.autoError ? [el("div", job.autoError, "err")] : []));
   $("rs-deal-first").textContent = job.address || job.buyerNames?.length
-    ? "No reZEN deal or Buyer Record clearly matches — choose one (or No deal). It decides who signs."
-    : "Choose the deal (or No deal) first — it decides who signs.";
+    ? "No deal clearly matches — choose one, or No deal."
+    : "Choose the deal, or No deal.";
 
   // Deals: everything, best address match first — a bad match never hides the right deal.
   const { ranked, deal: best, by } = confidentDeal(job.address, c.deals, job.buyerNames);
@@ -440,7 +442,7 @@ function renderTemplates(side) {
     const usable = usableTemplates(form, c.templates);
     const s = suggestTemplate(form, usable, remembered, side);
     const div = el("div", null, "form");
-    div.append(el("b", `${form.name}${form.pageCount ? ` · ${form.pageCount} page(s)` : ""}`));
+    div.append(el("b", form.name)); // page counts only matter for matching; the ⓘ says so
     const pick = document.createElement("select");
     pick.id = `tpl-${i}`;
     pick.onchange = () => updateDeal(); // a template can change who signs and how many
@@ -463,15 +465,15 @@ function renderTemplates(side) {
       div.append(pick);
       // Nothing remembered yet: the one thing between this form and one click next time.
       const forSide = side ? ` for ${side === "BUYER" ? "buyer" : "seller"} deals` : "";
-      if (!s.remembered) div.append(el("div", `Choose once — it's remembered${forSide}, so next time this form goes straight to a draft.`, "note"));
+      if (!s.remembered) div.append(el("div", `Remembered${forSide} next time.`, "note"));
     }
     // A remembered template that stopped fitting (form revised, or no blocks for this side)
     // is filtered out above, so check it against the full list to say why it's gone.
     const refused = suggestTemplate(form, c.templates, remembered, side).refused;
     if (refused) {
       div.append(el("div", refused.kind === "side"
-        ? `Your usual template "${refused.template.name}" isn't used here: ${refused.reason}. Choose one with ${side === "BUYER" ? "buyer" : "seller"} blocks — it's remembered for ${side === "BUYER" ? "buyer" : "seller"} deals.`
-        : `Your usual template "${refused.template.name}" no longer fits: ${refused.reason}.`, "warn"));
+        ? `"${refused.template.name}" has no ${side === "BUYER" ? "buyer" : "seller"} blocks — choose another.`
+        : `"${refused.template.name}" no longer fits: ${refused.reason}.`, "warn"));
     }
     box.append(div);
   });
@@ -693,9 +695,8 @@ $("rs-go").addEventListener("click", async () => {
     await chrome.storage.local.set({ templateFor: next });
     await chrome.runtime.sendMessage({ type: "job:done", id: job.id });
     await chrome.tabs.update(tab.id, { url: new URL(r.url, RS).toString() });
-    say(r.packet && r.drafts === 1 ? `Draft ready, as a packet so Real Signature keeps the ${roleWords(r.unfilled)} — add them in Add Signees. Then press Send in Real Signature when you're happy.`
-      : r.packet ? `Packet draft ready (${r.drafts} documents). Check it, then press Send in Real Signature when you're happy.`
-      : "Draft ready. Check it, then press Send in Real Signature when you're happy.", "ok");
+    say(r.packet && r.drafts === 1 ? `Draft ready. Add the ${roleWords(r.unfilled)} in Add Signees.`
+      : r.packet ? `Packet ready (${r.drafts} forms).` : "Draft ready.", "ok");
     $("rs-form").hidden = true;
     rsState = null;
     // Done: the agent is on the draft, and the panel would only cover it. Leave the message

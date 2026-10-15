@@ -58,13 +58,13 @@ deal's Forms list, tick a form, and open the Dotted Line panel. Note:
 
 - Does the panel list the ticked form?
 - Run **Check my setup** again: does "Same person in both" change?
-- Does **Create Real Signature draft** get as far as opening Real Signature? (Stop there,
+- Does **Prepare in Real Signature** get as far as opening Real Signature? (Stop there,
   or carry on with an invented form only.)
 
 ## 4. Full run (5 min)
 
-With invented forms, go end to end: tick → Create → pick the agent's deal → templates →
-Create draft. Check the draft in Real Signature: deal, signers, blocks, sender. **Don't
+With invented forms, go end to end: tick → Prepare in Real Signature → pick the agent's deal → templates →
+Finish draft. Check the draft in Real Signature: deal, signers, blocks, sender. **Don't
 send.** Delete it afterwards.
 
 ## After the test

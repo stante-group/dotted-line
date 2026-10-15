@@ -82,7 +82,7 @@ WEBForms tab (pr.transactiondesk.com)           Real Signature tab (signature.th
   agent ticks forms in the deal's forms list,
   opens our SIDE PANEL (lists the ticked forms
   + last-modified, agent confirms)
-    → [Create Real Signature draft]
+    → [Prepare in Real Signature]
     1. read which forms are ticked (read-only)
     2. WEBForms' zip download for those forms
        (CreateDownloadRequest → downloadmany),
@@ -288,7 +288,7 @@ WEBForms map: `content-engine/docs/webforms-real-signature.md`. Summaries go int
 ## Copy rules (brand review 2026-10-10)
 
 - Lead with **Create / Turn into a draft**, never "Send" — the product's promise is that it
-  doesn't send. Button: "Create Real Signature draft".
+  doesn't send. Buttons: "Prepare in Real Signature" (WEBForms popup), then "Finish draft" in the Real Signature panel when one click needs a choice (Dan, 2026-10-15). Two "Create" buttons read as the same step twice; "Prepare" echoes the e-sign hand-off agents know without saying Send, and never copies WEBForms' own "Send to Third Party Vendor" (implies sending, and looks like part of WEBForms).
 - Say where contracts go in plain words ("straight from WEBForms to Real Signature, never
   through us"), not "no server" / "open source" first.
 - Never mention Authentisign or DocuSign, "replace" or "instead of" (Lone Wolf AUP).
