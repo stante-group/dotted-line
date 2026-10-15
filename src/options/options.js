@@ -3,6 +3,7 @@
 
 import { WORDS, DEFAULT_SETTINGS, SAMPLE_VALUES, fillPattern } from "../lib/pattern.js";
 import { pruneRemembered } from "../lib/match.js";
+import { runSetupCheck } from "../setup-check.js";
 
 const $ = (id) => document.getElementById(id);
 let current = { ...DEFAULT_SETTINGS };
@@ -205,3 +206,10 @@ for (const kind of ["title", "subject"]) {
   });
 }
 render();
+
+$("setup-run").addEventListener("click", async () => {
+  $("setup-out").hidden = false;
+  $("setup-out").textContent = "Checking…";
+  try { $("setup-out").textContent = await runSetupCheck(); }
+  catch (e) { $("setup-out").textContent = `Couldn't run the check: ${String(e?.message || e)}`; }
+});

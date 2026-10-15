@@ -68,7 +68,9 @@ export async function unzip(bytes) {
 
     if (name.endsWith("/")) continue;
     if (flags & 1) throw new Error(`"${name}" is encrypted`);
-    if (dv.getUint32(localAt, true) !== LOCAL) throw new Error("the zip's entries are damaged");
+    // Bounds first: a header pointing past the end would otherwise surface as a bare
+    // RangeError from DataView rather than this plain message (outside review, 2026-10-15).
+    if (localAt + 30 > u8.length || dv.getUint32(localAt, true) !== LOCAL) throw new Error("the zip's entries are damaged");
     // Sizes come from the central directory: the local header may leave them zero when a
     // data descriptor follows the data.
     const start = localAt + 30 + dv.getUint16(localAt + 26, true) + dv.getUint16(localAt + 28, true);

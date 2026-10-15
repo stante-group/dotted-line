@@ -89,7 +89,7 @@
         <label for="rs-deal">reZEN deal</label>
         <button class="i" type="button" aria-expanded="false" aria-controls="tip-deal" aria-label="About the deal">i</button>
       </div>
-      <div id="tip-deal" class="tip" hidden>Your open deals and listings, best address match first. The draft is attached to this deal, and its clients fill in the signers. Choose <b>No deal</b> for a standalone form.</div>
+      <div id="tip-deal" class="tip" hidden>Your open deals and listings, best address match first. The draft is attached to this deal, and its clients fill in the signers. Choose <b>No deal</b> for a standalone form. Pick the deal here rather than later in Real Signature: attached there, its clients aren't added as signers.</div>
       <select id="rs-deal"></select>
       <div id="rs-warn"></div>
       <p id="rs-deal-first" class="note" hidden>Choose the deal, or No deal.</p>
@@ -124,16 +124,9 @@
 
   <div id="msg" role="status"></div>
 
-  <details id="setup">
-    <summary class="note">Check my setup</summary>
-    <button id="setup-run" class="link">Run check</button>
-    <button class="i" type="button" aria-expanded="false" aria-controls="tip-setup" aria-label="About the setup check">i</button>
-    <div id="tip-setup" class="tip" hidden>Counts and yes/no only — no names or deals — so it's safe to paste into a message.</div>
-    <pre id="setup-out" hidden></pre>
-  </details>
 
   <footer>
-    Free, from <a href="https://dealdates.app" target="_blank" rel="noopener">Deal Dates</a>: your deal deadlines in your inbox at 6am · <button id="open-settings" class="link" type="button">Settings</button><br>
+    Free, from <a href="https://dealdates.app" target="_blank" rel="noopener">Deal Dates</a>: your deal deadlines in your inbox at 6am<span id="settings-wrap"> · <button id="open-settings" class="link" type="button">Settings</button></span><br>
     <span class="fine">Not affiliated with or endorsed by Lone Wolf Technologies, CREA or The Real Brokerage Inc.</span>
   </footer>
   <script type="module" src="panel.js"></script>

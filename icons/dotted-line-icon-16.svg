@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16">
+  <title>Dotted Line (16 px, drawn on the pixel grid)</title>
+  <rect width="16" height="16" rx="3.5" fill="#1d4ed8"/>
+  <g fill="#ffffff">
+    <rect x="2" y="11" width="2" height="2"/>
+    <rect x="5" y="11" width="2" height="2"/>
+    <rect x="8" y="11" width="2" height="2"/>
+    <rect x="10" y="2" width="5" height="1"/>
+    <rect x="10" y="4" width="5" height="4"/>
+    <rect x="11" y="8" width="3" height="2"/>
+    <rect x="12" y="10" width="1" height="2"/>
+  </g>
+  <g fill="#1d4ed8">
+    <rect x="12" y="5" width="1" height="1"/>
+    <rect x="12" y="7" width="1" height="2"/>
+  </g>
+</svg>

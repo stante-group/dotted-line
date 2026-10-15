@@ -134,7 +134,7 @@ flattened PDF per form, and ticked forms can be read from the page. Standalone f
 (no transaction) go through WEBForms' Basket and the same zip download. 4 answered: a packet
 draft is `POST /packet-templates` (`oneTimeUse`) over one-time drafts; `/packets` is the
 send. **Open:** 7 (TC delegation). Its harness is built: `src/lib/actor.js` (who is
-acting for whom, `DELEGATION_VERIFIED = false`), the panel's "Check my setup" report, and
+acting for whom, `DELEGATION_VERIFIED = false`), the "Check my setup" report (on the Settings page since 2026-10-15), and
 the session script in `docs/tc-delegation-test.md`. **2026-10-12:** the WEBForms half of 7
 ran on a team lead impersonating a teammate — WEBForms reports the impersonated agent, the
 download works, and the panel warns. Left for the TC: Real Signature's side (who is sender

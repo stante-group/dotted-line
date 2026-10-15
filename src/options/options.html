@@ -41,6 +41,9 @@
     button.remove { font: 13px system-ui, sans-serif; padding: 4px 10px; border-radius: 6px; border: 1px solid #c9cfdb;
       background: #fff; color: #1d2433; cursor: pointer; flex: none; }
     button.remove:hover, button.remove:focus-visible { border-color: #b42318; color: #b42318; outline: none; }
+    #setup-run { font: 13px system-ui, sans-serif; padding: 4px 12px; border-radius: 6px; border: 1px solid #c9cfdb; background: #fff; color: #1d2433; cursor: pointer; }
+    #setup-run:hover, #setup-run:focus-visible { border-color: #2f6fed; color: #2f6fed; outline: none; }
+    #setup-out { white-space: pre-wrap; background: #f5f6f8; padding: 8px; border-radius: 6px; font-size: 12px; }
     button.link { font: 13px system-ui, sans-serif; background: none; border: none; color: #1d4ed8; padding: 0; margin-top: 8px;
       text-decoration: underline; cursor: pointer; }
     .empty { color: #5b6475; font-size: 13px; border: 1px dashed #d5d9e0; border-radius: 8px; padding: 12px 14px; }
@@ -102,6 +105,11 @@
   <h2>Remembered templates</h2>
   <p class="note">Each time you create a draft, the template you chose for each kind of form is remembered and picked for you next time. Remove one to choose again. Kept in this browser only.</p>
   <div id="remembered"></div>
+
+  <h2>Check my setup</h2>
+  <p class="note">For troubleshooting: are you signed in to both sites as the same person, and how long the last draft took. Counts and yes/no only — no names or deals — so it's safe to paste into a message. Keep a WEBForms tab and a Real Signature tab open.</p>
+  <button id="setup-run" type="button">Run check</button>
+  <pre id="setup-out" hidden></pre>
 
   <footer>
     Free, from <a href="https://dealdates.app" target="_blank" rel="noopener">Deal Dates</a>: your deal deadlines in your inbox at 6am.<br>

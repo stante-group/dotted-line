@@ -118,7 +118,7 @@ async function create({ jobId, title, dealId, templateIds, counts, agentChoice =
     for (const [i, form] of job.forms.entries()) {
       const pdf = new Blob([lib.fromBase64(form.pdfBase64)], { type: "application/pdf" });
       const up = await timed("upload", rs.uploadDraft(pdf, fileName(form.name)));
-      if (!up?.id) throw new Error("Real Signature's upload answer changed shape");
+      if (!up?.id) throw Object.assign(new Error("Real Signature's upload answer changed shape"), { leftover: true });
       created.push(up.id);
       const draft = await timed("readBack", rs.getTemplate(up.id));
       let layout = null;
@@ -152,7 +152,7 @@ async function create({ jobId, title, dealId, templateIds, counts, agentChoice =
     // docs/api-notes.md). All filled → a plain single draft, as before.
     if (created.length > 1 || unfilled.size) {
       const p = await timed("packet", rs.createPacketDraft(title, created));
-      if (!p?.id) throw new Error("Real Signature's packet answer changed shape");
+      if (!p?.id) throw Object.assign(new Error("Real Signature's packet answer changed shape"), { leftover: true });
       packetId = p.id;
       return { url: `/one-time-documents/packet/${packetId}`, drafts: created.length, packet: true, unfilled: [...unfilled], timings };
     }
@@ -161,8 +161,15 @@ async function create({ jobId, title, dealId, templateIds, counts, agentChoice =
     // couldn't see who the draft was going to (2026-10-12).
     return { url: `/one-time-documents/document/${created[0]}`, drafts: 1, packet: false, timings };
   } catch (e) {
-    if (packetId) await rs.deletePacketDraft(packetId).catch(() => {});
-    for (const id of created) await rs.deleteDraft(id).catch(() => {});
+    // Clean up what this run made, and say so when that can't be vouched for (outside
+    // review, 2026-10-15): a delete that fails, or an answer with no id — Real may have made
+    // the draft or packet anyway, and there's no id to delete it by.
+    let failed = 0;
+    if (packetId) await rs.deletePacketDraft(packetId).catch(() => { failed++; });
+    for (const id of created) await rs.deleteDraft(id).catch(() => { failed++; });
+    if (failed || e?.leftover) {
+      throw new Error(`${String(e?.message || e)}. Check your Real Signature Drafts for a half-made draft and delete it.`);
+    }
     throw e;
   }
 }

@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="16 16 96 96">
+  <title>Dotted Line (48 px, full bleed)</title>
+  <rect x="16" y="16" width="96" height="96" rx="20" fill="#1d4ed8"/>
+  <g fill="#ffffff">
+    <circle cx="44" cy="84" r="4.5"/>
+    <circle cx="56" cy="84" r="4.5"/>
+    <circle cx="68" cy="84" r="4.5"/>
+    <rect x="73" y="40" width="14" height="6" rx="1.5"/>
+    <path d="M80 84 L72 62 C71.3 60 71 58 71.5 56 L73 50 H87 L88.5 56 C89 58 88.7 60 88 62 Z"/>
+  </g>
+  <circle cx="80" cy="62" r="3" fill="#1d4ed8"/>
+  <rect x="79" y="62" width="2" height="16" fill="#1d4ed8"/>
+</svg>

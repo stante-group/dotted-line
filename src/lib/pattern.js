@@ -71,7 +71,8 @@ export function titleValues({ transaction = null, forms = [], firstFormValues = 
     street,
     unit: clean(fromForm?.unit).replace(/^(unit|suite|apt\.?|#)\s*/i, ""),
     city: clean(parts.city),
-    forms: forms.length === 1 ? clean(forms[0].name).replace(/\.pdf$/i, "") : forms.length ? listForms(forms) : "",
+    // One form too: its trailing "(Designated Agency)"-style aside goes (Dan, 2026-10-15).
+    forms: forms.length ? listForms(forms) : "",
     deal: clean(transaction?.Name),
     mls: clean(transaction?.MLSNumber),
     agent: clean(agent),

@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
+  <title>Dotted Line (32 px, drawn on the pixel grid)</title>
+  <rect width="32" height="32" rx="7" fill="#1d4ed8"/>
+  <g fill="#ffffff">
+    <circle cx="6" cy="24" r="2"/>
+    <circle cx="12" cy="24" r="2"/>
+    <circle cx="18" cy="24" r="2"/>
+    <rect x="20" y="4" width="10" height="2"/>
+    <path d="M20 8 H30 V16 L25.5 24 H24.5 L20 16 Z"/>
+  </g>
+  <g fill="#1d4ed8">
+    <rect x="24" y="10" width="2" height="2"/>
+    <rect x="24" y="14" width="2" height="5"/>
+  </g>
+</svg>

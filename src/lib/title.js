@@ -79,14 +79,14 @@ export function suggestTitle({ transaction, forms, firstFormValues }) {
     const addr = addressLine(addressFromTransaction(transaction));
     return cap(addr && !alreadyNamed(name, addr) ? `${name} – ${addr}` : name);
   }
-  const base = forms.length === 1 ? clean(forms[0].name).replace(/\.pdf$/i, "") : listForms(forms);
+  const base = listForms(forms); // one form too: a trailing "(…)" aside goes
   const addr = addressLine(addressFromFormValues(firstFormValues));
   return cap(addr ? `${base} – ${addr}` : base);
 }
 
 const LIST_MAX = 70; // leaves room for the address within MAX
 
-/** Several standalone forms → "Agreement to Represent Both Seller and Buyer + Addendum - Purchase
+/** One or several forms → "Agreement to Represent Both Seller and Buyer + Addendum - Purchase
  *  Contract", repeats as "×2", trailing "(Designated Agency)"-style asides dropped. Too long
  *  for a title (and an email subject) → the first form and "+ 2 more". */
 export function listForms(forms) {

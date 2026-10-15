@@ -90,7 +90,17 @@ const withoutPdfs = (j) => j && { ...j, forms: j.forms.map(({ pdfBase64, ...f })
 // not marked done would be offered again by the panel on that tab.
 // Anything that stops it (not signed in, a choice to make, an error) leaves the job as it
 // was, for the panel to take over with the reason on top. Nothing here sends.
+// One run per job at a time (outside review, 2026-10-15): a second job:auto for the same
+// hand-off while one is under way would make a second draft. Only one popup sends it today,
+// once, but a duplicate costs nothing to refuse. In memory: if the worker restarts mid-run,
+// that run is gone anyway and the panel takes over.
+const autoRunning = new Set();
 async function autoCreate(id) {
+  if (autoRunning.has(id)) return { done: false, busy: true };
+  autoRunning.add(id);
+  try { return await autoCreateOnce(id); } finally { autoRunning.delete(id); }
+}
+async function autoCreateOnce(id) {
   const job = await tx("readonly", (s) => s.get(id));
   if (!job?.tabId) return { done: false };
   // needs: what the panel will ask for (it says so in each section itself); autoError: a

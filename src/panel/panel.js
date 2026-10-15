@@ -11,7 +11,7 @@ import { sendToTab } from "../messaging.js";
 import { suggestTemplate, rememberKey, normalizeName, rememberEntry, pruneRemembered, signingSide, sideMismatch } from "../lib/match.js";
 import { titleValues, titleFor, subjectFor, DEFAULT_SETTINGS } from "../lib/pattern.js";
 import { signerCounts, signersWithoutEmail, signeesFromDeal, agentRoleFor, agentPeople } from "../lib/draft.js";
-import { actingNotes, setupReport, samePerson } from "../lib/actor.js";
+import { actingNotes } from "../lib/actor.js";
 
 // The same page is the popup (WEBForms and other sites) and the side panel (Real Signature);
 // see background.js "Where the UI shows".
@@ -53,6 +53,10 @@ function syncTips() {
 
 function show(section) {
   for (const s of ["idle", "wf", "rs"]) $(s).hidden = s !== section;
+  // No Settings link beside a draft waiting for its choices: it opens a new tab, and Chrome
+  // then dropped this tab's panel — the agent came back to an empty Drafts list and no
+  // panel (2026-10-15). Settings is in the WEBForms popup, and the icon's right-click menu.
+  $("settings-wrap").hidden = section === "rs";
 }
 function say(text, kind = "note") {
   $("msg").replaceChildren(text ? el("div", text, kind) : "");
@@ -121,7 +125,12 @@ function readSelection() {
     const vm = node && ng.element(node).scope()?.vm;
     const o = vm?.formObj;
     if (!o || !o.ID) return { source: "open", forms: [], loading: true };
-    const saved = vm.savedFormFieldValues || {}, cur = vm.formFieldValues || {};
+    // Fail closed (outside review, 2026-10-15): if WEBForms stops exposing either copy, "no
+    // differences" would just mean "nothing to compare" — count it as unsaved, so Create
+    // stays off and a stale copy can't go out silently.
+    const isObj = (x) => x && typeof x === "object" && !Array.isArray(x);
+    const shapeOk = isObj(vm.savedFormFieldValues) && isObj(vm.formFieldValues);
+    const saved = shapeOk ? vm.savedFormFieldValues : {}, cur = shapeOk ? vm.formFieldValues : {};
     // Money fields are saved as "500000.00" but shown as "500,000.00": an untouched form
     // in a transaction read as unsaved on price and deposit (2026-10-14). The same number,
     // give or take commas, a $ and spaces, is the same value.
@@ -129,9 +138,10 @@ function readSelection() {
     const same = (a, b) => a === b
       || (typeof a === "string" && typeof b === "string" && money.test(a) && money.test(b)
         && Number(a.replace(/[$,\s]/g, "")) === Number(b.replace(/[$,\s]/g, "")));
-    let unsaved = Object.keys(saved).some((k) => !same(cur[k], saved[k]))
+    let unsaved = !shapeOk || Object.keys(saved).some((k) => !same(cur[k], saved[k]))
       || Object.keys(cur).some((k) => !(k in saved) && cur[k] != null && cur[k] !== "");
-    try { unsaved = unsaved || !!vm.hasUnsavedFieldSettings?.(); } catch { /* treat as unknown below */ }
+    // A check that throws can't vouch for the form either: unknown counts as unsaved.
+    try { unsaved = unsaved || !!vm.hasUnsavedFieldSettings?.(); } catch { unsaved = true; }
     const name = o.Name || vm.formData?.FormName || "This form";
     // The address as last SAVED, straight from the page. Asking WEBForms' API right after a
     // Save could still answer with the copy from before it (2026-10-12: the first draft
@@ -151,7 +161,7 @@ function readSelection() {
         values: saved,
       },
     };
-    return { source: "open", transactionId: o.TransactionID || "", unsaved, address, preloaded, user,
+    return { source: "open", transactionId: o.TransactionID || "", unsaved, cantCheck: !shapeOk, address, preloaded, user,
       forms: [{ id: o.ID, name, transactionId: o.TransactionID || "", lastModified: null }] };
   }
   return { source: "other", forms: [] };
@@ -170,6 +180,7 @@ let autoStarted = false; // Settings → "start when I click the icon": once per
 // The unsaved flag is part of the key, so pressing Save in WEBForms redraws the panel.
 const selKey = (tabId, sel) => `${tabId}|${sel.source}|${sel.forms.map((f) => f.id).sort().join()}|${sel.unsaved ? "unsaved" : ""}`;
 const UNSAVED = "Unsaved changes — press Save in WEBForms first.";
+const CANT_CHECK = "Can't tell whether this form is saved — WEBForms may have changed. Use the deal's Forms list instead.";
 
 // While an open form has unsaved changes, look again every 2 s: the Save click's own nudge
 // arrives before the save has finished, and nothing on the page announces it afterwards.
@@ -246,7 +257,7 @@ async function showWebforms(tab) {
   say("");
   $("wf-title-wrap").hidden = false;
   if (sel.unsaved) {
-    say(UNSAVED, "warn");
+    say(sel.cantCheck ? CANT_CHECK : UNSAVED, "warn");
     startPoll(tab.id);
     return; // Create stays off until WEBForms says it's saved
   }
@@ -271,7 +282,7 @@ $("wf-go").addEventListener("click", async () => {
     const ids = (xs) => xs.map((f) => f.id).sort().join();
     if (ids(now.forms) !== ids(wfState.sel.forms)) {
       await showWebforms(await chrome.tabs.get(wfState.tabId));
-      say("Your picks changed — check the list and click Create again.", "warn");
+      say("Your picks changed — check the list and try again.", "warn");
       return;
     }
     // The last moment to catch an edit made after the panel looked: never send a stale copy.
@@ -310,7 +321,7 @@ $("wf-go").addEventListener("click", async () => {
       // popup would be left bound to its tab for the panel to make a second time.
       say("Making your draft in Real Signature…", "busy");
       const a = await chrome.runtime.sendMessage({ type: "job:auto", id: r.id });
-      if (a?.done) { window.close(); return; }
+      if (a?.done || a?.busy) { window.close(); return; } // busy: that same draft is already being made
       say("");
       await goToRealSignature(r.tabId, !!a?.needs?.length);
       return;
@@ -543,7 +554,8 @@ function updateDeal() {
     } else {
       // Real's own Transaction step attaches a deal but doesn't fill in its clients on a draft
       // whose signer roles are already set up (tried 2026-10-12) — only picking it here does.
-      notes.push({ level: "info", text: "Signers are left blank (no emails in the WEBForms Contacts). To have a deal's clients filled in, choose the deal here — choosing it later in Real Signature attaches the deal but doesn't add its clients." });
+      // Short (Dan, 2026-10-15: too much text): the why is in the deal ⓘ.
+      notes.push({ level: "info", text: "No client emails in WEBForms — you'll add the signers in Real Signature." });
     }
     notes.push(...actingNotes({ me: c.me, deal: null, webformsUserName: job.webformsUserName, webformsUserEmail: job.webformsUserEmail }));
   }
@@ -712,50 +724,6 @@ $("rs-go").addEventListener("click", async () => {
   }
 });
 
-// ---------- setup check (Phase 0 item 7 harness) ----------
-
-$("setup-run").addEventListener("click", async () => {
-  $("setup-out").hidden = false;
-  $("setup-out").textContent = "Checking…";
-  // Ask every open tab of each site, most recently used first, until one answers. Asking
-  // only the first one Chrome lists hit a stale tab (opened before the extension was
-  // reloaded, can't answer) while a fresh one sat in another window (2026-10-12).
-  async function ask(url, msg) {
-    const tabs = (await chrome.tabs.query({ url })).sort((a, b) => (b.lastAccessed || 0) - (a.lastAccessed || 0));
-    let error = null;
-    for (const t of tabs) {
-      const r = await send(t.id, msg).catch((e) => { error = String(e?.message || e).slice(0, 200); return null; });
-      if (r) return { tabs: tabs.length, r };
-    }
-    return { tabs: tabs.length, r: null, error };
-  }
-  const rsAsk = await ask(`${RS}*`, { type: "rs:setup" });
-  const wfAsk = await ask(`${WF}*`, { type: "webforms:setup" });
-  const rs = rsAsk.r, wf = wfAsk.r;
-  const rsTab = rsAsk.tabs > 0, wfTab = wfAsk.tabs > 0;
-  if (wf && rs?.signedIn && wf.signedIn) {
-    wf.samePerson = samePerson({ wfEmail: wf.userEmail, rsEmail: rs.email }); // null → "unknown"
-  }
-  let text = setupReport({ rs, wf });
-  if (!rsTab) text += "\n(open Real Signature in a tab to check it)";
-  else if (!rs) text += `\n(${rsAsk.tabs === 1 ? "the Real Signature tab" : `none of the ${rsAsk.tabs} Real Signature tabs`} answered — reload ${rsAsk.tabs === 1 ? "it" : "them"} once and run the check again)`
-    + (rsAsk.error ? `\n  error: ${rsAsk.error}` : "");
-  if (!wfTab) text += "\n(open WEBForms in a tab to check it)";
-  else if (!wf) text += `\n(${wfAsk.tabs === 1 ? "the WEBForms tab" : `none of the ${wfAsk.tabs} WEBForms tabs`} answered — reload ${wfAsk.tabs === 1 ? "it" : "them"} once and run the check again)`
-    + (wfAsk.error ? `\n  error: ${wfAsk.error}` : "");
-  // The last draft's steps in seconds — where the wait went. Numbers only: `job` is an
-  // internal id, kept out of the report.
-  try {
-    const { lastTimings: t } = await chrome.storage.local.get("lastTimings");
-    if (t) {
-      const ago = Math.round((Date.now() - t.at) / 60000);
-      const steps = Object.entries(t).filter(([k]) => !["at", "forms", "job"].includes(k)).map(([k, v]) => `${k} ${v}s`).join(", ");
-      text += `\nLast draft (${t.forms} form${t.forms === 1 ? "" : "s"}, ${ago} min ago): ${steps}`;
-    }
-  } catch { /* none yet */ }
-  $("setup-out").textContent = text;
-});
-
 // ---------- which screen ----------
 
 let refreshing = null;
@@ -772,7 +740,11 @@ async function refresh() {
       if (tab?.url?.startsWith(RS)) {
         const job = await chrome.runtime.sendMessage({ type: "job:forTab", tabId: tab.id });
         if (job && !job.error) {
+          // Same hand-off as before (back from Settings, say): show it again with the agent's
+          // choices as they left them. Without show(), the idle screen another tab put up
+          // stayed, and the panel looked empty (2026-10-15).
           if (rsState?.job?.id !== job.id) await showRealsig(tab, job);
+          else show("rs");
           return;
         }
       }

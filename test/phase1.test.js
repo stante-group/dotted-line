@@ -73,6 +73,12 @@ test("unzip: corruption and non-zips fail loudly", async () => {
   zip[40] ^= 0xff; // flip a byte inside the stored PDF
   await assert.rejects(unzip(zip), /didn't unpack cleanly/);
   await assert.rejects(unzip(enc("%PDF-1.4 not a zip at all, just text padding")), /isn't a zip/);
+  // An entry whose local header lies past the end: a plain message, not a RangeError.
+  const far = makeZip([{ name: "A.pdf", data: PDF_A, store: true }]);
+  const dv = new DataView(far.buffer, far.byteOffset, far.byteLength);
+  const cd = dv.getUint32(far.length - 22 + 16, true);
+  dv.setUint32(cd + 42, far.length + 1000, true);
+  await assert.rejects(unzip(far), /entries are damaged/);
 });
 
 test("pdf checks", () => {

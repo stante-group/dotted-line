@@ -26,6 +26,8 @@ test("pattern values come from what WEBForms already gave the panel", () => {
   assert.equal(standalone.address, "1234-120 Example Street NW");
   assert.equal(standalone.unit, "1234");
   assert.equal(standalone.forms, "Addendum");
+  assert.equal(titleValues({ forms: [{ name: "Agreement to Represent Both Seller and Buyer (Designated Agency)" }] }).forms,
+    "Agreement to Represent Both Seller and Buyer", "one form loses its trailing aside too (2026-10-15)");
   assert.equal(standalone.mls, "");
   assert.match(standalone.date, /Oct 13, 2026/);
   const deal = titleValues({ transaction: { Name: "Offer - Jordan Sample", StreetNumber: "120", StreetName: "Example Street NW",
