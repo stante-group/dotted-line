@@ -44,7 +44,10 @@ Optional. **Settings** at the bottom of the panel opens a page where you can:
 - choose the email subject signers see: the same as the title, your own pattern, or Real
   Signature's default;
 - see the template remembered for each kind of form, and remove any you want to choose
-  again.
+  again;
+- import templates from your previous e-sign tool's template files (.json, or a .zip of
+  several): signatures, initials, dates, text boxes and ticks become a new Real Signature
+  template, after you confirm who each role is.
 
 Left alone, you get the suggested title, used as the email subject too. Title and subject
 settings follow your Chrome sign-in (Chrome sync); remembered templates stay in this browser.

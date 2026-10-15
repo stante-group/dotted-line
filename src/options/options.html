@@ -46,6 +46,19 @@
     #setup-out { white-space: pre-wrap; background: #f5f6f8; padding: 8px; border-radius: 6px; font-size: 12px; }
     button.link { font: 13px system-ui, sans-serif; background: none; border: none; color: #1d4ed8; padding: 0; margin-top: 8px;
       text-decoration: underline; cursor: pointer; }
+    #ds-file { font: 13px system-ui, sans-serif; margin: 4px 0 8px; max-width: 100%; }
+    .ds { border: 1px solid #e3e6ec; border-radius: 8px; padding: 12px 14px; margin-top: 10px; }
+    .ds .t { font-weight: 600; overflow-wrap: anywhere; }
+    .ds .sub { margin-bottom: 6px; }
+    .ds .role { display: flex; gap: 10px; align-items: center; margin: 6px 0; flex-wrap: wrap; }
+    .ds .role span { flex: 1; min-width: 140px; overflow-wrap: anywhere; }
+    .ds select { font: 13px system-ui, sans-serif; padding: 3px 6px; border: 1px solid #c9cfdb; border-radius: 6px; }
+    .ds button.go { font: 13px system-ui, sans-serif; padding: 5px 12px; border-radius: 6px; border: 1px solid #2f6fed;
+      background: #2f6fed; color: #fff; cursor: pointer; margin-top: 6px; }
+    .ds button.go:disabled { opacity: .5; cursor: default; }
+    .ds .out { font-size: 13px; margin-top: 6px; }
+    .ds .out.err { color: #b42318; }
+    .ds .out a { color: #1d4ed8; }
     .empty { color: #5b6475; font-size: 13px; border: 1px dashed #d5d9e0; border-radius: 8px; padding: 12px 14px; }
     footer { margin-top: 40px; border-top: 1px solid #e3e6ec; padding-top: 12px; font-size: 12px; color: #5b6475; }
     footer a { color: inherit; }
@@ -106,6 +119,11 @@
   <p class="note">Each time you create a draft, the template you chose for each kind of form is remembered and picked for you next time. Remove one to choose again. Kept in this browser only.</p>
   <div id="remembered"></div>
 
+  <h2>Import templates</h2>
+  <p class="note">Turn a template file from your previous e-sign tool into a Real Signature template: download the template there, then choose the file here (.json, or .zip for several). Signatures, initials, dates, text boxes and ticks come across. The file is read in this browser. Keep a Real Signature tab open.</p>
+  <input id="ds-file" type="file" accept=".json,.zip,application/json,application/zip" multiple>
+  <div id="ds-list"></div>
+
   <h2>Check my setup</h2>
   <p class="note">For troubleshooting: are you signed in to both sites as the same person, and how long the last draft took. Counts and yes/no only — no names or deals — so it's safe to paste into a message. Keep a WEBForms tab and a Real Signature tab open.</p>
   <button id="setup-run" type="button">Run check</button>
@@ -118,5 +136,6 @@
 </main>
 <div id="saved" role="status">Saved</div>
 <script type="module" src="options.js"></script>
+<script type="module" src="import.js"></script>
 </body>
 </html>

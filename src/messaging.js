@@ -25,3 +25,17 @@ export async function sendToTab(tabId, msg) {
   }
   return r;
 }
+
+/** Ask every open tab of one site, most recently used first, until one answers. Asking
+ *  only the first one Chrome lists hit a stale tab (opened before the extension was
+ *  reloaded, can't answer) while a fresh one sat in another window (2026-10-12).
+ *  → {tabs: how many were open, r: the answer or null, error} */
+export async function askOpenTab(url, msg) {
+  const tabs = (await chrome.tabs.query({ url })).sort((a, b) => (b.lastAccessed || 0) - (a.lastAccessed || 0));
+  let error = null;
+  for (const t of tabs) {
+    const r = await sendToTab(t.id, msg).catch((e) => { error = String(e?.message || e).slice(0, 200); return null; });
+    if (r) return { tabs: tabs.length, r };
+  }
+  return { tabs: tabs.length, r: null, error };
+}

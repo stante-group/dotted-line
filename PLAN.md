@@ -291,7 +291,9 @@ WEBForms map: `content-engine/docs/webforms-real-signature.md`. Summaries go int
   doesn't send. Buttons: "Prepare in Real Signature" (WEBForms popup), then "Finish draft" in the Real Signature panel when one click needs a choice (Dan, 2026-10-15). Two "Create" buttons read as the same step twice; "Prepare" echoes the e-sign hand-off agents know without saying Send, and never copies WEBForms' own "Send to Third Party Vendor" (implies sending, and looks like part of WEBForms).
 - Say where contracts go in plain words ("straight from WEBForms to Real Signature, never
   through us"), not "no server" / "open source" first.
-- Never mention Authentisign or DocuSign, "replace" or "instead of" (Lone Wolf AUP).
+- Never mention Authentisign or DocuSign, "replace" or "instead of" (Lone Wolf AUP). That
+  includes the template import: on screen it is "a template file from your previous e-sign
+  tool" (Dan, 2026-10-15). Code and docs/api-notes.md may name the file format they read.
 - Third-party names only to describe compatibility; no logos; keep "REALTOR®" out of
   marketing copy. Legal disclaimer names The Real Brokerage Inc.
 - Deal Dates credit gives a reason to click: "your deal deadlines in your inbox at 6am".

@@ -121,7 +121,50 @@ Made a buyer copy of a seller-only template, the way a template import would bui
 So a template can be made entirely by API: clone, then one full-replace `PUT` with the
 blocks. From a new PDF (a DocuSign import) it would be `POST /document-templates?
 documentType=USER_PDF&oneTimeUse=false` then the same `PUT` — the drafts' route with the
-flag flipped; untested.
+flag flipped; proven 2026-10-15 (next section).
+
+### Importing a DocuSign template (done 2026-10-15, throwaway template, deleted after)
+
+- `POST /document-templates?documentType=USER_PDF&oneTimeUse=false` (multipart `file`) →
+  `200 {id}`: a reusable template with `draft: true`, `pagesCount: null`, no blocks. The
+  same full `PUT` as a draft then sets `pagesCount`, `fieldDefinitions`, `signeeConfigs`,
+  `documentFieldValidations` → `204`. It lists under My Templates right away. Templates
+  finished in Real's own editor read `draft: false`; nothing here filters on it.
+- DocuSign's PDF was permission-locked (encrypted, `/Filter /Standard`); Real took it and
+  rendered it fine. Its page sizes can't be read without decrypting, so the import assumes
+  letter (792 pt high) and refuses a block that would fall off the page.
+- A block's `fieldLocations[].position` is `[x1, y1, x2, y2]` (corners, bottom-left origin),
+  not `[x, y, w, h]`, and `pageNum` is **1-based** (a 6-page template uses 1–6).
+- DocuSign export (Templates → Download; several at once come as a .zip of .json): every
+  value is a string; tabs give `pageNumber`, `xPosition`, `yPosition` in points from the
+  page's TOP-left. Calibrated on the same AREA purchase contract set up by hand in both
+  tools: Real's box top = DocuSign y + 10 (signature) / + 13 (initials) / + 0 (date), then
+  converted blocks sat on the form's lines in Real's editor. Sizes as in the agent's own
+  templates: SIGNATURE 150×21, INITIALS 40×25, SIGNED_DATE ("Date & Time") 65×21.
+- DocuSign's "date signed" is a date and time, so it maps to `SIGNED_DATE` (Date & Time),
+  not `SIGNED_DATE_ONLY` (Dan, 2026-10-15).
+- Fields to fill: DocuSign full name → `SIGNEE_NAME` (Real fills the signer's name), text /
+  number / date boxes → `STRING` / `NUMBER` / `DATE` assigned to that signer, at DocuSign's
+  own box size (name boxes come 0×0 → 150×15), box top = DocuSign y. Checked on a
+  one-page consent form in Real's editor: name, phone and email boxes sit on their lines.
+  Text boxes say `required`, signature tabs say `optional`. Locked text (the sender's own
+  wording) and anchored fields are left out and counted.
+- Ticks, as the agent's seller agreement template stores them: `BOOLEAN` (checkbox) and
+  `RADIO`, each 10×10, one field per radio button. Groups are validations with
+  `fieldIndex: null` and the members in `relatedFieldIndexes`: `REQUIRED_ONLY_ONE` (a radio
+  group), `REQUIRED_AT_LEAST_ONE` (a checkbox group); Real also has `REQUIRED_IF_ANY`
+  (a field required when another is filled), which the import doesn't make. DocuSign
+  radios → one RADIO each, "exactly one" when required; DocuSign checkbox groups
+  (`tabGroups`, `tabGroupLabels`) SelectAtLeast ≥1 → at least one, SelectExactly 1 →
+  exactly one. DocuSign's tick is ~16 pt, Real's 10, so Real's box is centred on it
+  (+3 right, +3 down): corner to corner they sat up-left of the form's boxes (seller
+  agreement, checked in Real's editor). A "select at least 0, at most 1" checkbox group
+  (DocuSign's default) gets no rule — Real has no "at most one".
+- A sender's typed text (a broker's name, say) can arrive burned into the PDF, not as a
+  field, when the DocuSign template was saved from a sent envelope; in Real that becomes a
+  `STRING` for `SENDER`, added by hand. A DocuSign template's PDF
+  can be a used envelope (envelope-ID stamp, typed values); only the blocks matter, since
+  drafts put them on the WEBForms PDF.
 
 ### Real's packet "Add Signees" box pre-fills a wrong row (2026-10-14)
 

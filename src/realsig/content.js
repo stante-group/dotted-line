@@ -174,10 +174,33 @@ async function create({ jobId, title, dealId, templateIds, counts, agentChoice =
   }
 }
 
+// A DocuSign template, converted on the Settings page (src/lib/docusign.js), becomes a new
+// reusable template here: upload its PDF, then one full PUT with the blocks — the same two
+// steps as a draft, with oneTimeUse false (2026-10-15). A new template only; the agent's
+// own are never touched. If the PUT fails, the half-made one is deleted.
+async function importTemplate({ pdfBase64, template }) {
+  const lib = await load();
+  const rs = new lib.RealSignature({ getToken: () => lib.readToken(document.cookie) });
+  const bytes = lib.fromBase64(pdfBase64);
+  if (!lib.isPdf(bytes)) throw new Error("the template file's document isn't a PDF");
+  const up = await rs.uploadTemplate(new Blob([bytes], { type: "application/pdf" }), fileName(template.name));
+  if (!up?.id) throw new Error("Real Signature's upload answer changed shape — check My Templates for a half-made one");
+  try {
+    const fresh = await rs.getTemplate(up.id);
+    await rs.putDraft(up.id, { ...fresh, ...template });
+  } catch (e) {
+    const gone = await rs.deleteDraft(up.id).then(() => true, () => false);
+    throw new Error(`${String(e?.message || e)}${gone ? "" : ". Check My Templates in Real Signature for a half-made template and delete it."}`);
+  }
+  ctx = null; // the panel's next look lists the new template
+  return { id: up.id, url: `/prepare/${up.id}` };
+}
+
 chrome.runtime.onMessage.addListener((msg, _sender, reply) => {
   const run = {
     "rs:context": summary,
     "rs:setup": setup,
+    "rs:import-template": () => importTemplate(msg),
     "rs:create": () => create(msg),
   }[msg.type];
   if (!run) return false;

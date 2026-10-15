@@ -95,6 +95,14 @@ export class RealSignature {
     form.append("file", pdfBlob, filename);
     return this.request("POST", "/document-templates", { query: { documentType: "USER_PDF", oneTimeUse: true }, form });
   }
+  /** Upload a PDF as a new reusable TEMPLATE (a DocuSign import) — the drafts' route with
+   *  oneTimeUse false, proven 2026-10-15. Comes back with no blocks and pagesCount null,
+   *  like a draft; the PUT below fills it. → {id} */
+  uploadTemplate(pdfBlob, filename) {
+    const form = new FormData();
+    form.append("file", pdfBlob, filename);
+    return this.request("POST", "/document-templates", { query: { documentType: "USER_PDF", oneTimeUse: false }, form });
+  }
   /** Full replace of a draft (name, signers, blocks, deal). */
   putDraft(id, body) { return this.request("PUT", `/document-templates/${encodeURIComponent(id)}`, { json: body }); }
   /** Clean-up of a draft THIS run created, after a failure. */
