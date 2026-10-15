@@ -9,8 +9,9 @@ The code is ready for this: `src/lib/actor.js` holds every assumption the test c
 
 ## 1. Setup check (2 min)
 
-With WEBForms and Real Signature both open in tabs, open the Dotted Line popup →
-In Dotted Line's **Settings** (footer link), **Check my setup** → **Run check**. Copy the report (counts and yes/no only) into the notes.
+With WEBForms and Real Signature both open in tabs, open Dotted Line's **Settings** (the
+footer link in the popup, or right-click the icon → Options) → **Check my setup** → **Run
+check**. Copy the report (counts and yes/no only) into the notes.
 
 | Line | What we learn |
 |---|---|
