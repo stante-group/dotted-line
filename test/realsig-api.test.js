@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 
-import { RealSignature, isForbidden, readToken, NotSignedIn } from "../src/lib/realsig-api.js";
+import { RealSignature, isForbidden, readToken, readActingAs, NotSignedIn } from "../src/lib/realsig-api.js";
 
 test("sending routes are refused", () => {
   assert.ok(isForbidden("POST", "/documents"));
@@ -69,4 +69,17 @@ test("bearer header and query are sent; 204 returns null", async () => {
   assert.equal(seen[0].init.headers.Authorization, "Bearer tok");
   assert.equal(seen[0].init.method, "PUT");
   assert.ok(seen[0].url.endsWith("/document-templates/d1"));
+});
+
+test("a TC acting for an agent: cookie read, X-Agent-Context sent", async () => {
+  const id = "00000000-0000-4000-8000-000000000001";
+  assert.equal(readActingAs(`jwtToken=x; actingAsUserId=${id}; other=1`), id);
+  assert.equal(readActingAs(`actingAsUserId=%22${id}%22`), id);
+  for (const none of ["jwtToken=x", "actingAsUserId=", "actingAsUserId=null", ""]) assert.equal(readActingAs(none), null);
+  const seen = [];
+  const fetchImpl = async (url, init) => { seen.push(init.headers); return { ok: true, status: 200, text: async () => "{}" }; };
+  await new RealSignature({ getToken: () => "t", getActingAs: () => id, fetchImpl }).me();
+  await new RealSignature({ getToken: () => "t", fetchImpl }).me();
+  assert.equal(seen[0]["X-Agent-Context"], id);
+  assert.ok(!("X-Agent-Context" in seen[1]), "an agent's own calls carry no agent context");
 });

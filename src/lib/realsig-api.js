@@ -37,12 +37,24 @@ export function readToken(cookieString) {
   return m ? decodeURIComponent(m[1]) : null;
 }
 
+/** The agent a transaction coordinator picked in Real Signature ("Whose documents would you
+ *  like to access?" → "Acting as"). Real's app keeps it in this cookie and sends it back as
+ *  the X-Agent-Context header on its API calls (read from its bundle, 2026-10-15). An
+ *  agent's own sign-in has no such cookie. */
+export function readActingAs(cookieString) {
+  const m = /(?:^|;\s*)actingAsUserId=([^;]+)/.exec(cookieString || "");
+  const v = m ? decodeURIComponent(m[1]).replace(/^"|"$/g, "") : "";
+  return v && v !== "null" && v !== "undefined" ? v : null;
+}
+
 export class NotSignedIn extends Error { name = "NotSignedIn"; }
 
 export class RealSignature {
-  /** getToken: () => string|null (reads document.cookie in the page). */
-  constructor({ getToken, fetchImpl = globalThis.fetch.bind(globalThis) }) {
+  /** getToken: () => string|null (reads document.cookie in the page).
+   *  getActingAs: () => string|null — the agent a TC is acting for, sent as X-Agent-Context. */
+  constructor({ getToken, getActingAs = () => null, fetchImpl = globalThis.fetch.bind(globalThis) }) {
     this.getToken = getToken;
+    this.getActingAs = getActingAs;
     this.fetch = fetchImpl;
   }
 
@@ -55,6 +67,8 @@ export class RealSignature {
     const url = new URL(base + path);
     for (const [k, v] of Object.entries(query || {})) if (v !== undefined) url.searchParams.set(k, v);
     const headers = { Authorization: `Bearer ${token}`, Accept: "application/json" };
+    const actingAs = this.getActingAs();
+    if (actingAs) headers["X-Agent-Context"] = actingAs;
     let body;
     if (json !== undefined) { headers["Content-Type"] = "application/json"; body = JSON.stringify(json); }
     if (form) body = form;

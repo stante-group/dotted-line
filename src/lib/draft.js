@@ -19,12 +19,16 @@ export function countsFromDeal(deal) {
 const SELLER_FORM = /\b(sellers?'?s?|vendors?'?s?|listing|property disclosure)\b/i;
 const BUYER_FORM = /\b(buyers?'?s?|purchasers?'?s?)\b/i;
 
-/** "BUYER" / "SELLER" if every named form is one-sided the same way, else null. */
+/** "BUYER" / "SELLER" if the one-sided forms all point the same way, else null. A form that
+ *  names neither side (a Consumer Relationships Guide) gives no clue and is skipped — it
+ *  used to cancel a seller's agreement beside it (2026-10-15). One naming both ("Seller's
+ *  Acceptance of Buyer's Offer") still means either side may sign. */
 export function sideFromFormNames(names) {
   const sides = new Set();
   for (const n of names || []) {
     const s = SELLER_FORM.test(n), b = BUYER_FORM.test(n);
-    if (s === b) return null; // neither, or both ("Seller's Acceptance of Buyer's Offer")
+    if (s && b) return null;
+    if (!s && !b) continue;
     sides.add(s ? "SELLER" : "BUYER");
   }
   return sides.size === 1 ? [...sides][0] : null;
@@ -74,7 +78,7 @@ export function signerCounts({ deal, formNames, templates = [], webforms = [], a
   const byTemplate = sideFromTemplates(templates);
   const byName = sideFromFormNames(formNames);
   const many = (xs) => (xs || []).length > 1;
-  const named = (side) => `${many(formNames) ? "these are" : "this is a"} ${side === "BUYER" ? "buyer" : "seller"}'s form${many(formNames) ? "s" : ""}`;
+  const formsAre = (side) => `${many(formNames) ? "these are" : "this is a"} ${side === "BUYER" ? "buyer" : "seller"}'s form${many(formNames) ? "s" : ""}`;
   const tpl = (side) => `your template${many(templates) ? "s only have" : " only has"} ${side === "BUYER" ? "buyer" : "seller"} blocks`;
 
   let side, why;
@@ -88,7 +92,7 @@ export function signerCounts({ deal, formNames, templates = [], webforms = [], a
   else {
     const lead = deal?.side === "DUAL" ? "Dual representation" : deal ? "Couldn't tell which side this deal is" : "No deal";
     if (byTemplate) { side = byTemplate; why = `${lead}, and ${tpl(side)}, so only the ${side === "BUYER" ? "buyers" : "sellers"} sign.`; }
-    else if (byName) { side = byName; why = `${lead}, and ${named(side)}, so only the ${side === "BUYER" ? "buyers" : "sellers"} sign.`; }
+    else if (byName) { side = byName; why = `${lead}, and ${formsAre(side)}, so only the ${side === "BUYER" ? "buyers" : "sellers"} sign.`; }
     else { side = "BOTH"; why = `${lead}, so buyers and sellers are both included.`; }
   }
 

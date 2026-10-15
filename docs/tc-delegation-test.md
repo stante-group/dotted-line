@@ -1,5 +1,10 @@
 # TC delegation test (Phase 0 item 7)
 
+**Done 2026-10-15** — answers in `docs/api-notes.md` ("Transaction coordinators"). Before
+a TC can use Dotted Line, the agent switches on **Real Signature** for her in reZEN (Agent
+Profile → Transaction Coordinators → Manage → the TC), and she picks the agent in Real
+Signature ("Acting as …"). Kept below as the script that was run.
+
 Run once with a transaction coordinator, **at her own computer, signed in herself** to both
 WEBForms and Real Signature. Nobody else types her passwords. Drafts only: nothing in this
 test presses Send. Use a test deal or invented forms where you can.

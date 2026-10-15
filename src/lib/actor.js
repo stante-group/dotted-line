@@ -6,16 +6,22 @@
 //   - the deal's owner (arrakis `transactionOwner`) — whose deal it is;
 //   - the WEBForms sign-in (`UserName`) — whose forms these are (or who is impersonating).
 //
-// WHAT IS NOT YET KNOWN (needs the TC at her own computer — docs/tc-delegation-test.md):
-//   - Whether a draft she makes on an agent's deal should name the agent as sender.
-//     Real Signature drafts carry `defaults.sender.agentYentaId` (null on an agent's own
-//     drafts); it is probably how "sending on behalf of" is recorded, but we have never
-//     seen it set. Until verified we leave it null — the draft goes out as from whoever
-//     is signed in, exactly as if she'd uploaded it herself — and say so on screen.
-//   - What WEBForms' UserName shows while she impersonates an agent.
-// Flip DELEGATION_VERIFIED only after the test, together with senderFor().
+// TC DELEGATION — verified with a TC at her own computer, 2026-10-15
+// (docs/tc-delegation-test.md):
+//   - An agent switches on "Real Signature" for a TC in reZEN (Agent Profile → Transaction
+//     Coordinators → Manage → the TC → Access Permissions). The TC then picks the agent in
+//     Real Signature ("Whose documents would you like to access?" → "Acting as …").
+//   - Real keeps that choice in the `actingAsUserId` cookie and sends it as the
+//     X-Agent-Context header on every call (realsig-api.js). With it, templates, deals and
+//     drafts are the AGENT's: the draft lands in the agent's Drafts and Real's own Review
+//     page says the agent "remain[s] the sender of record". So `me` IS the agent while she
+//     acts (content.js), and the sender is simply the agent's own name and email.
+//   - The TC has no reZEN profile of her own (/users/me → 404) and may not read the
+//     agent's (/users/{id} → 403): the agent's name and email come from their deals.
+//   - `defaults.sender.agentYentaId` was never needed; it stays null.
+//   - WEBForms' UserName while impersonating = the impersonated agent (2026-10-12).
 
-export const DELEGATION_VERIFIED = false;
+export const DELEGATION_VERIFIED = true;
 
 const norm = (s) => String(s ?? "").replace(/\s+/g, " ").trim().toLowerCase();
 
@@ -32,10 +38,21 @@ export function meFromYenta(u) {
   };
 }
 
-/** The draft's `defaults.sender`. Same as Real's own UI for a draft you make yourself. */
+/** The agent a TC is acting for, from that agent's open deals and listings (arrakis
+ *  `transactionOwner {id, name, emailAddress}`): a TC may not read the agent's reZEN
+ *  profile (/users/{id} → 403, 2026-10-15). An agent with no deal of their own is refused —
+ *  never guessed, since the agent's email decides who signs as the agent. */
+export function meFromDeals(rawDeals, agentId) {
+  const o = (rawDeals || []).map((t) => t?.transactionOwner).find((x) => x?.id === agentId && x.emailAddress);
+  if (!o) throw new Error("Couldn't find the agent you're acting for on their open deals (it needs at least one deal of their own in reZEN) — ask them to prepare this draft");
+  const fullName = String(o.name ?? "").replace(/\s+/g, " ").trim();
+  const [firstName = "", ...rest] = fullName.split(" ");
+  return { id: o.id, firstName, lastName: rest.join(" "), fullName, email: String(o.emailAddress).trim(), type: "AGENT" };
+}
+
+/** The draft's `defaults.sender`. Same as Real's own UI: the signed-in agent, or — for a
+ *  TC acting for an agent — that agent (Real names them sender of record itself). */
 export function senderFor(me /*, deal */) {
-  // When DELEGATION_VERIFIED: set agentYentaId to deal.ownerId if that is what Real does
-  // for an assistant's draft. Not before.
   return { firstName: me.firstName, lastName: me.lastName, email: me.email, agentYentaId: null };
 }
 
@@ -56,19 +73,30 @@ export function samePerson({ wfEmail, rsEmail }) {
 
 /** Plain-language notes for the panel before Create, none blocking. Each has a level:
  *  "warn" — something to check before sending (the sender on someone else's deal);
- *  "info" — context only. Working in a teammate's WEBForms (impersonation, or a TC's own
- *  login) is normal for team leads and TCs, so it's said quietly, not as a warning
- *  (Dan, 2026-10-12). → [{level, text}] */
+ *  "info" — context only. WEBForms and Real Signature signed in as different people is a
+ *  warning since 2026-10-15 (it was info from 2026-10-12, as normal for leads and TCs, until a
+ *  TC's draft landed in the wrong agent's Drafts). → [{level, text}] */
 export function actingNotes({ me, deal, webformsUserName, webformsUserEmail = null }) {
   const out = [];
+  const acting = !!me?.actingForAgent;
+  const whose = acting ? `${me.fullName || "the agent"}'s` : "your";
+  if (acting) {
+    out.push({ level: "info", text: `Acting as ${me.fullName || "an agent"} in Real Signature: the draft goes in their Drafts, with them as sender.` });
+  }
   if (isOthersDeal(me, deal)) {
-    out.push(DELEGATION_VERIFIED
-      ? { level: "info", text: `You're making this for ${deal.agentName || "another agent"}.` }
-      : { level: "warn", text: `This deal is ${deal.agentName || "another agent"}'s. The draft will be in your Real Signature Drafts with you as sender — check the sender in Real Signature before you press Send.` });
+    // A teammate's deal the agent is on. Real files the draft under the signed-in (or
+    // acted-for) agent, not the deal's owner.
+    out.push({ level: "warn", text: `This deal is ${deal.agentName || "another agent"}'s. The draft will be in ${whose} Real Signature Drafts with ${acting ? "them" : "you"} as sender — check the sender before you press Send.` });
   }
   const same = samePerson({ wfEmail: webformsUserEmail, rsEmail: me?.email });
   if (webformsUserName && same === false) {
-    out.push({ level: "info", text: `Working as ${webformsUserName} in WEBForms (you're ${me?.fullName || "someone else"} in Real Signature).` });
+    // A warning, not a note (Dan, 2026-10-15): a TC impersonating one teammate in WEBForms
+    // while acting as another in Real Signature put the first one's forms in the second
+    // one's Drafts, sent as them. Says whose Drafts it lands in and what to switch.
+    const rsName = me?.fullName || "another agent";
+    out.push({ level: "warn", ...(acting ? { switchTo: webformsUserName } : {}), text: acting
+      ? `Different people: WEBForms is ${webformsUserName}, Real Signature is acting as ${rsName}. The draft goes in ${rsName}'s Drafts — if these are ${webformsUserName}'s forms, switch "Acting as" first.`
+      : `Different people: WEBForms is ${webformsUserName}, Real Signature is ${rsName}. The draft goes in your Drafts, with you as sender.` });
   } else if (webformsUserName && same === null) {
     out.push({ level: "info", text: `Couldn't confirm WEBForms (${webformsUserName}) and Real Signature (${me?.fullName || "?"}) are the same account — no email to compare.` });
   }
@@ -83,8 +111,10 @@ export function setupReport({ rs, wf }) {
     `Dotted Line setup check — ${new Date().toISOString().slice(0, 10)}`,
     `Real Signature signed in: ${yn(rs?.signedIn)}`,
   ];
+  if (rs?.steps) lines.push(`Real Signature calls: ${rs.steps}`);
   if (rs?.signedIn) {
     lines.push(
+      `Acting for an agent (TC): ${rs.actingForAgent ? "yes" : "no"}`,
       `Real account type: ${rs.type ?? "unknown"}`,
       `Real roles: ${(rs.roles || []).filter((r) => /^[A-Z_]+$/.test(r)).join(", ") || "none listed"}`,
       `Open deals visible: ${rs.deals} (own ${rs.ownDeals}, other agents' ${rs.deals - rs.ownDeals})`,

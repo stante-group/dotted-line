@@ -13,8 +13,11 @@ Public repo. Read PLAN.md first; API shapes are in docs/api-notes.md.
   UI goes in the side panel; PDFs pass through byte-for-byte. `src/lib/webforms-api.js`
   is an allowlist: its zip download plus read-only lookups. Never add a route that saves,
   sends, moves or deletes, and `test/phase1.test.js` checks the obvious ones are refused.
-- **TC delegation is unverified.** `src/lib/actor.js` leaves `sender.agentYentaId` null and
-  `DELEGATION_VERIFIED = false` until `docs/tc-delegation-test.md` has been run.
+- **TC delegation (verified 2026-10-15)** works by acting AS the agent: Real's
+  `actingAsUserId` cookie → the `X-Agent-Context` header on every call, exactly as Real's
+  app does. Never fake or choose that id ourselves — it is the TC's own pick in Real
+  Signature, and the agent must have switched on Real Signature for her in reZEN.
+  `sender.agentYentaId` stays null. See docs/api-notes.md "Transaction coordinators".
 - **Public repo: invented data only.** No real forms, deals, names, addresses, emails,
   template exports or screenshots. Fixtures use `120 Example Street NW`, `Jordan Sample`.
   `git rm` does not undo a leak.

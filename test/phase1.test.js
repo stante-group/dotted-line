@@ -11,7 +11,7 @@ import { formKey } from "../src/lib/match.js";
 import { buildDraftBody, signeesFromDeal, countsFromDeal, signersWithoutEmail, signerCounts, sideFromFormNames, templateSlots, isEmail, agentRoleFor, agentPerson, agentPeople, chooseAgents, unfilledRoles } from "../src/lib/draft.js";
 import { stripTemplate, dropUnusedSlots } from "../src/lib/layout.js";
 import { summarizeDeal } from "../src/lib/deals.js";
-import { actingNotes, setupReport, senderFor, meFromYenta, DELEGATION_VERIFIED, samePerson } from "../src/lib/actor.js";
+import { actingNotes, setupReport, senderFor, meFromYenta, meFromDeals, DELEGATION_VERIFIED, samePerson } from "../src/lib/actor.js";
 import { sampleTemplate } from "./fixtures.js";
 
 const enc = (s) => new TextEncoder().encode(s);
@@ -271,6 +271,14 @@ test("signer counts follow the side represented, then the form names", () => {
   const three = summarizeDeal({ ...raw("Buy Side Representation"), participants: [1, 2, 3].map((i) => ({ participantRole: "BUYER", firstName: "B" + i, lastName: "Sample", emailAddress: "b" + i + "@example.com" })) });
   assert.deepEqual(signerCounts({ deal: three, formNames: offer }).counts, { BUYER: 3, SELLER: 0 });
   assert.equal(sideFromFormNames(offer), null);
+  // a neutral form beside a seller's one doesn't cancel it (2026-10-15)
+  const pair = ["Consumer Relationships Guide (Print Friendly)", "Exclusive Seller Representation Agreement (designated agency)"];
+  assert.equal(sideFromFormNames(pair), "SELLER");
+  assert.deepEqual(signerCounts({ deal: null, formNames: pair }).counts, { BUYER: 0, SELLER: 2 });
+  // the guide alone gives no side: both, 2 each
+  assert.deepEqual(signerCounts({ deal: null, formNames: ["Consumer Relationships Guide"] }).counts, { BUYER: 2, SELLER: 2 });
+  // and the sellers typed on the pair's forms set the number
+  assert.deepEqual(signerCounts({ deal: null, formNames: pair, webforms: [{ BUYER: 0, SELLER: 1 }] }).counts, { BUYER: 0, SELLER: 1 });
 });
 
 test("signer counts: the picked templates' slots raise the count and, without a deal side, pick the side", () => {
@@ -484,27 +492,42 @@ test("same person in WEBForms and Real: by email only — names can be shared in
   // same name, different email: flagged
   const jr = actingNotes({ me, deal: null, webformsUserName: "Alexander Example", webformsUserEmail: "alex.jr@example.com" });
   assert.equal(jr.length, 1);
-  assert.match(jr[0].text, /Working as Alexander Example in WEBForms/);
+  assert.equal(jr[0].level, "warn");
+  assert.ok(jr[0].text.startsWith("Different people: WEBForms is Alexander Example, Real Signature is"), jr[0].text);
   // no WEBForms email: flagged as unconfirmed, never assumed
   const unknown = actingNotes({ me, deal: null, webformsUserName: "Alexander Example" });
   assert.equal(unknown[0].level, "info");
   assert.match(unknown[0].text, /Couldn't confirm/);
 });
 
-test("delegation framework: another agent's deal is flagged until verified", () => {
-  assert.equal(DELEGATION_VERIFIED, false);
+test("delegation: a teammate's deal is flagged; a TC acting for an agent is told whose Drafts", () => {
+  assert.equal(DELEGATION_VERIFIED, true);
   const me = meFromYenta({ id: "tc-1", firstName: "Taylor", lastName: "Example", emailAddress: "tc@example.com" });
   const deal = summarizeDeal(sampleDealRaw);
   const notes = actingNotes({ me, deal, webformsUserName: "Alex Example", webformsUserEmail: "alex@example.com" });
   assert.equal(notes.length, 2);
   assert.equal(notes[0].level, "warn");
   assert.match(notes[0].text, /Alex Example's/);
-  // working in a teammate's WEBForms is normal for leads and TCs: info, not a warning
-  assert.equal(notes[1].level, "info");
-  assert.match(notes[1].text, /Working as Alex Example in WEBForms/);
+  // signed in to WEBForms as someone else: a warning (Dan, 2026-10-15)
+  assert.equal(notes[1].level, "warn");
+  assert.ok(notes[1].text.includes("Different people: WEBForms is Alex Example, Real Signature is Taylor Example. The draft goes in your Drafts, with you as sender."), notes[1].text);
   assert.deepEqual(actingNotes({ me: { ...me, id: "agent-1", fullName: "Alex Example", email: "alex@example.com" }, deal,
     webformsUserName: "Alex Example", webformsUserEmail: "alex@example.com" }), []);
   assert.equal(senderFor(me, deal).agentYentaId, null);
+  // a TC acting for agent-1: info note, no warning on agent-1's own deal, agent is sender
+  const agent = { id: deal.ownerId, firstName: "Alex", lastName: "Example", fullName: "Alex Example", email: "alex@example.com", actingForAgent: true };
+  const tc = actingNotes({ me: agent, deal, webformsUserName: "Taylor Example", webformsUserEmail: "tc@example.com" });
+  // WEBForms as someone else (her own login, or impersonating another agent) while acting
+  // as Alex: a warning, since the draft goes in Alex's Drafts
+  assert.deepEqual(tc.map((n) => n.level), ["info", "warn"]);
+  assert.match(tc[0].text, /Acting as Alex Example in Real Signature/);
+  assert.ok(tc[1].text.includes("Different people: WEBForms is Taylor Example, Real Signature is acting as Alex Example. The draft goes in Alex Example's Drafts — if these are Taylor Example's forms, switch \"Acting as\" first."), tc[1].text);
+  assert.equal(tc[1].switchTo, "Taylor Example"); // an offer to switch, never forced
+  assert.equal(notes[1].switchTo, undefined); // not acting: nothing to switch
+  // WEBForms as Alex too (impersonating the same agent): just the info line
+  const same = actingNotes({ me: agent, deal, webformsUserName: "Alex Example", webformsUserEmail: "alex@example.com" });
+  assert.deepEqual(same.map((n) => n.level), ["info"]);
+  assert.equal(senderFor(agent, deal).email, "alex@example.com");
 });
 
 test("setup report has counts and yes/no only", () => {
@@ -515,4 +538,24 @@ test("setup report has counts and yes/no only", () => {
   assert.match(r, /other agents' 30/);
   assert.match(r, /Same person in both: no/);
   for (const leak of ["Taylor", "Alex", "x@y"]) assert.ok(!r.includes(leak), `report leaked ${leak}`);
+});
+
+test("setup report says which Real Signature call failed when not signed in", () => {
+  const r = setupReport({ rs: { signedIn: false, steps: "token yes, me ok, roles ok, templates ok, shared ok, deals 403" }, wf: null });
+  assert.match(r, /Real Signature signed in: no/);
+  assert.match(r, /Real Signature calls: .*deals 403/);
+});
+
+test("TC acting for an agent: the agent comes from their own deals, never guessed", () => {
+  const agent = "00000000-0000-4000-8000-000000000002";
+  const deals = [
+    { transactionOwner: { id: "someone-else", name: "Casey Other", emailAddress: "casey@example.com" } },
+    { transactionOwner: { id: agent, name: "Alex  Example", emailAddress: " alex@example.com " } },
+  ];
+  assert.deepEqual(meFromDeals(deals, agent),
+    { id: agent, firstName: "Alex", lastName: "Example", fullName: "Alex Example", email: "alex@example.com", type: "AGENT" });
+  assert.throws(() => meFromDeals(deals.slice(0, 1), agent), /acting for/);
+  assert.throws(() => meFromDeals([{ transactionOwner: { id: agent, name: "Alex Example" } }], agent), /acting for/);
+  const r = setupReport({ rs: { signedIn: true, actingForAgent: true, type: "AGENT", roles: [], deals: 3, ownDeals: 3, listings: 1, templatesMine: 29, templatesShared: 0, templatesWithBlocks: 20 }, wf: null });
+  assert.match(r, /Acting for an agent \(TC\): yes/);
 });

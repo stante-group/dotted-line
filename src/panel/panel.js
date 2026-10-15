@@ -378,6 +378,17 @@ chrome.runtime.onMessage.addListener((msg, sender) => {
 
 // ---------- Real Signature: deal, templates, create ----------
 
+// Which agent Real Signature is acting as, from its tab (on load and on change). If that
+// isn't who the panel loaded deals, templates and sender for, load again for the same
+// hand-off — the TC switched "Acting as".
+chrome.runtime.onMessage.addListener((msg, sender) => {
+  if (msg?.type !== "rs:acting" || wfBusy || !rsState || sender.tab?.id !== rsState.tab.id) return;
+  const loaded = rsState.c.me?.actingForAgent ? rsState.c.me.id : null;
+  if ((msg.actingAs || null) === loaded) return;
+  say("");
+  showRealsig(rsState.tab, rsState.job).catch((e) => say(String(e.message || e), "err"));
+});
+
 let rsState = null;
 
 function option(value, text, { selected = false, disabled = false } = {}) {
@@ -565,10 +576,29 @@ function updateDeal() {
   // quiet context lines.
   const all = notes.map((n) => (typeof n === "string" ? { level: "warn", text: n } : n));
   $("rs-warn").replaceChildren(
-    ...all.filter((n) => n.level !== "info").map((n) => el("div", n.text, "warn")),
+    ...all.filter((n) => n.level !== "info").map(warnBox),
     ...all.filter((n) => n.level === "info").map((n) => el("div", n.text, "info")),
   );
   updateAgent();
+}
+
+/** A warning, plus — for a TC acting for a different agent than WEBForms — an OFFER to
+ *  switch. Only an offer: one teammate may have built the forms for the agent she's acting
+ *  as (Dan, 2026-10-15). The switch itself is Real's own "Acting as" menu; we open it, she
+ *  picks. Never set Real's cookie ourselves (CLAUDE.md). */
+function warnBox(n) {
+  const box = el("div", n.text, "warn");
+  if (!n.switchTo) return box;
+  const b = el("button", `Switch to ${n.switchTo}`, "link");
+  b.type = "button";
+  b.style.display = "block";
+  b.style.marginTop = "6px";
+  b.onclick = async () => {
+    const r = await send(rsState.tab.id, { type: "rs:open-acting" }).catch(() => null);
+    b.replaceWith(el("div", `${r?.opened ? "Real's menu is open" : "Use Acting as, bottom left in Real Signature"}: pick ${n.switchTo}. This panel reloads when you do. Not listed? ${n.switchTo} needs to switch on Real Signature for you in reZEN first.`, "note"));
+  };
+  box.append(b);
+  return box;
 }
 
 const ROLE_LABEL = { BUYERS_AGENT: "Buyer's agent", SELLERS_AGENT: "Seller's agent" };

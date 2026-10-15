@@ -134,11 +134,16 @@ flattened PDF per form, and ticked forms can be read from the page. Standalone f
 (no transaction) go through WEBForms' Basket and the same zip download. 4 answered: a packet
 draft is `POST /packet-templates` (`oneTimeUse`) over one-time drafts; `/packets` is the
 send. **Open:** 7 (TC delegation). Its harness is built: `src/lib/actor.js` (who is
-acting for whom, `DELEGATION_VERIFIED = false`), the "Check my setup" report (on the Settings page since 2026-10-15), and
+acting for whom, `DELEGATION_VERIFIED`, now `true`), the "Check my setup" report (on the Settings page since 2026-10-15), and
 the session script in `docs/tc-delegation-test.md`. **2026-10-12:** the WEBForms half of 7
 ran on a team lead impersonating a teammate — WEBForms reports the impersonated agent, the
 download works, and the panel warns. Left for the TC: Real Signature's side (who is sender
 on a draft she makes for an agent; whether `sender.agentYentaId` is the hook).
+**2026-10-15: 7 DONE** with the TC at her own computer. The agent switches on Real Signature
+for the TC in reZEN; she picks the agent in Real Signature ("Acting as"); the extension
+reads that choice and sends Real's `X-Agent-Context` header, so it works as the agent —
+their deals, templates and Drafts, with the agent as sender of record. Full run passed (a
+multi-form packet in the agent's Drafts). Details in `docs/api-notes.md`.
 
 **Phase 1 status (2026-10-12): working end to end** in Dan's browser — deal forms and
 Basket, single drafts and packets, with and without templates, no deal and matched deals.
@@ -274,7 +279,7 @@ Install from an **unlisted** Chrome Web Store link during beta.
 ## Open questions
 
 - CREA's own WEBForms terms (not public) and AREA form copyright — ask before public release.
-- Delegation model (Phase 0 step 7, Real Signature side).
+- ~~Delegation model (Phase 0 step 7, Real Signature side)~~ — answered 2026-10-15.
 - ~~Where a packet's deal is stored~~ — each document's `defaults.transactionId`; Real's
   packet editor shows it as the selected transaction (seen 2026-10-12).
 - Repo: `stante-group/dotted-line`. Store name "Dotted Line by Deal Dates" — chosen 2026-10-10 over RealDealForms, which read as an official Real tool (Web Store affiliation rule, Real, Lone Wolf).

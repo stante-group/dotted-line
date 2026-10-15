@@ -23,17 +23,25 @@ async function load() {
 async function context({ fresh = false } = {}) {
   if (ctx && !fresh) return ctx;
   const lib = await load();
-  const rs = new lib.RealSignature({ getToken: () => lib.readToken(document.cookie) });
-  const me = lib.meFromYenta(await rs.me());
+  const rs = new lib.RealSignature({ getToken: () => lib.readToken(document.cookie), getActingAs: () => lib.readActingAs(document.cookie) });
+  // A TC acting for an agent ("Acting as" in Real Signature) works as that agent: every call
+  // carries X-Agent-Context, and templates, deals and drafts are the agent's. She has no
+  // reZEN profile of her own (/users/me → 404) and may not read the agent's (/users/{id} →
+  // 403), so the agent's name and email come from the agent's own deals (2026-10-15).
+  const actingAs = lib.readActingAs(document.cookie);
+  const own = actingAs ? null : lib.meFromYenta(await rs.me());
+  const id = actingAs || own.id;
   const [mine, shared, deals, listings, buyers] = await Promise.all([
     rs.allTemplates(),
     rs.allTemplates({ sharedWithMe: true }),
-    rs.allOpenDeals(me.id),
-    rs.allOpenDeals(me.id, { listings: true }),
+    rs.allOpenDeals(id),
+    rs.allOpenDeals(id, { listings: true }),
     // Newer than the rest of reZEN (2026-10-12) and only a convenience: if it fails or
     // changes shape, the picker carries on without Buyer Records.
-    rs.activeBuyerRecords(me.id).catch(() => []),
+    rs.activeBuyerRecords(id).catch(() => []),
   ]);
+  const me = actingAs ? { ...lib.meFromDeals([...deals, ...listings], actingAs), actingForAgent: true }
+    : own;
   const templates = new Map();
   for (const t of mine) templates.set(t.id, { t, shared: false });
   for (const t of shared) if (!templates.has(t.id)) templates.set(t.id, { t, shared: true });
@@ -69,9 +77,43 @@ async function summary() {
   };
 }
 
+// Each call on its own, so a failure says WHICH one: a TC whose agent hadn't switched on
+// Real Signature for her came back "signed in: no" with nothing to go on (2026-10-15).
+// Status codes and counts only — Real's error text can carry names, and this report gets
+// pasted into messages. Shown when not signed in, and for a TC acting for an agent.
+async function steps() {
+  const lib = await load();
+  const rs = new lib.RealSignature({ getToken: () => lib.readToken(document.cookie), getActingAs: () => lib.readActingAs(document.cookie) });
+  const code = (e) => (e?.name === "NotSignedIn" ? "401" : /→ (d{3})/.exec(String(e?.message))?.[1] || "error");
+  const actingAs = lib.readActingAs(document.cookie);
+  const out = { token: lib.readToken(document.cookie) ? "yes" : "no", acting: actingAs ? "yes" : "no" };
+  const run = async (k, f) => { try { const r = await f(); out[k] = "ok"; return r; } catch (e) { out[k] = code(e); return null; } };
+  // Every call carries X-Agent-Context when acting, as Real's app does. A TC's own /users/me
+  // is a 404 by design — her agent's deals give the id instead.
+  let id = actingAs;
+  if (!actingAs) {
+    const me = await run("me", () => rs.me());
+    try { id = me && lib.meFromYenta(me).id; } catch { out.me = "odd shape"; }
+  }
+  await run("roles", () => rs.roles());
+  const count = (r) => (Array.isArray(r?.data) ? ` ${r.totalCount ?? r.data.length}` : "");
+  const t = await run("templates", () => rs.listTemplates({ size: 1 }));
+  if (t) out.templates += count(t);
+  const s = await run("shared", () => rs.listTemplates({ sharedWithMe: true, size: 1 }));
+  if (s) out.shared += count(s);
+  if (id) {
+    const some = (r) => (Array.isArray(r?.transactions) ? ` (${r.hasNext ? "more than 1" : r.transactions.length})` : " (odd shape)");
+    const d = await run("deals", () => rs.openDeals(id, { pageSize: 1 }));
+    if (d) out.deals += some(d);
+    const l = await run("listings", () => rs.openDeals(id, { listings: true, pageSize: 1 }));
+    if (l) out.listings += some(l);
+  }
+  return Object.entries(out).map(([k, v]) => `${k} ${v}`).join(", ");
+}
+
 async function setup() {
   let c;
-  try { c = await context({ fresh: true }); } catch { return { signedIn: false }; }
+  try { c = await context({ fresh: true }); } catch { return { signedIn: false, steps: await steps().catch(() => "unavailable") }; }
   let roles = [];
   try { roles = await c.rs.roles(); } catch { /* optional */ }
   const all = [...c.deals.values()];
@@ -79,9 +121,11 @@ async function setup() {
   const tpls = [...c.templates.values()];
   return {
     signedIn: true,
+    steps: c.lib.readActingAs(document.cookie) ? await steps().catch(() => "unavailable") : null, // TC: show the calls too
     fullName: c.me.fullName, // compared in the panel, never printed in the report
     email: c.me.email, // likewise
     type: c.me.type,
+    actingForAgent: !!c.me.actingForAgent,
     roles,
     deals: deals.length,
     ownDeals: deals.filter((d) => d.ownerId === c.me.id).length,
@@ -180,7 +224,7 @@ async function create({ jobId, title, dealId, templateIds, counts, agentChoice =
 // own are never touched. If the PUT fails, the half-made one is deleted.
 async function importTemplate({ pdfBase64, template }) {
   const lib = await load();
-  const rs = new lib.RealSignature({ getToken: () => lib.readToken(document.cookie) });
+  const rs = new lib.RealSignature({ getToken: () => lib.readToken(document.cookie), getActingAs: () => lib.readActingAs(document.cookie) });
   const bytes = lib.fromBase64(pdfBase64);
   if (!lib.isPdf(bytes)) throw new Error("the template file's document isn't a PDF");
   const up = await rs.uploadTemplate(new Blob([bytes], { type: "application/pdf" }), fileName(template.name));
@@ -196,8 +240,44 @@ async function importTemplate({ pdfBase64, template }) {
   return { id: up.id, url: `/prepare/${up.id}` };
 }
 
+/** Open Real's own "Acting as" menu (bottom left), so the TC can pick another agent. Opens
+ *  it only — the pick is hers. Found by its label; Real's markup may change, so a miss just
+ *  says so and the panel tells her where it is. */
+async function openActing() {
+  const label = [...document.querySelectorAll("body *")].find((n) =>
+    n.children.length === 0 && /^acting as$/i.test(n.textContent.trim()));
+  let box = label?.parentElement;
+  for (let i = 0; box && i < 3; i++, box = box.parentElement) {
+    const btn = box.querySelector("button, [role=button], [aria-haspopup]");
+    if (btn) { btn.click(); return { opened: true }; }
+  }
+  return { opened: false };
+}
+
+// Real keeps the TC's pick in a cookie. Tell the panel which agent is current — when this
+// page loads (Real reloads the page on a switch, so a watcher that only reported CHANGES
+// started with the new agent and said nothing, 2026-10-15) and on any change after. The
+// panel reloads if it isn't the agent it loaded.
+{
+  const now = () => {
+    const v = decodeURIComponent(/(?:^|;s*)actingAsUserId=([^;]*)/.exec(document.cookie)?.[1] || "").replace(/^"|"$/g, "");
+    return v && v !== "null" && v !== "undefined" ? v : null;
+  };
+  const tell = (actingAs) => chrome.runtime.sendMessage({ type: "rs:acting", actingAs }).catch(() => { /* panel closed */ });
+  let last = now();
+  tell(last);
+  setInterval(() => {
+    const v = now();
+    if (v === last) return;
+    last = v;
+    ctx = null;
+    tell(v);
+  }, 1000);
+}
+
 chrome.runtime.onMessage.addListener((msg, _sender, reply) => {
   const run = {
+    "rs:open-acting": openActing,
     "rs:context": summary,
     "rs:setup": setup,
     "rs:import-template": () => importTemplate(msg),

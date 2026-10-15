@@ -89,7 +89,31 @@ Real's UI has no "packet" choice at upload: each PDF uploads as its own one-time
 - A draft's deal lives in `defaults`: `{transactionId, signees[] {signeeType, name, email,
   signeeIndex, signOrder}, recipients[], sender {firstName, lastName, email,
   agentYentaId}, emailSubject, emailBody}`. `agentYentaId` was `null` on an agent's own
-  draft; it may be how Real records a TC preparing for an agent (Phase 0 item 7).
+  draft, and a TC never needs it — see "Transaction coordinators" below.
+
+### Transaction coordinators (verified with a TC at her own computer, 2026-10-15)
+
+- **Set up by the agent, in reZEN:** Agent Profile → Transaction Coordinators → Manage →
+  the TC → Access Permissions → **Real Signature** ("Access and send documents using your
+  Real Signature account"). Off by default even for a connected, Active TC; while it is off
+  her Real Signature says "You're not connected to any agents who've shared Real Signature
+  access with you".
+- **Picked by the TC, in Real Signature:** "Whose documents would you like to access?" →
+  Assigned Agents → "Acting as <agent>" at the bottom of the sidebar.
+- The choice is the `actingAsUserId` cookie (the agent's yenta id). Real's app sends it as
+  the **`X-Agent-Context`** header on its API calls (read from its bundle; the header is
+  gated on `auth.isTransactionCoordinator` and an experiment `TC_REAL_SIGNATURE_AGENT_ACCESS`).
+  With the header, `/document-templates` (mine) are the agent's, and arrakis
+  `/transactions/participant/{agentId}/…/OPEN` returns the agent's deals and listings.
+- Drafts made with the header land in the **agent's** Drafts; Real's own Review page says
+  "You are acting on this agent's behalf, so they remain the sender of record", with the
+  agent's name and email in From.
+- The TC has **no reZEN profile of her own**: yenta `/users/me` → 404 (with or without the
+  header), and `/users/{agentId}` → 403. The agent's name and email come from
+  `transactionOwner {id, name, emailAddress}` on their own deals. Her keymaker roles:
+  `APPLICANT, TRANSACTION_COORDINATOR`.
+- Not usable from her sign-in: yenta `/delegation/managed-accounts?userId&capability=REAL_SIGNATURE`
+  → 403 with her keymaker id (400 without one); `/transaction-coordinators/connections` → 403.
 
 ### Sharing (observed 2026-10-12)
 
