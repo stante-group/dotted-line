@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { planDraft, confidentDeal } from "../src/lib/auto.js";
+import { planDraft, confidentDeal, usableTemplates } from "../src/lib/auto.js";
 import { summarizeBuyerRecord, matchesBuyerNames, wrongDealWarnings } from "../src/lib/deals.js";
 import { buyerNamesFromFormValues } from "../src/lib/webforms-api.js";
 
@@ -120,6 +120,16 @@ test("no templates that fit at all: nothing to choose, so still one click", () =
   assert.equal(p.ready, true, p.needs.join(" "));
   assert.deepEqual(p.templateIds, [null]);
   assert.equal(p.agentChoice, null);
+});
+
+test("page count unknown: never a blockless one-click draft, and every template is offered", () => {
+  // outside review, 2026-10-15: all templates were dropped and the draft went out with none
+  const unknown = job({ forms: [{ ...job().forms[0], pageCount: null }] });
+  const p = planDraft({ job: unknown, c: { me, deals: [deal()], templates: [tpl()] }, remembered });
+  assert.equal(p.ready, false, "even the remembered template isn't picked blind");
+  assert.match(p.needs.join(" "), /couldn't read its page count/);
+  assert.deepEqual(usableTemplates(unknown.forms[0], [tpl(), tpl({ id: "t2", pagesCount: 3 }), tpl({ id: "t3", blocks: 0 })]).map((t) => t.id),
+    ["t1", "t2"], "the agent chooses from every template with blocks");
 });
 
 test("someone else's deal, or a client without an email → the panel", () => {

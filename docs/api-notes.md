@@ -266,7 +266,10 @@ to — the OPEN deal lists above don't include them.
   - `saveToDocBox=true` would also file a copy in the deal's Documents; keep it `false`.
 - **Which forms are ticked** (forms list, read-only): each row has a `.dr-item-selector`
   (attribute `is-selected`) whose icon is `i.isfontpack-ok_circle.is-green` when ticked and
-  `i.isfontpack-circle_blank` when not. Its Angular scope holds `form` (`ID`,
+  `i.isfontpack-circle_blank` when not. In the markup, each row (an `[ng-repeat]` element)
+  also has buttons carrying the form's id in an `is-id` attribute — equal to the scope's
+  `form.ID` on every row checked (2026-10-14); the look-ahead in `src/webforms/content.js`
+  reads it there, since it can't see scopes. Its Angular scope holds `form` (`ID`,
   `TransactionID`, `Name`), but an isolated-world content script can't read scopes; either
   read it from a MAIN-world script (`chrome.scripting`, `world: "MAIN"`) or match row order
   and name against `GET /api/transactionforms/index/{transactionId}`. The deal id is in the

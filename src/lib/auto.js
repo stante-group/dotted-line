@@ -35,9 +35,13 @@ export function confidentDeal(address, deals, buyerNames = []) {
 }
 
 /** Templates that can help a form: same page count AND at least one signature, initial or
- *  date block. Agents who rarely use Real Signature have many text-only templates. */
+ *  date block. Agents who rarely use Real Signature have many text-only templates.
+ *  Page count unknown (WEBForms didn't say, and its PDFs hide the count in compressed object
+ *  streams): every template with blocks, for the AGENT to choose from — dropping them all
+ *  quietly made blockless drafts (outside review, 2026-10-15). planDraft never picks one
+ *  blind; see unknownPages. */
 export function usableTemplates(form, templates) {
-  return templates.filter((t) => t.blocks > 0 && form.pageCount && t.pagesCount === form.pageCount);
+  return templates.filter((t) => t.blocks > 0 && (!form.pageCount || t.pagesCount === form.pageCount));
 }
 
 /** job: the hand-off without PDFs. c: rs:context's answer. → {ready, needs: [why], and the
@@ -57,6 +61,11 @@ export function planDraft({ job, c, remembered = {}, agentMode = "one" }) {
   const templateIds = job.forms.map((form) => {
     const usable = usableTemplates(form, c.templates);
     if (!usable.length) return null; // nothing to choose: blocks are placed in Real Signature
+    // Can't confirm any template fits: the agent chooses, even one remembered.
+    if (!form.pageCount) {
+      needs.push(`${form.name}: couldn't read its page count — choose the template.`);
+      return null;
+    }
     const s = suggestTemplate(form, usable, remembered, side);
     if (s.remembered) return s.remembered.id;
     const refused = suggestTemplate(form, c.templates, remembered, side).refused;

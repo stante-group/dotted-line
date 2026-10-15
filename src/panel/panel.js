@@ -477,6 +477,8 @@ function renderTemplates(side) {
       // Nothing remembered yet: the one thing between this form and one click next time.
       const forSide = side ? ` for ${side === "BUYER" ? "buyer" : "seller"} deals` : "";
       if (!s.remembered) div.append(el("div", `Remembered${forSide} next time.`, "note"));
+      // usableTemplates lists them all when the page count is unknown: say it can't vouch.
+      if (!form.pageCount) div.append(el("div", "Couldn't read this form's page count — make sure the template is for this form.", "warn"));
     }
     // A remembered template that stopped fitting (form revised, or no blocks for this side)
     // is filtered out above, so check it against the full list to say why it's gone.

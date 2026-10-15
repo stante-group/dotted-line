@@ -60,9 +60,12 @@ function lookUp(id) {
 }
 
 const GUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-/** The forms ticked in a deal's Forms list, read from the page's markup (each row's buttons
- *  carry the form's id in `is-id`; a tick shows as the ok_circle icon — the same test
- *  panel.js readSelection makes). Read only. */
+/** The forms ticked in a deal's Forms list, read from the page's markup: a tick shows as the
+ *  ok_circle icon (the same TICK test panel.js readSelection makes), and each row's buttons
+ *  carry the form's id in `is-id`. The panel reads the id from the row's Angular scope
+ *  instead — an isolated content script can't see scopes. The two ids matched on every row
+ *  checked (2026-10-14, docs/api-notes.md). If the markup changes, this finds nothing and
+ *  only the look-ahead is lost: the click path reads the ticks itself. Read only. */
 function tickedIds() {
   if (!/^\/transaction\/detail\//i.test(location.pathname)) return [];
   return [...document.querySelectorAll(".dr-item-selector")]
