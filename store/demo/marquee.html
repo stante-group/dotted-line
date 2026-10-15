@@ -1,0 +1,29 @@
+<!doctype html>
+<!-- The Web Store marquee tile, 1400×560 (only shown if the item is featured).
+     Capture at --window-size=1400,560, then save as JPEG: the store wants no alpha. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Dotted Line marquee</title>
+<style>
+  html, body { margin: 0; }
+  body { width: 1400px; height: 560px; overflow: hidden; display: flex; align-items: center; gap: 64px;
+    padding: 0 120px; box-sizing: border-box; background: #f4f5f7;
+    font: 16px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif; color: #1d2330; }
+  img { width: 168px; height: 168px; image-rendering: auto; }
+  h1 { font-size: 64px; margin: 0 0 8px; letter-spacing: -0.015em; }
+  .by { font-size: 26px; color: #4a5263; margin: 0 0 28px; }
+  p { font-size: 30px; margin: 0; max-width: 24em; }
+  .line { margin-top: 28px; border-top: 4px dotted #1d4ed8; width: 220px; }
+</style>
+</head>
+<body>
+  <img src="../../icons/icon-128.png" alt="">
+  <div>
+    <h1>Dotted Line</h1>
+    <div class="by">by Deal Dates</div>
+    <p>Your WEBForms forms, as a Real Signature draft on the right reZEN deal.</p>
+    <div class="line"></div>
+  </div>
+</body>
+</html>

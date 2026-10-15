@@ -20,10 +20,10 @@ Dotted Line moves the forms you filled in CREA WEBForms into Real Signature for 
 
 How it works
 1. In WEBForms, tick the forms you want signed.
-2. Click the Dotted Line icon and press Finish draft.
-3. Dotted Line downloads those forms from WEBForms, opens Real Signature, picks the matching reZEN deal and adds the signers.
-4. Your saved Real Signature templates place the signature, initial and date blocks.
-5. You check the draft in Real Signature and send it yourself.
+2. Click the Dotted Line icon and press Prepare in Real Signature.
+3. Dotted Line brings those forms into Real Signature, picks the matching reZEN deal and your templates, and adds the signers.
+4. Check the choices in the side panel and press Finish draft. (Or turn on one-click in Settings and skip this step when everything matches.)
+5. Open the draft in Real Signature, check it, and send it yourself.
 
 What it never does
 - It never sends anything to anyone. It stops at a draft; only you press Send.
