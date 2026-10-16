@@ -7,8 +7,9 @@ Real Signature templates. You review the draft and press Send yourself.
 
 Open source, so anyone can check exactly what it does.
 
-**Status: in development.** Working end to end in testing; not in the Chrome Web Store
-yet. See [PLAN.md](PLAN.md).
+**Install:** [Dotted Line on the Chrome Web Store](https://chromewebstore.google.com/detail/dotted-line-by-deal-dates/hohklnkceafdacdmlngcbbhaokeoonkl)
+(desktop Chrome or Edge). It's an unlisted beta: only people with the link can find it.
+See [PLAN.md](PLAN.md) for what's next.
 
 ## How it works
 

@@ -4,6 +4,10 @@ Paste-ready text for the Developer Dashboard (chrome.google.com/webstore/devcons
 Rules for everything here: never name the other e-sign tools; never say "Send" as
 something we do; no live client names, addresses or screenshots of real deals.
 
+**Published** unlisted 2026-10-16, item ID `hohklnkceafdacdmlngcbbhaokeoonkl`:
+https://chromewebstore.google.com/detail/dotted-line-by-deal-dates/hohklnkceafdacdmlngcbbhaokeoonkl
+Each update: bump `version` in manifest.json, build the zip, upload it under Package.
+
 ## Store listing tab
 
 **Name** (from the manifest): Dotted Line by Deal Dates
@@ -22,8 +26,8 @@ How it works
 1. In WEBForms, tick the forms you want signed.
 2. Click the Dotted Line icon and press Prepare in Real Signature.
 3. Dotted Line brings those forms into Real Signature, picks the matching reZEN deal and your templates, and adds the signers.
-4. Check the choices in the side panel and press Finish draft. (Or turn on one-click in Settings and skip this step when everything matches.)
-5. Open the draft in Real Signature, check it, and send it yourself.
+4. When one deal clearly matches and every form has its usual template, the draft is made straight away. Otherwise a side panel asks you to check the deal and templates — then press Finish draft.
+5. Check the draft in Real Signature and send it yourself.
 
 What it never does
 - It never sends anything to anyone. It stops at a draft; only you press Send.
