@@ -250,6 +250,37 @@ exists but SAVES — never call it.
   or deal data — `stripTemplate` output) so agents outside a team that has templates
   needn't build them. Ask CREA/AREA first: layouts are derived from their forms.
 
+### Later — replace the documents in a draft (idea, 2026-10-24)
+
+The case: a new offer, no buyer emails in WEBForms and no deal to pull them from, so the
+agent makes the draft, applies a template and types the buyers' names and emails in Real
+Signature. Then the buyers change a term. Today the agent starts over and re-types every
+signer. Instead: **"Replace the documents in a draft"** keeps the signers, the deal and the
+blocks, and swaps in the new PDFs. Still a draft; still never sends.
+
+First step: **a supervised test on a throwaway draft** (~15 min), Route 1 first.
+
+- **Route 1 — swap the file in place.** `PUT /document-templates/{id}/pdf` (multipart
+  `file`) is in Real's app client but never observed (see docs/api-notes.md "Other routes").
+  Unknown: does it keep `defaults.signees`, `fieldDefinitions` and `pagesCount`, clear
+  them, or refuse a different page count? `GET` the draft before and after, then open it in
+  Real's editor.
+- **Route 2 — copy onto a new draft (every step already proven).** `GET` the old draft →
+  upload the new PDF as a one-time draft → one full-replace `PUT` carrying the old
+  `defaults` (signees, `transactionId`, subject, body), `signeeConfigs`, `fieldDefinitions`
+  and `documentFieldValidations`, with the new `pagesCount` → `DELETE` the old draft only
+  after the new one reads back right (or leave it in Drafts for the agent).
+- **Blocks are pinned to page + position, so the page count decides.** Same count: carry
+  the blocks as they are, including any the agent moved or added by hand. Different count
+  (an added schedule, a page that grew): keep the signers, place blocks fresh from the
+  agent's template as a new draft does, and tell the agent which documents changed length.
+- **Packets** swap per document. Adding is `POST /packet-templates/{id}/document-templates`;
+  removing one isn't mapped, so v1 may rebuild the packet around the new drafts.
+- **Panel:** list the drafts on this deal (`GET /one-time-templates`, filtered on
+  `defaults.transactionId`), show the signers that will be kept and whether page counts
+  match, then build. The old draft's signer names/emails are read and written straight
+  back, never stored.
+
 ### Beta
 
 | Order | Who | Proves |
