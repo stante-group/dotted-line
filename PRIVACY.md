@@ -44,14 +44,29 @@ With your yes, it sends the Deal Dates team:
 - with both, the Dotted Line and Chrome version numbers, and how many drafts this browser
   has made and how many failed.
 
+The complete list of what an error report can hold: the step; the kind of error (signed
+out, network, refused by Real Signature or WEBForms, not found, their server, a changed
+response, interrupted, or a fault in Dotted Line); a code for Dotted Line's own messages;
+which site answered; the HTTP status; the address it called with every ID removed (for
+example `PUT /document-templates/{id}`); the name of the field Real Signature refused and
+the rule it broke (for example `defaults.emailSubject`, "at most 70 characters"); whether a
+half-made draft may be left; and, about the draft, one click or the side panel, acting as
+an agent or not, how the two sign-ins compare (same person, the agent's own corporation,
+different, or can't tell), how the deal was matched (address, buyer name, picked by hand,
+none), whether it is another agent's deal, templates on all, some or no forms, whether
+their page counts match, the number of forms (1, 2–3, 4+) and signers (0, 1, 2, 3+),
+whether a signer has no email, which step was slow (over 30 seconds), and whether a
+warning was showing.
+
 A report never contains your forms or any name, email, address, phone number, MLS number,
 deal, template name or file name. Every field is a fixed choice or a number: the code is
 public, and `src/lib/report.js` is the whole list. You can see exactly what a report holds
 under "What's sent" when an error shows.
 
-Reports carry no account, no ID and no cookie, and your IP address is not stored (it is
-used for a moment to stop anyone flooding the service, then discarded). So a report isn't
-tied to your name. While only a few people use Dotted Line, though, we may be able to
+Reports carry no account, no ID and no cookie, and neither Dotted Line nor the Deal Dates
+server reads or stores your IP address. Cloudflare, which runs dealdates.app, sees it as
+it does for any website, and its rate limiter uses it to stop anyone flooding the
+service. So a report isn't tied to your name. While only a few people use Dotted Line, though, we may be able to
 tell whose browser a report came from, the way a small office knows whose handwriting a
 note is in. We use reports only to find and fix problems in Dotted Line.
 

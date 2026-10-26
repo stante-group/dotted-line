@@ -83,15 +83,22 @@ async function showReport() {
   const last = await chrome.runtime.sendMessage({ type: "report:last" }).catch(() => null);
   if (!last?.report) { box.hidden = true; return; }
   box.hidden = false;
-  if (last.sent || last.auto) { box.replaceChildren(el("div", "This error is reported to the Deal Dates team automatically, without any client details.", "note")); return; }
+  if (last.sent || last.auto) {
+    box.replaceChildren(el("div", last.sent ? "This error was sent to the Deal Dates team, without any client details."
+      : "Sending this error to the Deal Dates team, without any client details.", "note"));
+    return;
+  }
   const send = el("button", "Send this error to the Deal Dates team", "link");
   send.type = "button";
   const what = document.createElement("details");
   what.append(el("summary", "What's sent"), el("pre", JSON.stringify(last.report, null, 1)));
   send.onclick = async () => {
     send.disabled = true;
-    const r = await chrome.runtime.sendMessage({ type: "report:send-last" }).catch(() => null);
-    box.replaceChildren(el("div", r?.sent ? "Sent. Thank you." : "Couldn't send it. Check your connection and try again later.", "note"));
+    const r = await chrome.runtime.sendMessage({ type: "report:send-last", at: last.at }).catch(() => null);
+    box.replaceChildren(el("div", r?.sent ? "Sent. Thank you."
+      : r?.gone ? "Another error has happened since, so this report was replaced. Nothing was sent."
+      : r?.auto ? "It's already being sent automatically."
+      : "Couldn't send it. Check your connection and try again later.", "note"));
   };
   box.replaceChildren(send, what);
 }

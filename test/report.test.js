@@ -145,6 +145,22 @@ test("the only request that leaves for anywhere but Real Signature and WEBForms 
   }
 });
 
+test("each job:/report: message is sent only from the context the worker accepts it from", async () => {
+  // background.js answers job:get / job:status only from a Real Signature tab (job:get
+  // hands over the PDFs) and every other job:/report: message only from the extension's
+  // own pages. A sender moved to the wrong file would be silently ignored.
+  const { readFileSync } = await import("node:fs");
+  const bg = readFileSync("src/background.js", "utf8");
+  const rsOnly = JSON.parse(`[${/RS_TAB_ONLY = new Set\(\[([^\]]*)\]\)/.exec(bg)[1]}]`);
+  const sent = (f) => [...readFileSync(f, "utf8").matchAll(/sendMessage\(\{ type: "((?:job|report):[\w-]+)"/g)].map((m) => m[1]);
+  for (const t of sent("src/realsig/content.js")) assert.ok(rsOnly.includes(t), `${t} from the Real Signature tab`);
+  for (const f of ["src/panel/panel.js", "src/options/options.js"]) {
+    for (const t of sent(f)) assert.ok(!rsOnly.includes(t), `${t} from ${f}`);
+  }
+  assert.deepEqual(sent("src/webforms/content.js"), [], "WEBForms tab sends no job:/report: message");
+  assert.ok(rsOnly.includes("job:get"));
+});
+
 test("Chrome's major version only", () => {
   assert.equal(chromeMajor("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.7390.54 Safari/537.36"), "141");
   assert.equal(chromeMajor("curl/8"), null);

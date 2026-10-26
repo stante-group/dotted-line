@@ -12,7 +12,7 @@ import { sendToTab } from "./messaging.js";
 import { unzip } from "./lib/unzip.js";
 import { isPdf, hasAcroForm, countPages, fromBase64, toBase64 } from "./lib/pdf.js";
 import { pairEntries } from "./lib/webforms-api.js";
-import { errorReport, okReport, tallyOk, tallyDue, contextFromDraft, draftContext, chromeMajor, REPORT_URL } from "./lib/report.js";
+import { errorReport, okReport, sanitizeReport, tallyOk, tallyDue, contextFromDraft, draftContext, chromeMajor, REPORT_URL } from "./lib/report.js";
 
 const DB = "wfrs";
 const STORE = "jobs";
@@ -84,21 +84,31 @@ purgeOld().catch(() => {});
 // ---- error reports and draft counts (src/lib/report.js; Dan, 2026-10-26) ----
 // storage.local: reporting "yes" | "no" | unset (not asked yet — nothing is sent);
 // draftStats {made, failed} in this browser, always kept, never sent on its own;
-// okTally, today's successful drafts; lastReport {report, at, sent}, for the panel's
-// "Send this report" when the agent hasn't said yes to sending them all.
+// okTally, today's successful drafts; lastReport {report, at, sent, auto}, for the panel's
+// "Send this error": auto is true while an automatic send is on its way, and goes back to
+// false if it fails, so the button is offered instead of a claim that it went.
 const VERSION = chrome.runtime.getManifest().version;
 const CHROME = chromeMajor(navigator.userAgent);
-const today = () => new Date().toLocaleDateString("en-CA"); // the agent's own day, YYYY-MM-DD
+// The agent's own day, YYYY-MM-DD. Built by hand rather than from a locale's date format,
+// which is locale data and not a promise (outside review, 2026-10-26).
+const today = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+};
 
 // One at a time: two drafts finishing together must not both read, add and write the tally.
 let reportChain = Promise.resolve();
 const serial = (f) => (reportChain = reportChain.then(f, f));
 
+// The one door out. Everything goes through sanitizeReport HERE, at the last moment, so
+// nothing added to a report after it was built (a stored copy, a field set later) can
+// ride along (outside review, 2026-10-26).
 async function post(report) {
-  if (!report) return false;
+  const clean = sanitizeReport(report);
+  if (!clean) return false;
   try {
     const r = await fetch(REPORT_URL, { method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(report), credentials: "omit", signal: AbortSignal.timeout(8000) });
+      body: JSON.stringify(clean), credentials: "omit", signal: AbortSignal.timeout(8000) });
     return r.ok;
   } catch {
     return false; // a report that can't go is dropped, never retried into a pile
@@ -108,24 +118,24 @@ async function post(report) {
 function recordError({ error, step, ctx }) {
   return serial(async () => {
     const { draftStats = {}, reporting, lastReport } = await chrome.storage.local.get(["draftStats", "reporting", "lastReport"]);
-    const report = errorReport({ error, step, ctx, version: VERSION, chrome: CHROME, local: null });
+    const stats = { made: draftStats.made || 0, failed: (draftStats.failed || 0) + 1 };
+    const report = errorReport({ error, step, ctx, version: VERSION, chrome: CHROME, local: stats });
     // The same failure again within 10 minutes is one failure: the panel redraws on every
     // tab switch, and a Real Signature tab that can't load would report itself each time.
     const same = (a, b) => ["step", "cls", "code", "route", "field", "rule"].every((k) => a?.[k] === b?.[k]);
     if (lastReport && Date.now() - lastReport.at < 10 * 60 * 1000 && same(lastReport.report, report)) {
-      return { sent: lastReport.sent, reporting: reporting || null, repeat: true };
+      return { auto: !!lastReport.auto, reporting: reporting || null, repeat: true };
     }
-    const stats = { made: draftStats.made || 0, failed: (draftStats.failed || 0) + 1 };
-    report.local = stats;
     const at = Date.now();
     // auto: on its way because the agent said yes. The send itself is not awaited (up to
-    // 8 s), so the agent sees the error at once; sent is set when it lands.
+    // 8 s), so the agent sees the error at once. If it fails, auto goes back to false and
+    // the panel offers the button rather than saying it went.
     const auto = reporting === "yes";
     await chrome.storage.local.set({ draftStats: stats, lastReport: { report, at, sent: false, auto } });
     if (auto) {
       post(report).then(async (ok) => {
         const { lastReport: l } = await chrome.storage.local.get("lastReport");
-        if (ok && l?.at === at) await chrome.storage.local.set({ lastReport: { ...l, sent: true } });
+        if (l?.at === at) await chrome.storage.local.set({ lastReport: { ...l, sent: ok, auto: ok } });
       }).catch(() => {});
     }
     return { auto, reporting: reporting || null };
@@ -156,7 +166,13 @@ flushOk().catch(() => {});
 //   {type: "report:error", step, error: {message, name}, ctx} → {auto, reporting}
 //   {type: "report:ok", path, forms}  → counted (and a past day's count sent, with a yes)
 //   {type: "report:last"}             → the last error report from the past 10 minutes, or null
-//   {type: "report:send-last"}        → sends it: the agent pressed "Send this report"
+//   {type: "report:send-last", at}    → sends it: the agent pressed "Send this error" under
+//       the report stamped `at`. Another error since then means another report: refused,
+//       so the button never sends something other than what "What's sent" showed.
+//   Who may send what: the job:get/job:status pair only from a Real Signature tab (job:get
+//   hands over the PDFs), everything else only from the extension's own pages. Web pages
+//   can't message us at all (no externally_connectable); this keeps each message to the
+//   one part of the extension that uses it (outside review, 2026-10-26).
 //   {type: "job:forTab", tabId}       → that tab's job without the PDFs (for the panel)
 //   {type: "job:get", id}             → the whole job (for the Real Signature content script)
 //   {type: "job:done", id}            → deletes it
@@ -298,7 +314,12 @@ async function startJob({ wfTabId, wfForms, meta, background, auto }) {
   }
 }
 
+const OWN = chrome.runtime.getURL("");
+const RS_TAB_ONLY = new Set(["job:get", "job:status"]);
 chrome.runtime.onMessage.addListener((msg, sender, reply) => {
+  const fromRsTab = !!sender.tab?.url?.startsWith(RS);
+  const fromOwnPage = !sender.tab && String(sender.url || "").startsWith(OWN);
+  if (RS_TAB_ONLY.has(msg?.type) ? !fromRsTab : !fromOwnPage) return false;
   (async () => {
     if (msg.type === "job:start") return startJob(msg);
     if (msg.type === "job:status") return handoffs.get(sender.tab?.id) || null;
@@ -326,7 +347,8 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
     }
     if (msg.type === "report:send-last") {
       const { lastReport: l } = await chrome.storage.local.get("lastReport");
-      if (!l || l.sent || l.auto) return { sent: !!(l?.sent || l?.auto) };
+      if (!l || l.at !== msg.at) return { sent: false, gone: true };
+      if (l.sent || l.auto) return { sent: !!l.sent, auto: !!l.auto };
       const sent = await post(l.report);
       await chrome.storage.local.set({ lastReport: { ...l, sent } });
       return { sent };
