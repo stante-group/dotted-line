@@ -11,7 +11,7 @@ import { formKey } from "../src/lib/match.js";
 import { buildDraftBody, signeesFromDeal, countsFromDeal, signersWithoutEmail, signerCounts, sideFromFormNames, templateSlots, isEmail, agentRoleFor, agentPerson, agentPeople, chooseAgents, unfilledRoles, fitSubject, SUBJECT_MAX } from "../src/lib/draft.js";
 import { stripTemplate, dropUnusedSlots } from "../src/lib/layout.js";
 import { summarizeDeal } from "../src/lib/deals.js";
-import { actingNotes, setupReport, senderFor, meFromYenta, meFromDeals, DELEGATION_VERIFIED, samePerson } from "../src/lib/actor.js";
+import { actingNotes, setupReport, senderFor, meFromYenta, meFromDeals, DELEGATION_VERIFIED, samePerson, isOwnCorporation } from "../src/lib/actor.js";
 import { sampleTemplate } from "./fixtures.js";
 
 const enc = (s) => new TextEncoder().encode(s);
@@ -506,6 +506,31 @@ test("same person in WEBForms and Real: by email only — names can be shared in
   const unknown = actingNotes({ me, deal: null, webformsUserName: "Alexander Example" });
   assert.equal(unknown[0].level, "info");
   assert.match(unknown[0].text, /Couldn't confirm/);
+});
+
+test("WEBForms under the agent's own corporation: information, not a warning", () => {
+  const p = { rsFirstName: "Jordan", rsLastName: "Sample" };
+  for (const wfName of ["Jordan Sample Personal Real Estate Corporation", "Jordan Sample PREC*", "Jordan A. Sample Real Estate Corporation",
+    "Jordan Sample Professional Corporation", "Jordan Sample Inc.", "Jordan Sample Ltd", "JORDAN SAMPLE PERSONAL REAL ESTATE CORPORATION"]) {
+    assert.equal(isOwnCorporation({ wfName, ...p }), true, wfName);
+  }
+  assert.equal(isOwnCorporation({ wfName: "Dan Example PREC", rsFirstName: "Daniel", rsLastName: "Example" }), true, "short first name");
+  assert.equal(isOwnCorporation({ wfName: "Jordan Sample", ...p }), false, "same name, no corporation: still a different person");
+  assert.equal(isOwnCorporation({ wfName: "Casey Sample Personal Real Estate Corporation", ...p }), false, "a relative's corporation");
+  assert.equal(isOwnCorporation({ wfName: "Sample Realty Inc.", ...p }), false, "a brokerage, not the person");
+  assert.equal(isOwnCorporation({ wfName: "Personal Real Estate Corporation", ...p }), false);
+
+  const me = meFromYenta({ id: "agent-1", firstName: "Jordan", lastName: "Sample", emailAddress: "jordan@example.com", type: "AGENT" });
+  const own = actingNotes({ me, deal: null, webformsUserName: "Jordan Sample Personal Real Estate Corporation", webformsUserEmail: "office@example.com" });
+  assert.deepEqual(own.map((n) => n.level), ["info"]);
+  assert.match(own[0].text, /taken as Jordan Sample's own corporation\. The draft goes in your Drafts, with you as sender\./);
+  const other = actingNotes({ me, deal: null, webformsUserName: "Casey Sample Personal Real Estate Corporation", webformsUserEmail: "casey@example.com" });
+  assert.deepEqual(other.map((n) => n.level), ["warn"], "someone else's corporation stays a warning");
+  // a TC acting for the agent, with WEBForms on the agent's corporation account
+  const acting = { id: "agent-1", firstName: "Jordan", lastName: "Sample", fullName: "Jordan Sample", email: "jordan@example.com", actingForAgent: true };
+  const tc = actingNotes({ me: acting, deal: null, webformsUserName: "Jordan Sample PREC", webformsUserEmail: "office@example.com" });
+  assert.deepEqual(tc.map((n) => n.level), ["info", "info"]);
+  assert.match(tc[1].text, /goes in Jordan Sample's Drafts, with them as sender/);
 });
 
 test("delegation: a teammate's deal is flagged; a TC acting for an agent is told whose Drafts", () => {

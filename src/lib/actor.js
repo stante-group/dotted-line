@@ -71,6 +71,41 @@ export function samePerson({ wfEmail, rsEmail }) {
   return norm(wfEmail) === norm(rsEmail);
 }
 
+// What a corporation adds to the agent's own name. An agent may hold their WEBForms account
+// in their personal real estate corporation's name, under its own email, while Real Signature
+// has them as a person: "Jordan Sample Personal Real Estate Corporation" vs "Jordan Sample"
+// (a Winnipeg tester, 2026-10-26). Longest first, so "Personal Real Estate Corporation" goes
+// before "Corporation".
+const CORP_SUFFIXES = [
+  "personal real estate corporation", "professional real estate corporation",
+  "real estate corporation", "professional corporation", "prec", "corporation", "corp",
+  "incorporated", "inc", "limited", "ltd", "ltee", "ltée",
+];
+const words = (s) => String(s || "").toLowerCase().replace(/[^\p{L}\p{N}\s'-]/gu, " ").split(/\s+/).filter(Boolean);
+
+/** Is the WEBForms name a corporation named after the Real Signature person? Only when the
+ *  name actually ends in a corporate suffix — a bare same name with another email is still a
+ *  different person (father and son, see samePerson). The rest must be the person's name:
+ *  same last name, and the first name equal or one a short form of the other ("Dan" /
+ *  "Daniel"); middle names and initials in between are allowed. */
+export function isOwnCorporation({ wfName, rsFirstName, rsLastName }) {
+  let w = words(wfName);
+  const first = words(rsFirstName)[0], last = words(rsLastName).at(-1);
+  if (!first || !last) return false;
+  let stripped = false;
+  for (let again = true; again;) {
+    again = false;
+    for (const sfx of CORP_SUFFIXES) {
+      const s = sfx.split(" ");
+      if (w.length > s.length && w.slice(-s.length).join(" ") === sfx) { w = w.slice(0, -s.length); stripped = again = true; break; }
+    }
+  }
+  if (!stripped || w.length < 2) return false;
+  const [f, l] = [w[0], w.at(-1)];
+  const firstOk = f === first || (Math.min(f.length, first.length) >= 3 && (f.startsWith(first) || first.startsWith(f)));
+  return l === last && firstOk;
+}
+
 /** Plain-language notes for the panel before Create, none blocking. Each has a level:
  *  "warn" — something to check before sending (the sender on someone else's deal);
  *  "info" — context only. WEBForms and Real Signature signed in as different people is a
@@ -89,7 +124,13 @@ export function actingNotes({ me, deal, webformsUserName, webformsUserEmail = nu
     out.push({ level: "warn", text: `This deal is ${deal.agentName || "another agent"}'s. The draft will be in ${whose} Real Signature Drafts with ${acting ? "them" : "you"} as sender — check the sender before you press Send.` });
   }
   const same = samePerson({ wfEmail: webformsUserEmail, rsEmail: me?.email });
-  if (webformsUserName && same === false) {
+  const [rsFirstName, ...rest] = me?.firstName ? [me.firstName, me.lastName] : String(me?.fullName || "").split(" ");
+  const rsLastName = me?.firstName ? me.lastName : rest.join(" ");
+  if (webformsUserName && same === false && isOwnCorporation({ wfName: webformsUserName, rsFirstName, rsLastName })) {
+    // Their own corporation's account: the same agent, so context, not a warning (Dan, 2026-10-26).
+    const rsName = me?.fullName || [rsFirstName, rsLastName].filter(Boolean).join(" ");
+    out.push({ level: "info", text: `WEBForms is signed in as ${webformsUserName}, taken as ${rsName}'s own corporation. The draft goes in ${acting ? `${rsName}'s` : "your"} Drafts, with ${acting ? "them" : "you"} as sender.` });
+  } else if (webformsUserName && same === false) {
     // A warning, not a note (Dan, 2026-10-15): a TC impersonating one teammate in WEBForms
     // while acting as another in Real Signature put the first one's forms in the second
     // one's Drafts, sent as them. Says whose Drafts it lands in and what to switch.
