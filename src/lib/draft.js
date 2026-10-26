@@ -250,6 +250,21 @@ export function unfilledRoles(body) {
   return (body?.signeeConfigs || []).filter((c) => (c.maxNum ?? 0) > (named[c.signeeType] || 0)).map((c) => c.signeeType);
 }
 
+// Real Signature refuses the whole save over a long subject: "defaults.emailSubject: size
+// must be between 0 and 70" (400, a Winnipeg tester, 2026-10-26: a long address plus
+// "MLS® Listing Withdrawal Contract"). Shortened at a word, never refused.
+export const SUBJECT_MAX = 70;
+
+/** The signers' email subject cut to fit Real's limit, at a word boundary with "…". */
+export function fitSubject(s) {
+  const t = String(s ?? "").replace(/\s+/g, " ").trim();
+  if (!t) return null;
+  if (t.length <= SUBJECT_MAX) return t;
+  const room = t.slice(0, SUBJECT_MAX - 1);
+  const cut = room.lastIndexOf(" ");
+  return `${(cut > SUBJECT_MAX / 2 ? room.slice(0, cut) : room).replace(/[\s,;:–—-]+$/, "")}…`;
+}
+
 /** draft: GET /document-templates/{id} straight after upload. layout: stripped and
  *  slot-trimmed template, or null. PUT is a FULL replace, so every key the draft had is
  *  carried through. agents: {signeeType, people: [{name, email}]} to add the agent(s) as
@@ -289,7 +304,7 @@ export function buildDraftBody({ draft, layout: tpl, name, pageCount, transactio
       recipients: prev.recipients || [],
       sender,
       // The signers' email subject: the title the agent saw (and could edit) in the panel.
-      emailSubject: emailSubject || prev.emailSubject || null,
+      emailSubject: fitSubject(emailSubject || prev.emailSubject),
       emailBody: prev.emailBody ?? null,
     },
   };

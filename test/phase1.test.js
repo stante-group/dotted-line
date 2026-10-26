@@ -8,7 +8,7 @@ import { isPdf, hasAcroForm, countPages, toBase64, fromBase64 } from "../src/lib
 import { suggestTitle, matchAddress, addressLine } from "../src/lib/title.js";
 import { WebForms, isAllowed, readBearer, zipEntryName, pairEntries, WebFormsSignedOut, partiesFromFormValues, libraryNamesFrom, agentSideFromFormValues, agentSideFromContacts, combineSides, partiesFromContacts, buyerNamesFromContacts, mergeParties, peopleFromContacts } from "../src/lib/webforms-api.js";
 import { formKey } from "../src/lib/match.js";
-import { buildDraftBody, signeesFromDeal, countsFromDeal, signersWithoutEmail, signerCounts, sideFromFormNames, templateSlots, isEmail, agentRoleFor, agentPerson, agentPeople, chooseAgents, unfilledRoles } from "../src/lib/draft.js";
+import { buildDraftBody, signeesFromDeal, countsFromDeal, signersWithoutEmail, signerCounts, sideFromFormNames, templateSlots, isEmail, agentRoleFor, agentPerson, agentPeople, chooseAgents, unfilledRoles, fitSubject, SUBJECT_MAX } from "../src/lib/draft.js";
 import { stripTemplate, dropUnusedSlots } from "../src/lib/layout.js";
 import { summarizeDeal } from "../src/lib/deals.js";
 import { actingNotes, setupReport, senderFor, meFromYenta, meFromDeals, DELEGATION_VERIFIED, samePerson } from "../src/lib/actor.js";
@@ -229,6 +229,14 @@ test("draft body: template blocks, deal, signers within the counts, sender", () 
   const titled = buildDraftBody({ draft, layout, name: "x", pageCount: 3, transactionId: null, counts, signees: [],
     sender: senderFor(me, null), emailSubject: "Offer – 120 Example Street NW" });
   assert.equal(titled.defaults.emailSubject, "Offer – 120 Example Street NW", "the subject is the panel's title");
+  // Real refuses the save over 70 characters (400, 2026-10-26).
+  const long = "1234-120 Example Street NW, Winnipeg - MLS® Listing Withdrawal Contract";
+  const fitted = buildDraftBody({ draft, layout, name: "x", pageCount: 3, transactionId: null, counts, signees: [],
+    sender: senderFor(me, null), emailSubject: long }).defaults.emailSubject;
+  assert.ok(fitted.length <= SUBJECT_MAX, `fits Real's limit: ${fitted.length}`);
+  assert.equal(fitted, "1234-120 Example Street NW, Winnipeg - MLS® Listing Withdrawal…", "cut at a word");
+  assert.equal(fitSubject("x".repeat(90)).length, SUBJECT_MAX, "no space to cut at: hard cut");
+  assert.equal(fitSubject("  "), null);
   assert.deepEqual(unfilledRoles(body), [], "every role named: stays a single draft");
   assert.deepEqual(unfilledRoles(titled).sort(), ["BUYER", "SELLER"], "nobody named: goes in a packet of one");
 });
