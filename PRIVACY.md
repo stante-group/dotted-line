@@ -76,6 +76,13 @@ dealdates.app, and are not sold or shared with anyone.
 If you say no, an error still offers a **Send this error** button, which sends that one
 report once you press it.
 
+## Limited use
+
+Dotted Line's use of the information it handles adheres to the Chrome Web Store User Data
+Policy, including the Limited Use requirements. It is used only to make your drafts and,
+with your yes, to find and fix problems in Dotted Line. It is not sold, not used for
+advertising, and not used to decide creditworthiness or for lending.
+
 ## What it keeps
 
 On your own computer, in the extension's storage:

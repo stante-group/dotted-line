@@ -72,7 +72,9 @@ Create a Real Signature draft from forms the user filled in CREA WEBForms.
 - Personally identifiable information (the signers' names and emails move from the forms to the Real Signature draft)
 - Website content (the form PDFs)
 - Authentication information? — NO: it never reads or stores a password or token; it uses the sites' own signed-in session.
-- Error reports (opt-in, 2026-10-26): the categories describe the content of a report, and a report holds none of them (no PII, no website content, no web history, no keystrokes or clicks), so no new box is ticked. DAN TO DECIDE at upload: whether to tick **User activity** anyway to be conservative. The privacy policy describes the reports either way, and the store reviewer reads it.
+- **User activity** — TICK (since the error reports, 2026-10-26): with the agent's yes, the extension sends which step failed and a daily count of drafts made. An outside review read draft counts as usage data; ticking it costs nothing and removes the question.
+- **Location** — NO: Dotted Line and the Deal Dates server never read or store an IP address. Cloudflare sees it as it does for every request to any site (Real Signature's and WEBForms' hosts see it too, and that has never been "collected" by the extension). An outside review suggested ticking it to be safe; the privacy policy says plainly what happens to the IP instead. DAN TO DECIDE if a reviewer asks.
+- PII and Website content are already ticked above, for the forms going to Real Signature. The privacy policy says reports hold no PII; no new box for that.
 
 **Certifications (tick all three):**
 - I do not sell or transfer user data to third parties, outside of the approved use cases
