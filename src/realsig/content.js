@@ -84,7 +84,7 @@ async function summary() {
 async function steps() {
   const lib = await load();
   const rs = new lib.RealSignature({ getToken: () => lib.readToken(document.cookie), getActingAs: () => lib.readActingAs(document.cookie) });
-  const code = (e) => (e?.name === "NotSignedIn" ? "401" : /→ (d{3})/.exec(String(e?.message))?.[1] || "error");
+  const code = (e) => (e?.name === "NotSignedIn" ? "401" : /→ (\d{3})/.exec(String(e?.message))?.[1] || "error");
   const actingAs = lib.readActingAs(document.cookie);
   const out = { token: lib.readToken(document.cookie) ? "yes" : "no", acting: actingAs ? "yes" : "no" };
   const run = async (k, f) => { try { const r = await f(); out[k] = "ok"; return r; } catch (e) { out[k] = code(e); return null; } };
@@ -260,7 +260,7 @@ async function openActing() {
 // panel reloads if it isn't the agent it loaded.
 {
   const now = () => {
-    const v = decodeURIComponent(/(?:^|;s*)actingAsUserId=([^;]*)/.exec(document.cookie)?.[1] || "").replace(/^"|"$/g, "");
+    const v = decodeURIComponent(/(?:^|;\s*)actingAsUserId=([^;]*)/.exec(document.cookie)?.[1] || "").replace(/^"|"$/g, "");
     return v && v !== "null" && v !== "undefined" ? v : null;
   };
   const tell = (actingAs) => chrome.runtime.sendMessage({ type: "rs:acting", actingAs }).catch(() => { /* panel closed */ });
