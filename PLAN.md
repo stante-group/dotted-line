@@ -258,7 +258,7 @@ Signature. Then the buyers change a term. Today the agent starts over and re-typ
 signer. Instead: **"Replace the documents in a draft"** keeps the signers, the deal and the
 blocks, and swaps in the new PDFs. Still a draft; still never sends.
 
-First step: **a supervised test on a throwaway draft** (~15 min), Route 1 first.
+First step: **a supervised test on a throwaway draft** (~15 min), Route 1 first. Tracked in issue #1.
 
 - **Route 1 — swap the file in place.** `PUT /document-templates/{id}/pdf` (multipart
   `file`) is in Real's app client but never observed (see docs/api-notes.md "Other routes").
@@ -298,7 +298,8 @@ Install from an **unlisted** Chrome Web Store link during beta.
   `/resend-signature-email` are not implemented, and a test fails if they appear.
 - Acts only on an explicit click; never in the background.
 - Runs only on `pr.transactiondesk.com` and `signature.therealbrokerage.com`.
-- No analytics, no remote code, no server.
+- No remote code and no analytics. The only server call is the opt-in error report and
+  daily draft count (listed fields only, see PRIVACY.md), sent only after the agent says yes.
 - **Wrong-deal guard**: warn when the WEBForms account (or impersonated agent) differs from
   the reZEN deal's agent, and when the addresses don't match.
 - Templates read for layouts are stripped to blocks only (no names, emails, deal).
