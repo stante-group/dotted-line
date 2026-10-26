@@ -7,8 +7,13 @@ Public repo. Read PLAN.md first; API shapes are in docs/api-notes.md.
 - **Draft only.** Nothing here may send to signers. `src/lib/realsig-api.js` refuses the
   send routes and `test/realsig-api.test.js` fails if a send function appears. Don't
   weaken either to "just test something".
-- **No server, no telemetry, no remote code.** If a feature seems to need a backend, it
-  belongs in Deal Dates, not here.
+- **No server, no remote code, and nothing leaves except an opt-in report.** If a feature
+  seems to need a backend, it belongs in Deal Dates, not here. The one exception (Dan,
+  2026-10-26) is error reports and a daily draft count, sent to dealdates.app only after
+  the agent says yes. `src/lib/report.js` decides what a report may hold: fixed choices,
+  numbers and pattern-checked codes, never text. Add a field there or nowhere, never as
+  free text, and `test/report.test.js` must keep failing on any client detail and on any
+  new network call. PRIVACY.md lists the fields: change both together.
 - **Don't touch WEBForms' pages or PDFs** (Lone Wolf AUP — see PLAN.md "Terms review").
   UI goes in the side panel; PDFs pass through byte-for-byte. `src/lib/webforms-api.js`
   is an allowlist: its zip download plus read-only lookups. Never add a route that saves,

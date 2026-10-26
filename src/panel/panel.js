@@ -9,6 +9,7 @@ import { suggestTemplate, rememberKey, normalizeName, rememberEntry, pruneRememb
 import { titleValues, titleFor, subjectFor, DEFAULT_SETTINGS } from "../lib/pattern.js";
 import { signerCounts, signersWithoutEmail, signeesFromDeal, agentRoleFor, agentPeople } from "../lib/draft.js";
 import { actingNotes } from "../lib/actor.js";
+import { contextFromDraft } from "../lib/report.js";
 
 // The same page is the popup (WEBForms and other sites) and the side panel (Real Signature);
 // see background.js "Where the UI shows".
@@ -57,6 +58,50 @@ function show(section) {
 }
 function say(text, kind = "note") {
   $("msg").replaceChildren(text ? el("div", text, kind) : "");
+  if (kind !== "err") $("report").hidden = true; // a report belongs to the error it follows
+}
+
+// ---------- error reports (src/lib/report.js, background.js) ----------
+
+async function askConsent() {
+  const { reporting } = await chrome.storage.local.get("reporting").catch(() => ({}));
+  $("consent").hidden = reporting === "yes" || reporting === "no";
+}
+for (const [id, choice] of [["consent-yes", "yes"], ["consent-no", "no"]]) {
+  $(id).addEventListener("click", async () => {
+    await chrome.storage.local.set({ reporting: choice, reportingAt: Date.now() });
+    $("consent").hidden = true;
+  });
+}
+askConsent();
+
+/** Under an error: "sent", or (for an agent who hasn't said yes to reports) a button to
+ *  send this one, with exactly what it holds. Shows the last report from the past 10
+ *  minutes (the background worker made it), so it's only called right after a failure. */
+async function showReport() {
+  const box = $("report");
+  const last = await chrome.runtime.sendMessage({ type: "report:last" }).catch(() => null);
+  if (!last?.report) { box.hidden = true; return; }
+  box.hidden = false;
+  if (last.sent || last.auto) { box.replaceChildren(el("div", "This error is reported to the Deal Dates team automatically, without any client details.", "note")); return; }
+  const send = el("button", "Send this error to the Deal Dates team", "link");
+  send.type = "button";
+  const what = document.createElement("details");
+  what.append(el("summary", "What's sent"), el("pre", JSON.stringify(last.report, null, 1)));
+  send.onclick = async () => {
+    send.disabled = true;
+    const r = await chrome.runtime.sendMessage({ type: "report:send-last" }).catch(() => null);
+    box.replaceChildren(el("div", r?.sent ? "Sent. Thank you." : "Couldn't send it. Check your connection and try again later.", "note"));
+  };
+  box.replaceChildren(send, what);
+}
+
+/** The panel's own failures (Finish draft, loading deals): the background worker records
+ *  them like its own. Never throws: reporting must not get in the way of the error. */
+async function reportError(e, step, draft = {}) {
+  await chrome.runtime.sendMessage({ type: "report:error", step, error: { message: String(e?.message || e), name: e?.name || "Error" },
+    ctx: contextFromDraft({ path: "panel", ...draft }) }).catch(() => null);
+  await showReport().catch(() => {});
 }
 
 async function activeTab() {
@@ -295,8 +340,9 @@ $("wf-go").addEventListener("click", async () => {
     } });
     if (r?.error) {
       // Still here, so the agent hasn't gone to that tab: close it, the error is shown here.
+      // The worker has recorded it (step "handoff").
       if (r.tabId) chrome.tabs.remove(r.tabId).catch(() => {});
-      throw new Error(r.error);
+      throw Object.assign(new Error(r.error), { reported: true });
     }
     if (auto) {
       if (r.auto?.done || r.auto?.busy) { window.close(); return; } // busy: that same draft is already being made
@@ -308,6 +354,7 @@ $("wf-go").addEventListener("click", async () => {
     if (POPUP) await goToRealSignature(r.tabId);
   } catch (e) {
     say(String(e.message || e), "err");
+    if (e?.reported) showReport().catch(() => {});
     $("wf-go").disabled = false;
   } finally {
     wfBusy = false;
@@ -378,7 +425,15 @@ async function showRealsig(tab, job) {
   $("rs-form").hidden = true;
   $("rs-status").textContent = "Loading your deals and templates…";
   $("rs-status").className = "busy";
-  const c = await send(tab.id, { type: "rs:context" }).finally(() => { $("rs-status").className = "note"; });
+  let c;
+  try {
+    c = await send(tab.id, { type: "rs:context" });
+  } catch (e) {
+    await reportError(e, "context", { job });
+    throw e;
+  } finally {
+    $("rs-status").className = "note";
+  }
   // A failed earlier try (tab still loading) left its error in #msg; this one worked, so
   // clear it — otherwise the error stays on screen above a panel that loaded fine.
   say("");
@@ -398,6 +453,7 @@ async function showRealsig(tab, job) {
   // A failed one-click attempt goes on top. What's left to choose is said in the section it
   // belongs to (the deal hint, each form's template), not repeated up here.
   $("rs-needs").replaceChildren(...(job.autoError ? [el("div", job.autoError, "err")] : []));
+  if (job.autoError) showReport().catch(() => {});
   $("rs-deal-first").textContent = job.address || job.buyerNames?.length
     ? "No deal clearly matches — choose one, or No deal."
     : "Choose the deal, or No deal.";
@@ -714,6 +770,7 @@ $("rs-go").addEventListener("click", async () => {
     });
     await chrome.storage.local.set({ templateFor: next });
     await chrome.runtime.sendMessage({ type: "job:done", id: job.id });
+    chrome.runtime.sendMessage({ type: "report:ok", path: "panel", forms: job.forms.length }).catch(() => {});
     await chrome.tabs.update(tab.id, { url: new URL(r.url, RS).toString() });
     say(r.packet && r.drafts === 1 ? `Draft ready. Add the ${roleWords(r.unfilled)} in Add Signees.`
       : r.packet ? `Packet ready (${r.drafts} forms).` : "Draft ready.", "ok");
@@ -729,6 +786,10 @@ $("rs-go").addEventListener("click", async () => {
   } catch (e) {
     say(String(e.message || e), "err");
     $("rs-go").disabled = false;
+    await reportError(e, "create", { c, job, dealId: dealId === "none" ? null : dealId,
+      dealBy: dealId === rsState?.autoPicked ? rsState.autoBy : null,
+      templateIds: templateIds.map((t) => (t === "none" ? null : t)), counts,
+      warned: !!$("rs-warn").querySelector(".warn") });
   }
 });
 
@@ -745,6 +806,7 @@ function showHandoff(p) {
   $("rs-form").hidden = true;
   $("rs-status").textContent = p.error ? `Couldn't bring your forms over: ${p.error}` : p.busy;
   $("rs-status").className = p.error ? "err" : "busy";
+  if (p.error) showReport().catch(() => {});
 }
 chrome.runtime.onMessage.addListener((msg) => {
   if (msg?.type !== "rs:handoff" || POPUP) return;

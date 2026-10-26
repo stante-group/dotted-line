@@ -186,6 +186,7 @@ function flash(text) {
 // A draft created in another tab while this page is open shows up without a reload.
 chrome.storage.onChanged.addListener((changes, area) => {
   if (area === "local" && changes.templateFor) renderRemembered();
+  if (area === "local" && (changes.reporting || changes.draftStats)) renderReporting();
 });
 
 await load();
@@ -206,6 +207,25 @@ for (const kind of ["title", "subject"]) {
   });
 }
 render();
+
+// Error reports: the agent's yes or no, per browser (chrome.storage.local, read by
+// background.js). Unset = not asked yet, and nothing is sent.
+async function renderReporting() {
+  const { reporting, draftStats } = await chrome.storage.local.get(["reporting", "draftStats"]).catch(() => ({}));
+  for (const r of document.querySelectorAll("input[name=reporting]")) r.checked = r.value === reporting;
+  $("reporting-stats").textContent = draftStats
+    ? `In this browser so far: ${draftStats.made || 0} draft${draftStats.made === 1 ? "" : "s"} made, ${draftStats.failed || 0} failed.` : "";
+}
+for (const r of document.querySelectorAll("input[name=reporting]")) {
+  r.addEventListener("change", async () => {
+    await chrome.storage.local.set({ reporting: r.value, reportingAt: Date.now() });
+    $("saved").textContent = "Saved";
+    $("saved").classList.add("on");
+    clearTimeout(savedTimer);
+    savedTimer = setTimeout(() => $("saved").classList.remove("on"), 1400);
+  });
+}
+renderReporting();
 
 $("setup-run").addEventListener("click", async () => {
   $("setup-out").hidden = false;

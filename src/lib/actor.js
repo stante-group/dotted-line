@@ -106,6 +106,19 @@ export function isOwnCorporation({ wfName, rsFirstName, rsLastName }) {
   return l === last && firstOk;
 }
 
+/** How the WEBForms sign-in relates to the Real Signature one, as a category for error
+ *  reports (src/lib/report.js) — never who either of them is. → "same" | "own-corp" |
+ *  "different" | "unknown" (no email to compare) | "none" (no WEBForms user known). */
+export function wfMatch({ me, webformsUserName, webformsUserEmail = null }) {
+  if (!webformsUserName && !webformsUserEmail) return "none";
+  const same = samePerson({ wfEmail: webformsUserEmail, rsEmail: me?.email });
+  if (same === true) return "same";
+  if (same === null) return "unknown";
+  const [rsFirstName, ...rest] = me?.firstName ? [me.firstName, me.lastName] : String(me?.fullName || "").split(" ");
+  const rsLastName = me?.firstName ? me.lastName : rest.join(" ");
+  return webformsUserName && isOwnCorporation({ wfName: webformsUserName, rsFirstName, rsLastName }) ? "own-corp" : "different";
+}
+
 /** Plain-language notes for the panel before Create, none blocking. Each has a level:
  *  "warn" — something to check before sending (the sender on someone else's deal);
  *  "info" — context only. WEBForms and Real Signature signed in as different people is a

@@ -33,7 +33,8 @@ What it never does
 - It never sends anything to anyone. It stops at a draft; only you press Send.
 - It doesn't change your WEBForms forms or pages.
 - It doesn't alter your PDFs — the pages go over exactly as WEBForms made them.
-- It has no server, no account and no analytics. It works with your own sign-ins, in your own browser, on two sites only: WEBForms and Real Signature.
+- It never sends your forms, your clients' details or your deals to us. It works with your own sign-ins, in your own browser, on two sites only: WEBForms and Real Signature.
+- It asks before sending us anything at all. With your yes, a short error report when a draft fails and a daily count of drafts that worked: never a name, address, deal or form.
 
 For transaction coordinators
 If an agent has given you Real Signature access in reZEN, pick them under "Acting as" in Real Signature and the draft goes into their Drafts, with them as sender. Dotted Line warns you when WEBForms and Real Signature are signed in as different people.
@@ -71,6 +72,7 @@ Create a Real Signature draft from forms the user filled in CREA WEBForms.
 - Personally identifiable information (the signers' names and emails move from the forms to the Real Signature draft)
 - Website content (the form PDFs)
 - Authentication information? — NO: it never reads or stores a password or token; it uses the sites' own signed-in session.
+- Error reports (opt-in, 2026-10-26): the categories describe the content of a report, and a report holds none of them (no PII, no website content, no web history, no keystrokes or clicks), so no new box is ticked. DAN TO DECIDE at upload: whether to tick **User activity** anyway to be conservative. The privacy policy describes the reports either way, and the store reviewer reads it.
 
 **Certifications (tick all three):**
 - I do not sell or transfer user data to third parties, outside of the approved use cases

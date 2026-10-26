@@ -45,10 +45,10 @@ export function usableTemplates(form, templates) {
 }
 
 /** job: the hand-off without PDFs. c: rs:context's answer. → {ready, needs: [why], and the
- *  rs:create choices: dealId, templateIds (null = no template), counts, agentChoice}. */
+ *  rs:create choices: dealId (and dealBy, how it matched), templateIds (null = no template), counts, agentChoice}. */
 export function planDraft({ job, c, remembered = {}, agentMode = "one" }) {
   const needs = [];
-  const { deal } = confidentDeal(job.address, c.deals, job.buyerNames);
+  const { deal, by } = confidentDeal(job.address, c.deals, job.buyerNames);
   if (!deal) {
     needs.push(job.address
       ? "No reZEN deal or Buyer Record clearly matches — choose one (or No deal)."
@@ -97,6 +97,7 @@ export function planDraft({ job, c, remembered = {}, agentMode = "one" }) {
     ready: needs.length === 0,
     needs,
     dealId: deal?.id ?? null,
+    dealBy: deal ? by : null, // "address" or "name", for error reports (report.js)
     templateIds,
     counts,
     agentChoice: agentOn ? (agentMode === "all" ? "all" : "best") : null,

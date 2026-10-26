@@ -1,5 +1,7 @@
 // Service worker: holds a hand-off "job" (the PDFs plus what the agent chose) between the
-// WEBForms tab and the Real Signature tab. Nothing leaves the browser.
+// WEBForms tab and the Real Signature tab. The forms never leave the browser except into
+// the agent's own Real Signature account. The only other thing that can leave is an error
+// report or a day's draft count, built by src/lib/report.js, and only if the agent said yes.
 //
 // Jobs live in the extension's own IndexedDB, are deleted once the draft is made, and
 // anything older than JOB_TTL_MS is purged on startup — contracts must not linger.
@@ -10,6 +12,7 @@ import { sendToTab } from "./messaging.js";
 import { unzip } from "./lib/unzip.js";
 import { isPdf, hasAcroForm, countPages, fromBase64, toBase64 } from "./lib/pdf.js";
 import { pairEntries } from "./lib/webforms-api.js";
+import { errorReport, okReport, tallyOk, tallyDue, contextFromDraft, draftContext, chromeMajor, REPORT_URL } from "./lib/report.js";
 
 const DB = "wfrs";
 const STORE = "jobs";
@@ -78,7 +81,82 @@ async function purgeOld() {
 }
 purgeOld().catch(() => {});
 
+// ---- error reports and draft counts (src/lib/report.js; Dan, 2026-10-26) ----
+// storage.local: reporting "yes" | "no" | unset (not asked yet — nothing is sent);
+// draftStats {made, failed} in this browser, always kept, never sent on its own;
+// okTally, today's successful drafts; lastReport {report, at, sent}, for the panel's
+// "Send this report" when the agent hasn't said yes to sending them all.
+const VERSION = chrome.runtime.getManifest().version;
+const CHROME = chromeMajor(navigator.userAgent);
+const today = () => new Date().toLocaleDateString("en-CA"); // the agent's own day, YYYY-MM-DD
+
+// One at a time: two drafts finishing together must not both read, add and write the tally.
+let reportChain = Promise.resolve();
+const serial = (f) => (reportChain = reportChain.then(f, f));
+
+async function post(report) {
+  if (!report) return false;
+  try {
+    const r = await fetch(REPORT_URL, { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(report), credentials: "omit", signal: AbortSignal.timeout(8000) });
+    return r.ok;
+  } catch {
+    return false; // a report that can't go is dropped, never retried into a pile
+  }
+}
+
+function recordError({ error, step, ctx }) {
+  return serial(async () => {
+    const { draftStats = {}, reporting, lastReport } = await chrome.storage.local.get(["draftStats", "reporting", "lastReport"]);
+    const report = errorReport({ error, step, ctx, version: VERSION, chrome: CHROME, local: null });
+    // The same failure again within 10 minutes is one failure: the panel redraws on every
+    // tab switch, and a Real Signature tab that can't load would report itself each time.
+    const same = (a, b) => ["step", "cls", "code", "route", "field", "rule"].every((k) => a?.[k] === b?.[k]);
+    if (lastReport && Date.now() - lastReport.at < 10 * 60 * 1000 && same(lastReport.report, report)) {
+      return { sent: lastReport.sent, reporting: reporting || null, repeat: true };
+    }
+    const stats = { made: draftStats.made || 0, failed: (draftStats.failed || 0) + 1 };
+    report.local = stats;
+    const at = Date.now();
+    // auto: on its way because the agent said yes. The send itself is not awaited (up to
+    // 8 s), so the agent sees the error at once; sent is set when it lands.
+    const auto = reporting === "yes";
+    await chrome.storage.local.set({ draftStats: stats, lastReport: { report, at, sent: false, auto } });
+    if (auto) {
+      post(report).then(async (ok) => {
+        const { lastReport: l } = await chrome.storage.local.get("lastReport");
+        if (ok && l?.at === at) await chrome.storage.local.set({ lastReport: { ...l, sent: true } });
+      }).catch(() => {});
+    }
+    return { auto, reporting: reporting || null };
+  });
+}
+
+function recordOk({ path, forms }) {
+  return serial(async () => {
+    const { draftStats = {}, okTally = null, reporting } = await chrome.storage.local.get(["draftStats", "okTally", "reporting"]);
+    const { tally, due } = tallyOk(okTally, { day: today(), version: VERSION, path, forms });
+    await chrome.storage.local.set({ draftStats: { made: (draftStats.made || 0) + 1, failed: draftStats.failed || 0 }, okTally: tally });
+    if (due && reporting === "yes") post(okReport({ chrome: CHROME, ...due })); // not awaited: see recordError
+  });
+}
+
+// A day's count goes once the day is over: on the next draft, or here when the worker starts.
+function flushOk() {
+  return serial(async () => {
+    const { okTally = null, reporting } = await chrome.storage.local.get(["okTally", "reporting"]);
+    if (!tallyDue(okTally, { day: today(), version: VERSION })) return;
+    await chrome.storage.local.set({ okTally: null });
+    if (reporting === "yes") post(okReport({ chrome: CHROME, ...okTally }));
+  });
+}
+flushOk().catch(() => {});
+
 // Messages:
+//   {type: "report:error", step, error: {message, name}, ctx} → {auto, reporting}
+//   {type: "report:ok", path, forms}  → counted (and a past day's count sent, with a yes)
+//   {type: "report:last"}             → the last error report from the past 10 minutes, or null
+//   {type: "report:send-last"}        → sends it: the agent pressed "Send this report"
 //   {type: "job:forTab", tabId}       → that tab's job without the PDFs (for the panel)
 //   {type: "job:get", id}             → the whole job (for the Real Signature content script)
 //   {type: "job:done", id}            → deletes it
@@ -131,12 +209,13 @@ async function autoCreateOnce(id) {
   const timings = { ...(job.timings || {}) };
   const lap = (k, since) => { timings[k] = Math.round((Date.now() - since) / 100) / 10; };
   const keep = () => chrome.storage.local.set({ lastTimings: { at: Date.now(), job: id, forms: job.forms.length, ...timings } }).catch(() => {});
+  let c = null, plan = null;
   try {
-    const c = await sendToTab(job.tabId, { type: "rs:context" });
+    c = await sendToTab(job.tabId, { type: "rs:context" });
     lap("realSignatureReady", t0);
     if (!c?.signedIn) return { done: false }; // the panel asks them to sign in
     const { templateFor = {}, agentMode = "one" } = await chrome.storage.local.get(["templateFor", "agentMode"]);
-    const plan = planDraft({ job: withoutPdfs(job), c, remembered: templateFor, agentMode });
+    plan = planDraft({ job: withoutPdfs(job), c, remembered: templateFor, agentMode });
     if (!plan.ready) { await keep(); return stop(plan.needs); }
     let settings = DEFAULT_SETTINGS;
     try { settings = { ...DEFAULT_SETTINGS, ...((await chrome.storage.sync.get("settings")).settings || {}) }; } catch { /* defaults */ }
@@ -152,10 +231,14 @@ async function autoCreateOnce(id) {
     await chrome.tabs.update(job.tabId, { url: new URL(r.url, RS).toString(), active: true });
     lap("oneClickTotal", t0);
     await keep();
+    recordOk({ path: "one-click", forms: job.forms.length }).catch(() => {});
     return { done: true, packet: !!r.packet };
   } catch (e) {
     // rs:create deletes its own half-made drafts before it throws.
     const why = `Couldn't make the draft in one click: ${String(e?.message || e)}`;
+    await recordError({ error: e, step: "one-click", ctx: contextFromDraft({ path: "one-click", c: c?.signedIn ? c : null,
+      job: withoutPdfs(job), dealId: plan?.dealId, dealBy: plan?.dealBy, templateIds: plan?.templateIds || [],
+      counts: plan?.counts, timings }) }).catch(() => {});
     return stop([why], why);
   }
 }
@@ -209,6 +292,7 @@ async function startJob({ wfTabId, wfForms, meta, background, auto }) {
     return { id, tabId, auto: a };
   } catch (e) {
     const error = String(e?.message || e);
+    await recordError({ error: e, step: "handoff", ctx: draftContext({ path: auto ? "one-click" : "panel", forms: wfForms }) }).catch(() => {});
     setHandoff(tabId, { error });
     return { error, tabId };
   }
@@ -234,6 +318,19 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
       return { ok: true };
     }
     if (msg.type === "job:auto") return autoCreate(msg.id);
+    if (msg.type === "report:error") return recordError({ error: msg.error, step: msg.step, ctx: msg.ctx });
+    if (msg.type === "report:ok") return recordOk({ path: msg.path, forms: msg.forms }).then(() => ({ ok: true }));
+    if (msg.type === "report:last") {
+      const { lastReport: l } = await chrome.storage.local.get("lastReport");
+      return l && Date.now() - l.at < 10 * 60 * 1000 ? l : null;
+    }
+    if (msg.type === "report:send-last") {
+      const { lastReport: l } = await chrome.storage.local.get("lastReport");
+      if (!l || l.sent || l.auto) return { sent: !!(l?.sent || l?.auto) };
+      const sent = await post(l.report);
+      await chrome.storage.local.set({ lastReport: { ...l, sent } });
+      return { sent };
+    }
     return null;
   })().then(reply, (e) => reply({ error: String(e?.message || e) }));
   return true; // async reply

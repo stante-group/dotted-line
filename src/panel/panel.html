@@ -54,11 +54,37 @@
     /* Popup (WEBForms and other sites): a fixed, compact width over the page. */
     html.popup body { width: 360px; margin: 12px 14px; }
     html.popup footer { margin-top: 16px; }
+    /* Asked once: may Dotted Line send error reports and draft counts? */
+    .consent { border: 1px solid #c9d6f5; background: #f4f7fe; border-radius: 8px; padding: 10px 12px; margin: 0 0 12px; font-size: 13px; }
+    .consent p { margin: 4px 0; }
+    .consent details { margin: 6px 0; color: #3b4456; }
+    .consent summary, #report summary { cursor: pointer; color: #1d4ed8; }
+    .consent .row button { margin-top: 6px; }
+    button.secondary { background: #fff; color: #1d2433; border-color: #c9cfdb; }
+    #report { font-size: 13px; margin: 4px 0 8px; }
+    #report pre { margin: 6px 0; }
     [hidden] { display: none !important; }
   </style>
 </head>
 <body>
   <h1>Dotted Line</h1>
+
+  <!-- Asked once, after install or the update that added reports. Nothing is sent until
+       the agent answers, and "No thanks" sends nothing (src/lib/report.js). -->
+  <section id="consent" class="consent" hidden>
+    <b>Help us fix problems faster?</b>
+    <p>Dotted Line can send the Deal Dates team a short report when a draft fails, and once a day a count of drafts that worked.</p>
+    <details>
+      <summary>What's in a report</summary>
+      <p>Which step failed, the error code from Real Signature or WEBForms, and choices like "deal matched by address", "2–3 forms" or "acting as an agent". Plus the Dotted Line and Chrome versions.</p>
+      <p>Never your forms, or any name, email, address, deal or template. Your IP address isn't kept. Reports are deleted after 12 months.</p>
+    </details>
+    <div class="row">
+      <button id="consent-yes" type="button">Yes, send reports</button>
+      <button id="consent-no" type="button" class="secondary">No thanks</button>
+    </div>
+    <p class="note">You can change this in Settings.</p>
+  </section>
 
   <!-- Nothing to act on -->
   <section id="idle">
@@ -123,6 +149,7 @@
   </section>
 
   <div id="msg" role="status"></div>
+  <div id="report" hidden></div>
 
 
   <footer>
