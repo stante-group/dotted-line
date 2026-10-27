@@ -874,7 +874,13 @@ async function refresh() {
   refreshing = (async () => {
     try {
       const tab = await activeTab();
-      if (tab?.url?.startsWith(WF)) { await showWebforms(tab); return; }
+      if (tab?.url?.startsWith(WF)) {
+        // Reading the picks off the WEBForms page is reported too (step "handoff", the
+        // WEBForms side of it): a WEBForms change that breaks the read is the failure we'd
+        // most want to hear about, and it used to show only in red (Dan's test, 2026-10-27).
+        await showWebforms(tab).catch(async (e) => { await reportError(e, "handoff"); throw e; });
+        return;
+      }
       if (tab?.url?.startsWith(RS)) {
         // Clicked over before the forms arrived: say what's happening; job:ready redraws.
         const pending = await chrome.runtime.sendMessage({ type: "job:pending", tabId: tab.id });

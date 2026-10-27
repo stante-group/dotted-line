@@ -180,3 +180,9 @@ test("one switch turns reports off everywhere: nothing posted, nothing offered",
   const opts = await readFile(new URL("../src/options/options.js", import.meta.url), "utf8");
   assert.match(opts, /\$\("reporting-wrap"\)\.hidden = !REPORTS_ON/);
 });
+
+test("a failure reading the WEBForms page is reported, as the hand-off step", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const panel = await readFile(new URL("../src/panel/panel.js", import.meta.url), "utf8");
+  assert.match(panel, /await showWebforms\(tab\)\.catch\(async \(e\) => \{ await reportError\(e, "handoff"\); throw e; \}\)/);
+});
