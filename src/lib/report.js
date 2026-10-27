@@ -16,6 +16,12 @@ import { wfMatch, isOthersDeal } from "./actor.js";
 import { signersWithoutEmail } from "./draft.js";
 
 export const REPORT_URL ="https://dealdates.app/api/dl-report";
+
+// Off until the receiving end is set up (Dan, 2026-10-27: 0.1.1 ships without reports).
+// Off: nothing is sent, the panel doesn't ask, Settings doesn't offer them, and "Send this
+// error" never appears. The local draft counts in Settings still run. Turning reports on
+// is this line plus the store listing's data-use answers (store/listing.md).
+export const REPORTS_ON = false;
 export const SCHEMA = 1;
 
 export const ENUMS = {

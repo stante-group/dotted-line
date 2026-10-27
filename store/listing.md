@@ -8,6 +8,10 @@ something we do; no live client names, addresses or screenshots of real deals.
 https://chromewebstore.google.com/detail/dotted-line-by-deal-dates/hohklnkceafdacdmlngcbbhaokeoonkl
 Each update: bump `version` in manifest.json, build the zip, upload it under Package.
 
+**0.1.1 (2026-10-27) ships with error reports switched OFF** (`REPORTS_ON` in
+`src/lib/report.js`). For that upload leave out the error-report line in the description
+and DON'T tick User activity. Both go in with the release that switches reports on.
+
 ## Store listing tab
 
 **Name** (from the manifest): Dotted Line by Deal Dates

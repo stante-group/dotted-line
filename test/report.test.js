@@ -165,3 +165,16 @@ test("Chrome's major version only", () => {
   assert.equal(chromeMajor("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.7390.54 Safari/537.36"), "141");
   assert.equal(chromeMajor("curl/8"), null);
 });
+
+test("0.1.1 ships with reports off: nothing is posted and nothing is offered", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const { REPORTS_ON } = await import("../src/lib/report.js");
+  assert.equal(REPORTS_ON, false, "switching reports on is a release decision (store/listing.md)");
+  const bg = await readFile(new URL("../src/background.js", import.meta.url), "utf8");
+  assert.match(bg, /async function post\(report\) \{\n  if \(!REPORTS_ON\) return false;/);
+  assert.match(bg, /"report:last"\) \{\n      if \(!REPORTS_ON\) return null;/);
+  const panel = await readFile(new URL("../src/panel/panel.js", import.meta.url), "utf8");
+  assert.match(panel, /\$\("consent"\)\.hidden = !REPORTS_ON/);
+  const opts = await readFile(new URL("../src/options/options.js", import.meta.url), "utf8");
+  assert.match(opts, /\$\("reporting-wrap"\)\.hidden = !REPORTS_ON/);
+});

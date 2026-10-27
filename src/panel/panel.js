@@ -9,7 +9,7 @@ import { suggestTemplate, rememberKey, normalizeName, rememberEntry, pruneRememb
 import { titleValues, titleFor, subjectFor, DEFAULT_SETTINGS } from "../lib/pattern.js";
 import { signerCounts, signersWithoutEmail, signeesFromDeal, agentRoleFor, agentPeople, cleanSubject, subjectTooLong, SUBJECT_MAX } from "../lib/draft.js";
 import { actingNotes } from "../lib/actor.js";
-import { contextFromDraft } from "../lib/report.js";
+import { contextFromDraft, REPORTS_ON } from "../lib/report.js";
 
 // The same page is the popup (WEBForms and other sites) and the side panel (Real Signature);
 // see background.js "Where the UI shows".
@@ -65,7 +65,7 @@ function say(text, kind = "note") {
 
 async function askConsent() {
   const { reporting } = await chrome.storage.local.get("reporting").catch(() => ({}));
-  $("consent").hidden = reporting === "yes" || reporting === "no";
+  $("consent").hidden = !REPORTS_ON || reporting === "yes" || reporting === "no";
 }
 for (const [id, choice] of [["consent-yes", "yes"], ["consent-no", "no"]]) {
   $(id).addEventListener("click", async () => {

@@ -5,6 +5,7 @@ import { WORDS, DEFAULT_SETTINGS, SAMPLE_VALUES, fillPattern } from "../lib/patt
 import { cleanSubject, SUBJECT_MAX } from "../lib/draft.js";
 import { pruneRemembered } from "../lib/match.js";
 import { runSetupCheck } from "../setup-check.js";
+import { REPORTS_ON } from "../lib/report.js";
 
 const $ = (id) => document.getElementById(id);
 let current = { ...DEFAULT_SETTINGS };
@@ -217,6 +218,9 @@ for (const kind of ["title", "subject"]) {
   });
 }
 render();
+
+// Hidden while reports are switched off (report.js REPORTS_ON).
+$("reporting-wrap").hidden = !REPORTS_ON;
 
 // Error reports: the agent's yes or no, per browser (chrome.storage.local, read by
 // background.js). Unset = not asked yet, and nothing is sent.

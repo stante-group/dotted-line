@@ -13,7 +13,7 @@ import { sendToTab } from "./messaging.js";
 import { unzip } from "./lib/unzip.js";
 import { isPdf, hasAcroForm, countPages, fromBase64, toBase64 } from "./lib/pdf.js";
 import { pairEntries } from "./lib/webforms-api.js";
-import { errorReport, okReport, sanitizeReport, tallyOk, tallyDue, contextFromDraft, draftContext, chromeMajor, REPORT_URL } from "./lib/report.js";
+import { errorReport, okReport, sanitizeReport, tallyOk, tallyDue, contextFromDraft, draftContext, chromeMajor, REPORT_URL, REPORTS_ON } from "./lib/report.js";
 
 const DB = "wfrs";
 const STORE = "jobs";
@@ -105,6 +105,7 @@ const serial = (f) => (reportChain = reportChain.then(f, f));
 // nothing added to a report after it was built (a stored copy, a field set later) can
 // ride along (outside review, 2026-10-26).
 async function post(report) {
+  if (!REPORTS_ON) return false;
   const clean = sanitizeReport(report);
   if (!clean) return false;
   try {
@@ -131,7 +132,7 @@ function recordError({ error, step, ctx }) {
     // auto: on its way because the agent said yes. The send itself is not awaited (up to
     // 8 s), so the agent sees the error at once. If it fails, auto goes back to false and
     // the panel offers the button rather than saying it went.
-    const auto = reporting === "yes";
+    const auto = REPORTS_ON && reporting === "yes";
     await chrome.storage.local.set({ draftStats: stats, lastReport: { report, at, sent: false, auto } });
     if (auto) {
       post(report).then(async (ok) => {
@@ -347,6 +348,7 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
     if (msg.type === "report:error") return recordError({ error: msg.error, step: msg.step, ctx: msg.ctx });
     if (msg.type === "report:ok") return recordOk({ path: msg.path, forms: msg.forms }).then(() => ({ ok: true }));
     if (msg.type === "report:last") {
+      if (!REPORTS_ON) return null; // nothing to offer: the panel shows no report box
       const { lastReport: l } = await chrome.storage.local.get("lastReport");
       return l && Date.now() - l.at < 10 * 60 * 1000 ? l : null;
     }
