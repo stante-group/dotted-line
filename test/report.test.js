@@ -210,3 +210,12 @@ test("a repeat is the same failure in every field, not six of them", async () =>
   assert.ok(!/\["step", "cls", "code", "route", "field", "rule"\]\.every/.test(bg), "the six-field test is gone");
   assert.match(bg, /sameFailure\(lastReport\.report, report\)/);
 });
+
+test("the report and its Send button sit inside the error's red box", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const panel = await readFile(new URL("../src/panel/panel.js", import.meta.url), "utf8");
+  assert.match(panel, /function reportHost\(\)/);
+  assert.match(panel, /box = el\("div", "", "report-in-err"\);\n    host\.append\(box\);/);
+  const html = await readFile(new URL("../src/panel/panel.html", import.meta.url), "utf8");
+  assert.match(html, /\.report-in-err \{/);
+});

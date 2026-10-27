@@ -59,6 +59,9 @@ function show(section) {
 function say(text, kind = "note") {
   $("msg").replaceChildren(text ? el("div", text, kind) : "");
   if (kind !== "err") $("report").hidden = true; // a report belongs to the error it follows
+  // Some paths report first and show the error after (the report is made, then the error is
+  // thrown up to whoever shows it): move the report into this new red box.
+  else if (!$("report").hidden) showReport().catch(() => {});
 }
 
 // ---------- error reports (src/lib/report.js, background.js) ----------
@@ -78,11 +81,27 @@ askConsent();
 /** Under an error: "sent", or (for an agent who hasn't said yes to reports) a button to
  *  send this one, with exactly what it holds. Shows the last report from the past 10
  *  minutes (the background worker made it), so it's only called right after a failure. */
+// The red box of the error a report belongs to: the panel's message, a one-click failure
+// above the choices, or a hand-off that failed. The report goes INSIDE it, so the button
+// is plainly about that error (Dan, 2026-10-27); with no red box showing, below as before.
+function reportHost() {
+  const st = $("rs-status");
+  return $("msg").querySelector(".err") || $("rs-needs").querySelector(".err") || (st.classList.contains("err") ? st : null);
+}
+
 async function showReport() {
-  const box = $("report");
+  let box = $("report");
   const last = await chrome.runtime.sendMessage({ type: "report:last" }).catch(() => null);
+  for (const n of document.querySelectorAll(".report-in-err")) n.remove();
   if (!last?.report) { box.hidden = true; return; }
-  box.hidden = false;
+  const host = reportHost();
+  if (host) {
+    box.hidden = true;
+    box = el("div", "", "report-in-err");
+    host.append(box);
+  } else {
+    box.hidden = false;
+  }
   // A repeat: the same failure, every detail alike, within 10 minutes. Said as such — what
   // was sent was the first one, and this one isn't sent again.
   const again = last.repeats ? "The same error happened a few minutes ago" : "";
