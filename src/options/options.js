@@ -2,6 +2,7 @@
 // chrome.storage.sync under "settings"; the panel reads it with the same defaults.
 
 import { WORDS, DEFAULT_SETTINGS, SAMPLE_VALUES, fillPattern } from "../lib/pattern.js";
+import { cleanSubject, SUBJECT_MAX } from "../lib/draft.js";
 import { pruneRemembered } from "../lib/match.js";
 import { runSetupCheck } from "../setup-check.js";
 
@@ -54,6 +55,15 @@ function preview(kind) {
   b.textContent = text || "(empty — the suggested title is used instead)";
   line.append(b);
   box.append(line);
+  // Real Signature refuses a subject over 70; the panel holds the draft until it's
+  // shortened, so say so here, where the pattern is made.
+  const n = kind === "subject" ? cleanSubject(text).length : 0;
+  if (n > SUBJECT_MAX) {
+    const w = document.createElement("div");
+    w.className = "warn";
+    w.textContent = `This sample comes to ${n} characters. Real Signature allows ${SUBJECT_MAX}, so the panel will ask you to shorten a subject like it before the draft is made.`;
+    box.append(w);
+  }
   if (bad.length) {
     const w = document.createElement("div");
     w.className = "warn";

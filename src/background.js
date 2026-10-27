@@ -8,6 +8,7 @@
 
 import { planDraft } from "./lib/auto.js";
 import { DEFAULT_SETTINGS, subjectFor } from "./lib/pattern.js";
+import { subjectTooLong } from "./lib/draft.js";
 import { sendToTab } from "./messaging.js";
 import { unzip } from "./lib/unzip.js";
 import { isPdf, hasAcroForm, countPages, fromBase64, toBase64 } from "./lib/pdf.js";
@@ -235,11 +236,15 @@ async function autoCreateOnce(id) {
     if (!plan.ready) { await keep(); return stop(plan.needs); }
     let settings = DEFAULT_SETTINGS;
     try { settings = { ...DEFAULT_SETTINGS, ...((await chrome.storage.sync.get("settings")).settings || {}) }; } catch { /* defaults */ }
+    const emailSubject = subjectFor(settings, job.titleValues || {}, job.title);
+    // Over Real's 70: the panel shows the subject for the agent to shorten, rather than
+    // one click rewriting it unseen.
+    if (subjectTooLong(emailSubject)) { await keep(); return stop(["The signers' email subject is over 70 characters."]); }
     const t1 = Date.now();
     const r = await sendToTab(job.tabId, {
       type: "rs:create", jobId: id, title: job.title, dealId: plan.dealId,
       templateIds: plan.templateIds, counts: plan.counts, agentChoice: plan.agentChoice,
-      emailSubject: subjectFor(settings, job.titleValues || {}, job.title),
+      emailSubject,
     });
     lap("draftMade", t1);
     Object.assign(timings, r.timings || {});

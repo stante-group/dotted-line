@@ -23,6 +23,8 @@
     .info::before { content: "i"; flex: none; display: inline-flex; align-items: center; justify-content: center;
       width: 15px; height: 15px; border-radius: 50%; background: #e3eafb; color: #2f6fed;
       font: italic 600 10px/1 Georgia, serif; transform: translateY(2px); }
+    .count { color: #5b6475; font-weight: normal; }
+    .count.over { color: #b3261e; font-weight: 600; }
     .err { background: #fdecec; border: 1px solid #e59a9a; border-radius: 6px; padding: 8px 10px; font-size: 13px; margin: 8px 0; }
     .ok { background: #eaf6ee; border: 1px solid #8cc9a0; border-radius: 6px; padding: 8px 10px; font-size: 13px; margin: 8px 0; }
     ul.forms { padding-left: 18px; margin: 6px 0; }
@@ -111,6 +113,11 @@
       <div id="rs-needs"></div>
       <label for="rs-title">Title</label>
       <input id="rs-title" type="text" maxlength="120">
+      <div id="rs-subject-wrap" hidden>
+        <label for="rs-subject">Signers' email subject <span id="rs-subject-count" class="count"></span></label>
+        <input id="rs-subject" type="text" aria-describedby="rs-subject-note">
+        <div id="rs-subject-note" class="err" hidden>Real Signature allows 70 characters. Shorten the subject to finish the draft.</div>
+      </div>
       <div class="with-i">
         <label for="rs-deal">reZEN deal</label>
         <button class="i" type="button" aria-expanded="false" aria-controls="tip-deal" aria-label="About the deal">i</button>

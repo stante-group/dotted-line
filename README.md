@@ -50,7 +50,9 @@ Optional. **Settings** at the bottom of the panel opens a page where you can:
   several): signatures, initials, dates, text boxes and ticks become a new Real Signature
   template, after you confirm who each role is.
 
-Left alone, you get the suggested title, used as the email subject too. Title and subject
+Left alone, you get the suggested title, used as the email subject too. The panel shows
+the subject under the title so you can change it; Real Signature allows 70 characters, so a
+longer one waits for you to shorten it rather than being cut. Title and subject
 settings follow your Chrome sign-in (Chrome sync); remembered templates stay in this browser.
 
 ### How the address in the title is written

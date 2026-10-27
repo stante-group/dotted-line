@@ -8,7 +8,7 @@ import { isPdf, hasAcroForm, countPages, toBase64, fromBase64 } from "../src/lib
 import { suggestTitle, matchAddress, addressLine } from "../src/lib/title.js";
 import { WebForms, isAllowed, readBearer, zipEntryName, pairEntries, WebFormsSignedOut, partiesFromFormValues, libraryNamesFrom, agentSideFromFormValues, agentSideFromContacts, combineSides, partiesFromContacts, buyerNamesFromContacts, mergeParties, peopleFromContacts } from "../src/lib/webforms-api.js";
 import { formKey } from "../src/lib/match.js";
-import { buildDraftBody, signeesFromDeal, countsFromDeal, signersWithoutEmail, signerCounts, sideFromFormNames, templateSlots, isEmail, agentRoleFor, agentPerson, agentPeople, chooseAgents, unfilledRoles, fitSubject, SUBJECT_MAX } from "../src/lib/draft.js";
+import { buildDraftBody, signeesFromDeal, countsFromDeal, signersWithoutEmail, signerCounts, sideFromFormNames, templateSlots, isEmail, agentRoleFor, agentPerson, agentPeople, chooseAgents, unfilledRoles, fitSubject, SUBJECT_MAX, cleanSubject, subjectTooLong } from "../src/lib/draft.js";
 import { stripTemplate, dropUnusedSlots } from "../src/lib/layout.js";
 import { summarizeDeal } from "../src/lib/deals.js";
 import { actingNotes, setupReport, senderFor, meFromYenta, meFromDeals, DELEGATION_VERIFIED, samePerson, isOwnCorporation } from "../src/lib/actor.js";
@@ -591,4 +591,21 @@ test("TC acting for an agent: the agent comes from their own deals, never guesse
   assert.throws(() => meFromDeals([{ transactionOwner: { id: agent, name: "Alex Example" } }], agent), /acting for/);
   const r = setupReport({ rs: { signedIn: true, actingForAgent: true, type: "AGENT", roles: [], deals: 3, ownDeals: 3, listings: 1, templatesMine: 29, templatesShared: 0, templatesWithBlocks: 20 }, wf: null });
   assert.match(r, /Acting for an agent \(TC\): yes/);
+});
+
+test("a subject over 70 is held for the agent, not cut on the way", async () => {
+  const { readFile } = await import("node:fs/promises");
+  assert.equal(cleanSubject("  Offer  –   120 Example Street NW "), "Offer – 120 Example Street NW");
+  assert.equal(subjectTooLong("x".repeat(SUBJECT_MAX)), false);
+  assert.equal(subjectTooLong("x".repeat(SUBJECT_MAX + 1)), true);
+  assert.equal(subjectTooLong(`  ${"x".repeat(SUBJECT_MAX)}   `), false, "spaces Real trims don't count");
+  assert.equal(subjectTooLong(null), false);
+  // The panel sends what its field shows, and one click stops rather than sending a long one.
+  const panel = await readFile(new URL("../src/panel/panel.js", import.meta.url), "utf8");
+  assert.match(panel, /emailSubject: \$\("rs-subject-wrap"\)\.hidden \? null : cleanSubject\(\$\("rs-subject"\)\.value\)/);
+  assert.ok(!/emailSubject: subjectFor/.test(panel), "the panel never recomputes the subject behind the field");
+  const bg = await readFile(new URL("../src/background.js", import.meta.url), "utf8");
+  assert.match(bg, /if \(subjectTooLong\(emailSubject\)\)[^\n]*return stop\(/);
+  const html = await readFile(new URL("../src/panel/panel.html", import.meta.url), "utf8");
+  assert.match(html, /id="rs-subject"/);
 });

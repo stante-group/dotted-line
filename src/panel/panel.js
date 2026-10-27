@@ -7,7 +7,7 @@ import { confidentDeal, usableTemplates } from "../lib/auto.js";
 import { sendToTab } from "../messaging.js";
 import { suggestTemplate, rememberKey, normalizeName, rememberEntry, pruneRemembered, signingSide, sideMismatch } from "../lib/match.js";
 import { titleValues, titleFor, subjectFor, DEFAULT_SETTINGS } from "../lib/pattern.js";
-import { signerCounts, signersWithoutEmail, signeesFromDeal, agentRoleFor, agentPeople } from "../lib/draft.js";
+import { signerCounts, signersWithoutEmail, signeesFromDeal, agentRoleFor, agentPeople, cleanSubject, subjectTooLong, SUBJECT_MAX } from "../lib/draft.js";
 import { actingNotes } from "../lib/actor.js";
 import { contextFromDraft } from "../lib/report.js";
 
@@ -456,6 +456,15 @@ async function showRealsig(tab, job) {
   // the end of what "Prepare in Real Signature" started (Dan, 2026-10-15).
   $("rs-status").textContent = "Almost done — check the choices below.";
   $("rs-title").value = job.title;
+  // The subject is shown and sent as seen: it follows the title (or the Settings pattern)
+  // until the agent edits it, and a subject over Real's limit holds "Finish draft" rather
+  // than being cut on the way (Dan, 2026-10-26). "Leave it to Real Signature" hides it.
+  rsState.settings = await settings();
+  rsState.subjectEdited = false;
+  const subject = subjectFor(rsState.settings, job.titleValues || {}, job.title);
+  $("rs-subject-wrap").hidden = rsState.settings.subjectMode === "real";
+  $("rs-subject").value = subject || "";
+  updateSubject();
 
   // A failed one-click attempt goes on top. What's left to choose is said in the section it
   // belongs to (the deal hint, each form's template), not repeated up here.
@@ -543,6 +552,27 @@ function renderTemplates(side) {
   rsState.tplSide = side;
 }
 
+// Whether "Finish draft" can go: a deal (or No deal) chosen, and a subject Real will take.
+function canFinish() {
+  const id = $("rs-deal").value;
+  const chosen = !!rsState?.c.deals.find((d) => d.id === id) || id === "none";
+  return chosen && !subjectHeld();
+}
+
+function subjectHeld() {
+  return !$("rs-subject-wrap").hidden && subjectTooLong($("rs-subject").value);
+}
+
+function updateSubject() {
+  const n = cleanSubject($("rs-subject").value).length;
+  const over = n > SUBJECT_MAX;
+  $("rs-subject-count").textContent = `${n}/${SUBJECT_MAX}`;
+  $("rs-subject-count").className = over ? "count over" : "count";
+  $("rs-subject-note").hidden = !over;
+  $("rs-subject").setAttribute("aria-invalid", String(over));
+  if (rsState) $("rs-go").disabled = !canFinish();
+}
+
 function updateDeal() {
   const { c, job } = rsState;
   const id = $("rs-deal").value;
@@ -552,7 +582,7 @@ function updateDeal() {
   const chosen = !!deal || id === "none";
   $("rs-after-deal").hidden = !chosen;
   $("rs-deal-first").hidden = chosen;
-  $("rs-go").disabled = !chosen;
+  $("rs-go").disabled = !canFinish();
   // Before the counts: they read the template picks, and the side picks the templates.
   const side = signingSide({ deal, agentSide: job.agentSide });
   if (side !== rsState.tplSide) renderTemplates(side);
@@ -740,6 +770,13 @@ $("rs-agent-pick").addEventListener("change", () => {
   updateAgent();
 });
 for (const id of ["rs-buyers", "rs-sellers"]) $(id).addEventListener("input", () => rsState && updateAgent());
+$("rs-title").addEventListener("input", () => {
+  if (!rsState || rsState.subjectEdited) return;
+  const { job, settings: s } = rsState;
+  $("rs-subject").value = subjectFor(s, job.titleValues || {}, $("rs-title").value.trim() || job.title) || "";
+  updateSubject();
+});
+$("rs-subject").addEventListener("input", () => { if (rsState) { rsState.subjectEdited = true; updateSubject(); } });
 
 $("rs-go").addEventListener("click", async () => {
   const { tab, job, c } = rsState;
@@ -748,6 +785,7 @@ $("rs-go").addEventListener("click", async () => {
   const templateIds = job.forms.map((_, i) => $(`tpl-${i}`).value);
   if (templateIds.some((t) => !t)) { say("Choose a template (or No template) for every form.", "warn"); return; }
   const counts = { BUYER: Number($("rs-buyers").value) || 0, SELLER: Number($("rs-sellers").value) || 0 };
+  if (subjectHeld()) { say("Shorten the signers' email subject to 70 characters.", "warn"); return; }
   $("rs-go").disabled = true;
   say(job.forms.length > 1 ? `Creating ${job.forms.length} drafts and grouping them as a packet…` : "Creating your draft…", "busy");
   try {
@@ -757,7 +795,8 @@ $("rs-go").addEventListener("click", async () => {
       dealId: dealId === "none" ? null : dealId,
       templateIds: templateIds.map((t) => (t === "none" ? null : t)), counts,
       agentChoice: agentChoice(),
-      emailSubject: subjectFor(await settings(), job.titleValues || {}, $("rs-title").value.trim() || job.title),
+      // What the field shows is what's sent; hidden = leave Real Signature's own.
+      emailSubject: $("rs-subject-wrap").hidden ? null : cleanSubject($("rs-subject").value) || null,
     });
     // Timings for "Check my setup": a draft finished here (one click stopped to ask
     // something) only had the steps up to the stop — add the making of it (numbers only).
@@ -792,7 +831,7 @@ $("rs-go").addEventListener("click", async () => {
     }, 1500);
   } catch (e) {
     say(String(e.message || e), "err");
-    $("rs-go").disabled = false;
+    $("rs-go").disabled = !canFinish();
     await reportError(e, "create", { c, job, dealId: dealId === "none" ? null : dealId,
       dealBy: dealId === rsState?.autoPicked ? rsState.autoBy : null,
       templateIds: templateIds.map((t) => (t === "none" ? null : t)), counts,

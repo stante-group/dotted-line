@@ -255,9 +255,23 @@ export function unfilledRoles(body) {
 // "MLS® Listing Withdrawal Contract"). Shortened at a word, never refused.
 export const SUBJECT_MAX = 70;
 
-/** The signers' email subject cut to fit Real's limit, at a word boundary with "…". */
+/** The subject as Real Signature will count it: runs of spaces as one, ends trimmed. */
+export function cleanSubject(s) {
+  return String(s ?? "").replace(/\s+/g, " ").trim();
+}
+
+/** True when Real Signature would refuse this subject. The panel shows the subject and
+ *  holds "Finish draft" until the agent shortens it, and one click stops and hands over to
+ *  the panel: a subject the agent never saw isn't rewritten on the way (Dan, 2026-10-26). */
+export function subjectTooLong(s) {
+  return cleanSubject(s).length > SUBJECT_MAX;
+}
+
+/** Backstop only: the signers' email subject cut to fit Real's limit, at a word boundary
+ *  with "…". The panel and one click both stop a long subject before it gets here, so in
+ *  normal use this never cuts; it stays so a missed path can't fail the whole save. */
 export function fitSubject(s) {
-  const t = String(s ?? "").replace(/\s+/g, " ").trim();
+  const t = cleanSubject(s);
   if (!t) return null;
   if (t.length <= SUBJECT_MAX) return t;
   const room = t.slice(0, SUBJECT_MAX - 1);
