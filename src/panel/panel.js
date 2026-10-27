@@ -93,7 +93,8 @@ async function showReport() {
       : "Sending this error to the Deal Dates team, without any client details.", "note"));
     return;
   }
-  const send = el("button", "Send this error to the Deal Dates team", "link");
+  // A real button, not a link (Dan, 2026-10-27): it sends something.
+  const send = el("button", "Send this error to the Deal Dates team", "secondary");
   send.type = "button";
   const what = document.createElement("details");
   what.append(el("summary", "What's sent"), el("pre", JSON.stringify(last.report, null, 1)));
