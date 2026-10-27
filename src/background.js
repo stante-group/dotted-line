@@ -13,7 +13,7 @@ import { sendToTab } from "./messaging.js";
 import { unzip } from "./lib/unzip.js";
 import { isPdf, hasAcroForm, countPages, fromBase64, toBase64 } from "./lib/pdf.js";
 import { pairEntries } from "./lib/webforms-api.js";
-import { errorReport, okReport, sanitizeReport, tallyOk, tallyDue, contextFromDraft, draftContext, chromeMajor, REPORT_URL, REPORTS_ON } from "./lib/report.js";
+import { errorReport, okReport, sanitizeReport, tallyOk, tallyDue, contextFromDraft, draftContext, chromeMajor, REPORT_URL, REPORTS_ON, sameFailure } from "./lib/report.js";
 
 const DB = "wfrs";
 const STORE = "jobs";
@@ -124,8 +124,10 @@ function recordError({ error, step, ctx }) {
     const report = errorReport({ error, step, ctx, version: VERSION, chrome: CHROME, local: stats });
     // The same failure again within 10 minutes is one failure: the panel redraws on every
     // tab switch, and a Real Signature tab that can't load would report itself each time.
-    const same = (a, b) => ["step", "cls", "code", "route", "field", "rule"].every((k) => a?.[k] === b?.[k]);
-    if (lastReport && Date.now() - lastReport.at < 10 * 60 * 1000 && same(lastReport.report, report)) {
+    // "Same" is every field (sameFailure), and the panel says it's a repeat (repeats) rather
+    // than showing the first one's "sent" as if it were about this one.
+    if (lastReport && Date.now() - lastReport.at < 10 * 60 * 1000 && sameFailure(lastReport.report, report)) {
+      await chrome.storage.local.set({ draftStats: stats, lastReport: { ...lastReport, repeats: (lastReport.repeats || 0) + 1 } });
       return { auto: !!lastReport.auto, reporting: reporting || null, repeat: true };
     }
     const at = Date.now();

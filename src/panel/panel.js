@@ -83,8 +83,13 @@ async function showReport() {
   const last = await chrome.runtime.sendMessage({ type: "report:last" }).catch(() => null);
   if (!last?.report) { box.hidden = true; return; }
   box.hidden = false;
+  // A repeat: the same failure, every detail alike, within 10 minutes. Said as such — what
+  // was sent was the first one, and this one isn't sent again.
+  const again = last.repeats ? "The same error happened a few minutes ago" : "";
   if (last.sent || last.auto) {
-    box.replaceChildren(el("div", last.sent ? "This error was sent to the Deal Dates team, without any client details."
+    box.replaceChildren(el("div", again
+      ? `${again} and was sent then, without any client details. It isn't sent again.`
+      : last.sent ? "This error was sent to the Deal Dates team, without any client details."
       : "Sending this error to the Deal Dates team, without any client details.", "note"));
     return;
   }
@@ -100,7 +105,7 @@ async function showReport() {
       : r?.auto ? "It's already being sent automatically."
       : "Couldn't send it. Check your connection and try again later.", "note"));
   };
-  box.replaceChildren(send, what);
+  box.replaceChildren(...(again ? [el("div", `${again}. One report covers both:`, "note")] : []), send, what);
 }
 
 /** The panel's own failures (Finish draft, loading deals): the background worker records

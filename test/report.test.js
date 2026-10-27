@@ -192,3 +192,21 @@ test("changing the yes/no answer forgets the last report, so a repeat isn't show
   const bg = await readFile(new URL("../src/background.js", import.meta.url), "utf8");
   assert.match(bg, /if \(area === "local" && changes\.reporting\) chrome\.storage\.local\.remove\("lastReport"\)/);
 });
+
+test("a repeat is the same failure in every field, not six of them", async () => {
+  const { sameFailure } = await import("../src/lib/report.js");
+  const err = { message: "Reload this tab once (the extension was installed or updated after it opened).", name: "Error" };
+  const base = { error: err, step: "context", version: "0.1.2", chrome: "141" };
+  const a = errorReport({ ...base, ctx: draftContext({ path: "panel", forms: [{}], signers: 2 }), local: { made: 2, failed: 1 } });
+  const sameAgain = errorReport({ ...base, ctx: draftContext({ path: "panel", forms: [{}], signers: 2 }), local: { made: 2, failed: 2 } });
+  const otherDraft = errorReport({ ...base, ctx: draftContext({ path: "panel", forms: [{}, {}, {}, {}], signers: 2 }), local: { made: 2, failed: 2 } });
+  const otherVersion = errorReport({ ...base, version: "0.1.3", ctx: draftContext({ path: "panel", forms: [{}], signers: 2 }) });
+  assert.ok(sameFailure(a, sameAgain), "only the running totals differ");
+  assert.ok(!sameFailure(a, otherDraft), "4 forms instead of 1 is a different failure");
+  assert.ok(!sameFailure(a, otherVersion));
+  assert.ok(!sameFailure(a, null));
+  const { readFile } = await import("node:fs/promises");
+  const bg = await readFile(new URL("../src/background.js", import.meta.url), "utf8");
+  assert.ok(!/\["step", "cls", "code", "route", "field", "rule"\]\.every/.test(bg), "the six-field test is gone");
+  assert.match(bg, /sameFailure\(lastReport\.report, report\)/);
+});

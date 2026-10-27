@@ -259,6 +259,18 @@ export function errorReport({ error, step, ctx = null, version, chrome, local = 
   return sanitizeReport({ kind: "error", step, version, chrome, ctx, local, ...classifyError(error) });
 }
 
+/** Two error reports are the same failure only when EVERY field matches — the error and
+ *  the draft around it (deal match, forms, signers, acting…), the version and Chrome — all
+ *  but the browser's running totals, which change with every error. Six error fields used
+ *  to decide it, so a different draft failing the same way was taken for a repeat and not
+ *  reported (Dan, 2026-10-27). Both are sanitizeReport() output, so key order is fixed. */
+export function sameFailure(a, b) {
+  if (!a || !b) return false;
+  const { local: _a, ...x } = a;
+  const { local: _b, ...y } = b;
+  return JSON.stringify(x) === JSON.stringify(y);
+}
+
 /** One day's successful drafts for one version, counted in this browser. */
 export function okReport({ version, chrome, day, counts, forms }) {
   return sanitizeReport({ kind: "ok", version, chrome, day, counts, forms });
