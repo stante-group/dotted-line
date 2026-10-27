@@ -164,6 +164,14 @@ function flushOk() {
 }
 flushOk().catch(() => {});
 
+// A changed answer starts fresh. Otherwise the same failure within 10 minutes counted as a
+// repeat of one made under the OLD answer, and after a switch to "no" the panel said "This
+// error was sent" about the earlier report (Dan's test, 2026-10-27). Nothing was sent; the
+// words were wrong.
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area === "local" && changes.reporting) chrome.storage.local.remove("lastReport").catch(() => {});
+});
+
 // Messages:
 //   {type: "report:error", step, error: {message, name}, ctx} → {auto, reporting}
 //   {type: "report:ok", path, forms}  → counted (and a past day's count sent, with a yes)

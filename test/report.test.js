@@ -186,3 +186,9 @@ test("a failure reading the WEBForms page is reported, as the hand-off step", as
   const panel = await readFile(new URL("../src/panel/panel.js", import.meta.url), "utf8");
   assert.match(panel, /await showWebforms\(tab\)\.catch\(async \(e\) => \{ await reportError\(e, "handoff"\); throw e; \}\)/);
 });
+
+test("changing the yes/no answer forgets the last report, so a repeat isn't shown as sent", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const bg = await readFile(new URL("../src/background.js", import.meta.url), "utf8");
+  assert.match(bg, /if \(area === "local" && changes\.reporting\) chrome\.storage\.local\.remove\("lastReport"\)/);
+});
