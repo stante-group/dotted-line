@@ -131,6 +131,8 @@ async function showReport() {
 /** The panel's own failures (Finish draft, loading deals): the background worker records
  *  them like its own. Never throws: reporting must not get in the way of the error. */
 async function reportError(e, step, draft = {}) {
+  // Marked once reported, so a catch further up reports only what nobody has yet.
+  try { if (e && typeof e === "object") e.reported = true; } catch { /* frozen: fine */ }
   await chrome.runtime.sendMessage({ type: "report:error", step, error: { message: String(e?.message || e), name: e?.name || "Error" },
     ctx: contextFromDraft({ path: "panel", ...draft }) }).catch(() => null);
   await showReport().catch(() => {});
@@ -386,7 +388,10 @@ $("wf-go").addEventListener("click", async () => {
     if (POPUP) await goToRealSignature(r.tabId);
   } catch (e) {
     say(String(e.message || e), "err");
+    // The worker reports what fails once it has the hand-off; what fails before that here
+    // (re-reading the ticks, redrawing the list) is reported here.
     if (e?.reported) showReport().catch(() => {});
+    else await reportError(e, "handoff");
     $("wf-go").disabled = false;
   } finally {
     wfBusy = false;
@@ -440,7 +445,11 @@ chrome.runtime.onMessage.addListener((msg, sender) => {
   const loaded = rsState.c.me?.actingForAgent ? rsState.c.me.id : null;
   if ((msg.actingAs || null) === loaded) return;
   say("");
-  showRealsig(rsState.tab, rsState.job).catch((e) => say(String(e.message || e), "err"));
+  const job = rsState.job;
+  showRealsig(rsState.tab, job).catch(async (e) => {
+    say(String(e.message || e), "err");
+    if (!e?.reported) await reportError(e, "context", { job });
+  });
 });
 
 let rsState = null;
@@ -924,6 +933,9 @@ async function refresh() {
       show("idle");
     } catch (e) {
       say(String(e.message || e), "err");
+      // Loading deals and reading WEBForms report their own; anything else that broke a
+      // redraw (finding the tab's hand-off, drawing the choices) is reported here.
+      if (!e?.reported) await reportError(e, "context");
     } finally {
       refreshing = null;
     }

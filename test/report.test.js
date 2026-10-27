@@ -219,3 +219,13 @@ test("the report and its Send button sit inside the error's red box", async () =
   const html = await readFile(new URL("../src/panel/panel.html", import.meta.url), "utf8");
   assert.match(html, /\.report-in-err \{/);
 });
+
+test("every panel error path reports once: the WEBForms button, an Acting-as reload, any redraw", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const panel = await readFile(new URL("../src/panel/panel.js", import.meta.url), "utf8");
+  assert.match(panel, /async function reportError\(e, step, draft = \{\}\) \{\n[^\n]*\n  try \{ if \(e && typeof e === "object"\) e\.reported = true;/);
+  assert.match(panel, /if \(e\?\.reported\) showReport\(\)\.catch\(\(\) => \{\}\);\n    else await reportError\(e, "handoff"\);/);
+  assert.match(panel, /showRealsig\(rsState\.tab, job\)\.catch\(async \(e\) => \{[\s\S]{0,120}if \(!e\?\.reported\) await reportError\(e, "context", \{ job \}\);/);
+  assert.match(panel, /if \(!e\?\.reported\) await reportError\(e, "context"\);\n    \} finally \{\n      refreshing = null;/);
+  assert.ok(!/\.catch\(\(e\) => say\(String\(e\.message \|\| e\), "err"\)\)/.test(panel), "no error shown without being reported");
+});
