@@ -27,9 +27,6 @@ passwords. The one thing it can send us is described next, and only if you say y
 
 ## Error reports, if you say yes
 
-**Not switched on yet.** Version 0.1.1 doesn't ask and sends no reports. This section
-describes what it will do once they are switched on, so you can read it before then.
-
 The first time you open Dotted Line it asks whether it may send error reports. Until you
 answer, and if you answer no, it sends nothing. You can change your answer any time in
 Dotted Line's Settings.

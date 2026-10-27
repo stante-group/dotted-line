@@ -81,7 +81,7 @@ from the first form that has an address. It is written Canada Post style, unit f
 - ✅ Runs only in your browser, using your own WEBForms and Real Signature sign-ins.
 - ❌ **Your contracts never go through us.** They go from WEBForms to Real Signature and
   nowhere else. No tracking, no account.
-- ✅ **Error reports only if you say yes** (coming; not switched on in 0.1.1). A short report when a draft fails, and a daily
+- ✅ **Error reports only if you say yes.** A short report when a draft fails, and a daily
   count of drafts that worked, so problems get fixed without you telling us. Fixed choices
   and numbers only, never a name, address, deal or form ([what's in one](PRIVACY.md));
   `src/lib/report.js` is the whole list.

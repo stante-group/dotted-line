@@ -8,9 +8,9 @@ something we do; no live client names, addresses or screenshots of real deals.
 https://chromewebstore.google.com/detail/dotted-line-by-deal-dates/hohklnkceafdacdmlngcbbhaokeoonkl
 Each update: bump `version` in manifest.json, build the zip, upload it under Package.
 
-**0.1.1 (2026-10-27) ships with error reports switched OFF** (`REPORTS_ON` in
-`src/lib/report.js`). For that upload leave out the error-report line in the description
-and DON'T tick User activity. Both go in with the release that switches reports on.
+**Error reports:** 0.1.1 (2026-10-27) shipped with them OFF. From the next release they are
+ON (`REPORTS_ON` in `src/lib/report.js`): with that upload, paste the description with its
+error-report line and tick **User activity** under data usage (both below).
 
 ## Store listing tab
 

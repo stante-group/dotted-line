@@ -166,10 +166,12 @@ test("Chrome's major version only", () => {
   assert.equal(chromeMajor("curl/8"), null);
 });
 
-test("0.1.1 ships with reports off: nothing is posted and nothing is offered", async () => {
+test("one switch turns reports off everywhere: nothing posted, nothing offered", async () => {
   const { readFile } = await import("node:fs/promises");
   const { REPORTS_ON } = await import("../src/lib/report.js");
-  assert.equal(REPORTS_ON, false, "switching reports on is a release decision (store/listing.md)");
+  // On since the endpoint went live (2026-10-27). Flipping it is a release decision: the
+  // store listing's data-use answers change with it (store/listing.md).
+  assert.equal(REPORTS_ON, true);
   const bg = await readFile(new URL("../src/background.js", import.meta.url), "utf8");
   assert.match(bg, /async function post\(report\) \{\n  if \(!REPORTS_ON\) return false;/);
   assert.match(bg, /"report:last"\) \{\n      if \(!REPORTS_ON\) return null;/);
