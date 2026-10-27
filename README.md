@@ -9,7 +9,7 @@ Open source, so anyone can check exactly what it does.
 
 **Install:** [Dotted Line on the Chrome Web Store](https://chromewebstore.google.com/detail/dotted-line-by-deal-dates/hohklnkceafdacdmlngcbbhaokeoonkl)
 (desktop Chrome or Edge). It's an unlisted beta: only people with the link can find it.
-See [PLAN.md](PLAN.md) for what's next.
+See [CHANGELOG.md](CHANGELOG.md) for what changed in each version, and [PLAN.md](PLAN.md) for what's next.
 
 ## How it works
 

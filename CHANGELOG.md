@@ -1,0 +1,42 @@
+# What's new in Dotted Line
+
+What changed in each version, in plain words. The newest is at the top. Chrome updates
+Dotted Line by itself a few hours after a version is published.
+
+## Not released yet
+
+- **Error reports, only if you say yes.** The first time you open Dotted Line it asks
+  whether it may send the Deal Dates team a short report when a draft fails, and a daily
+  count of drafts that worked. A report never holds your forms, or any name, email,
+  address, deal or template ([everything a report can hold](PRIVACY.md#error-reports-if-you-say-yes)).
+  You can change your answer any time in Settings. If you say no, you can still send a
+  single report yourself with the button under an error.
+- The button sits inside the red error box, so it's clear which error it's about.
+- The same error happening again within a few minutes is sent once, and the panel says so.
+
+## 0.1.1 — 2026-10-27
+
+- **You see the signers' email subject before the draft is made.** It's shown under the
+  title in the Real Signature panel, with a count, and follows the title until you edit it.
+  Real Signature allows 70 characters. A longer subject used to be cut short without telling
+  you; now Finish draft waits until you shorten it, and one click hands over to the panel
+  instead of sending a cut-down subject.
+- **Your own corporation isn't a warning any more.** If your WEBForms account is in your
+  personal real estate corporation's name, Dotted Line now says so as a note instead of
+  warning "different people", and one-click drafts are no longer held up by it.
+- **Fix:** when a transaction coordinator switched "Acting as" in Real Signature, the
+  panel could miss the switch and keep showing the previous agent's deals.
+- **Fix:** Check my setup now shows the error code from each site instead of just "error".
+
+## 0.1.0 — 2026-10-16
+
+First release in the Chrome Web Store (unlisted).
+
+- Tick forms in CREA WEBForms, or use the Basket, and Dotted Line brings them into Real
+  Signature as a draft on the matching reZEN deal, with the signers filled in and the
+  signature, initials and date blocks placed from your templates.
+- One-click drafts when nothing needs your choice; otherwise the Real Signature panel asks.
+- Several forms become a packet.
+- Import templates from a template file, in Settings.
+- Check my setup, in Settings, for troubleshooting.
+- Draft only: you review it and send it from Real Signature yourself.
