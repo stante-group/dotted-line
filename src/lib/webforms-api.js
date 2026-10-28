@@ -273,8 +273,26 @@ export function partiesFromFormValues(values) {
   return out;
 }
 
+/** The picked forms split into downloads in which no two share a zip entry name: the first
+ *  of each name in the first, the second in the next, and so on. Two copies of one form are
+ *  normal (one per signer, when a form takes only one: Dan, 2026-10-28), but the zip names
+ *  its files by form name only, so in one download the two can't be told apart. Apart,
+ *  each file is its own form's. Almost always one download. → [[form, …], …] in pick order */
+export function zipBatches(forms) {
+  const batches = [];
+  const seen = new Map();
+  for (const f of forms) {
+    const n = zipEntryName(f.name);
+    const k = seen.get(n) || 0;
+    seen.set(n, k + 1);
+    (batches[k] ||= []).push(f);
+  }
+  return batches;
+}
+
 /** Pair each picked form with its zip entry by name. Two forms with the same name can't be
- *  told apart in the zip, so that's refused rather than risking swapped contracts. */
+ *  told apart in one zip, so that's refused rather than risking swapped contracts —
+ *  zipBatches() keeps them in separate downloads, so it shouldn't happen. */
 export function pairEntries(forms, entries) {
   const byName = new Map();
   for (const e of entries) {

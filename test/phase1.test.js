@@ -6,7 +6,7 @@ import { deflateRawSync, crc32 as zcrc } from "node:zlib";
 import { unzip, crc32 } from "../src/lib/unzip.js";
 import { isPdf, hasAcroForm, countPages, toBase64, fromBase64 } from "../src/lib/pdf.js";
 import { suggestTitle, matchAddress, addressLine } from "../src/lib/title.js";
-import { WebForms, isAllowed, readBearer, zipEntryName, pairEntries, WebFormsSignedOut, partiesFromFormValues, libraryNamesFrom, agentSideFromFormValues, agentSideFromContacts, combineSides, partiesFromContacts, buyerNamesFromContacts, mergeParties, peopleFromContacts } from "../src/lib/webforms-api.js";
+import { WebForms, isAllowed, readBearer, zipEntryName, pairEntries, zipBatches, WebFormsSignedOut, partiesFromFormValues, libraryNamesFrom, agentSideFromFormValues, agentSideFromContacts, combineSides, partiesFromContacts, buyerNamesFromContacts, mergeParties, peopleFromContacts } from "../src/lib/webforms-api.js";
 import { formKey } from "../src/lib/match.js";
 import { buildDraftBody, signeesFromDeal, countsFromDeal, signersWithoutEmail, signerCounts, sideFromFormNames, templateSlots, isEmail, agentRoleFor, agentPerson, agentPeople, chooseAgents, unfilledRoles, fitSubject, SUBJECT_MAX, cleanSubject, subjectTooLong } from "../src/lib/draft.js";
 import { stripTemplate, dropUnusedSlots } from "../src/lib/layout.js";
@@ -190,6 +190,20 @@ test("zip entries pair with forms by WEBForms' file naming; duplicates refused",
   assert.deepEqual(pairEntries([{ name: "A/x" }, { name: "B" }], entries).map((p) => p.data), [1, 2]);
   assert.throws(() => pairEntries([{ name: "A" }, { name: "A" }], [{ name: "A.pdf" }]), /Two of the picked forms/);
   assert.throws(() => pairEntries([{ name: "C" }], entries), /wasn't in/);
+});
+
+test("two copies of one form go in separate downloads, so each file is its own form's", () => {
+  const a1 = { id: "1", name: "Sample Notice" }, b = { id: "2", name: "Sample/Waiver" };
+  const a2 = { id: "3", name: "Sample Notice" }, a3 = { id: "4", name: "Sample Notice" };
+  assert.deepEqual(zipBatches([a1, b]), [[a1, b]]);
+  assert.deepEqual(zipBatches([a1, b, a2, a3]), [[a1, b], [a2], [a3]]);
+  // "A/x" and "A_x" are the same file name in the zip.
+  const s1 = { id: "5", name: "A/x" }, s2 = { id: "6", name: "A_x" };
+  assert.deepEqual(zipBatches([s1, s2]), [[s1], [s2]]);
+  for (const batch of zipBatches([a1, b, a2, a3])) {
+    const entries = batch.map((f) => ({ name: zipEntryName(f.name), data: f.id }));
+    assert.deepEqual(pairEntries(batch, entries).map((p) => p.data), batch.map((f) => f.id));
+  }
 });
 
 const sampleDealRaw = {

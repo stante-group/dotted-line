@@ -12,7 +12,7 @@ import { subjectTooLong } from "./lib/draft.js";
 import { sendToTab } from "./messaging.js";
 import { unzip } from "./lib/unzip.js";
 import { isPdf, hasAcroForm, countPages, fromBase64, toBase64 } from "./lib/pdf.js";
-import { pairEntries } from "./lib/webforms-api.js";
+import { pairEntries, zipBatches } from "./lib/webforms-api.js";
 import { errorReport, okReport, sanitizeReport, tallyOk, tallyDue, contextFromDraft, draftContext, chromeMajor, REPORT_URL, REPORTS_ON, sameFailure } from "./lib/report.js";
 
 const DB = "wfrs";
@@ -305,9 +305,14 @@ async function startJob({ wfTabId, wfForms, meta, background, auto }) {
   setHandoff(tabId, { busy: "Getting your forms from WEBForms…" });
   try {
     const tZip = Date.now();
-    const z = await sendToTab(wfTabId, { type: "webforms:zip", forms: wfForms.map((f) => ({ id: f.id, name: f.name })) });
+    // Same-named forms go in separate downloads (zipBatches); pairs are put back in pick order.
+    const paired = new Map();
+    for (const batch of zipBatches(wfForms)) {
+      const z = await sendToTab(wfTabId, { type: "webforms:zip", forms: batch.map((f) => ({ id: f.id, name: f.name })) });
+      for (const p of pairEntries(batch, await unzip(fromBase64(z.zipBase64)))) paired.set(p.form, p);
+    }
     const timings = { ...(meta.timings || {}), pdfDownload: Math.round((Date.now() - tZip) / 100) / 10 };
-    const forms = pairEntries(wfForms, await unzip(fromBase64(z.zipBase64))).map(({ form, data }) => {
+    const forms = wfForms.map((f) => paired.get(f)).map(({ form, data }) => {
       if (!isPdf(data)) throw new Error(`"${form.name}" didn't come back as a PDF.`);
       if (hasAcroForm(data)) throw new Error(`"${form.name}" came back as a fillable PDF, not the flattened form. Not using it.`);
       // From here on a form is known by its TYPE's name (template suggestions, the buyer or
