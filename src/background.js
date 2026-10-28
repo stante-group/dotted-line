@@ -126,9 +126,21 @@ function recordError({ error, step, ctx }) {
     // tab switch, and a Real Signature tab that can't load would report itself each time.
     // "Same" is every field (sameFailure), and the panel says it's a repeat (repeats) rather
     // than showing the first one's "sent" as if it were about this one.
+    // A changed answer doesn't start fresh: forgetting the first report made the same
+    // failure, sent by hand under "no", go again automatically after a switch to "yes" — one
+    // failure, two reports (Dan's test, 2026-10-27). A repeat is never sent again. The one
+    // case that sends is a first report that never went, now that the answer is yes.
     if (lastReport && Date.now() - lastReport.at < 10 * 60 * 1000 && sameFailure(lastReport.report, report)) {
-      await chrome.storage.local.set({ draftStats: stats, lastReport: { ...lastReport, repeats: (lastReport.repeats || 0) + 1 } });
-      return { auto: !!lastReport.auto, reporting: reporting || null, repeat: true };
+      const late = reporting === "yes" && !lastReport.sent && !lastReport.auto;
+      const l = { ...lastReport, repeats: (lastReport.repeats || 0) + 1, auto: lastReport.auto || late };
+      await chrome.storage.local.set({ draftStats: stats, lastReport: l });
+      if (late) {
+        post(l.report).then(async (ok) => {
+          const { lastReport: now } = await chrome.storage.local.get("lastReport");
+          if (now?.at === l.at) await chrome.storage.local.set({ lastReport: { ...now, sent: ok, auto: ok } });
+        }).catch(() => {});
+      }
+      return { auto: !!l.auto, reporting: reporting || null, repeat: true };
     }
     const at = Date.now();
     // auto: on its way because the agent said yes. The send itself is not awaited (up to
@@ -165,14 +177,6 @@ function flushOk() {
   });
 }
 flushOk().catch(() => {});
-
-// A changed answer starts fresh. Otherwise the same failure within 10 minutes counted as a
-// repeat of one made under the OLD answer, and after a switch to "no" the panel said "This
-// error was sent" about the earlier report (Dan's test, 2026-10-27). Nothing was sent; the
-// words were wrong.
-chrome.storage.onChanged.addListener((changes, area) => {
-  if (area === "local" && changes.reporting) chrome.storage.local.remove("lastReport").catch(() => {});
-});
 
 // Messages:
 //   {type: "report:error", step, error: {message, name}, ctx} → {auto, reporting}

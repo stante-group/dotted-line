@@ -187,11 +187,6 @@ test("a failure reading the WEBForms page is reported, as the hand-off step", as
   assert.match(panel, /await showWebforms\(tab\)\.catch\(async \(e\) => \{ await reportError\(e, "handoff"\); throw e; \}\)/);
 });
 
-test("changing the yes/no answer forgets the last report, so a repeat isn't shown as sent", async () => {
-  const { readFile } = await import("node:fs/promises");
-  const bg = await readFile(new URL("../src/background.js", import.meta.url), "utf8");
-  assert.match(bg, /if \(area === "local" && changes\.reporting\) chrome\.storage\.local\.remove\("lastReport"\)/);
-});
 
 test("a repeat is the same failure in every field, not six of them", async () => {
   const { sameFailure } = await import("../src/lib/report.js");
@@ -228,4 +223,63 @@ test("every panel error path reports once: the WEBForms button, an Acting-as rel
   assert.match(panel, /showRealsig\(rsState\.tab, job\)\.catch\(async \(e\) => \{[\s\S]{0,120}if \(!e\?\.reported\) await reportError\(e, "context", \{ job \}\);/);
   assert.match(panel, /if \(!e\?\.reported\) await reportError\(e, "context"\);\n    \} finally \{\n      refreshing = null;/);
   assert.ok(!/\.catch\(\(e\) => say\(String\(e\.message \|\| e\), "err"\)\)/.test(panel), "no error shown without being reported");
+});
+
+// The real background worker, with a fake chrome whose storage round-trips through JSON and
+// a counted fetch: one failure must never become two reports (Dan's test, 2026-10-27).
+async function backgroundWorker() {
+  const store = {}, changed = [], onMsg = [];
+  const ev = (arr) => ({ addListener: (f) => arr.push(f) });
+  const any = new Proxy(function () {}, { get: (_, k) => (k === "then" ? undefined : any), apply: () => Promise.resolve() });
+  const local = {
+    get: async (keys) => Object.fromEntries((keys == null ? Object.keys(store) : [].concat(keys)).filter((k) => k in store).map((k) => [k, JSON.parse(store[k])])),
+    set: async (o) => { for (const [k, v] of Object.entries(o)) store[k] = JSON.stringify(v); changed.forEach((f) => f(o, "local")); },
+    remove: async (k) => { for (const x of [].concat(k)) delete store[x]; },
+  };
+  globalThis.chrome = new Proxy({
+    storage: { local, sync: { get: async () => ({}) }, onChanged: ev(changed) },
+    runtime: { getManifest: () => ({ version: "0.1.2" }), getURL: (p) => "chrome-extension://x/" + (p || ""), onMessage: ev(onMsg), sendMessage: () => Promise.resolve(), onInstalled: ev([]) },
+    tabs: { query: async () => [], onUpdated: ev([]), onActivated: ev([]), onRemoved: ev([]) },
+  }, { get: (t, k) => (k in t ? t[k] : any) });
+  Object.defineProperty(globalThis, "navigator", { value: { userAgent: "Chrome/141.0.0.0" }, configurable: true });
+  globalThis.indexedDB = { open: () => { const r = {}; setTimeout(() => r.onerror?.(), 0); return r; } };
+  const sent = [];
+  globalThis.fetch = async (_url, init) => { sent.push(JSON.parse(init.body)); return { ok: true }; };
+  await import(`../src/background.js?${Math.random()}`);
+  const ask = (msg) => new Promise((res) => { for (const f of onMsg) f(msg, { url: "chrome-extension://x/src/panel/panel.html" }, res); });
+  return { store, local, sent, ask, settle: () => new Promise((r) => setTimeout(r, 20)) };
+}
+
+test("one failure is one report: repeats, and a switch from no to yes, don't send it twice", async () => {
+  const { REPORTS_ON } = await import("../src/lib/report.js");
+  if (!REPORTS_ON) return;
+  const w = await backgroundWorker();
+  const error = { message: "Reload this tab once (the extension was installed or updated after it opened).", name: "Error" };
+  const fail = () => w.ask({ type: "report:error", step: "handoff", error, ctx: { path: "panel", forms: "1" } });
+
+  // Yes: the same failure twice → sent once, the second counted as a repeat.
+  await w.local.set({ reporting: "yes" });
+  await fail(); await w.settle();
+  const r = await fail(); await w.settle();
+  assert.equal(w.sent.length, 1);
+  assert.equal(r.repeat, true);
+
+  // No, sent by hand, then yes, then the same failure → still that one report.
+  w.sent.length = 0; await w.local.remove("lastReport");
+  await w.local.set({ reporting: "no" });
+  await fail(); await w.settle();
+  const { lastReport } = await w.local.get("lastReport");
+  await w.ask({ type: "report:send-last", at: lastReport.at }); await w.settle();
+  await w.local.set({ reporting: "yes" });
+  await fail(); await w.settle();
+  assert.equal(w.sent.length, 1, "sent by hand, not again after the switch to yes");
+
+  // No, not sent, then yes, then the same failure → it goes now, once.
+  w.sent.length = 0; await w.local.remove("lastReport");
+  await w.local.set({ reporting: "no" });
+  await fail(); await w.settle();
+  await w.local.set({ reporting: "yes" });
+  await fail(); await w.settle();
+  await fail(); await w.settle();
+  assert.equal(w.sent.length, 1, "the unsent first report goes once the answer is yes");
 });
