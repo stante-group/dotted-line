@@ -586,11 +586,19 @@ function renderTemplates(side) {
   rsState.tplSide = side;
 }
 
-// Whether "Finish draft" can go: a deal (or No deal) chosen, and a subject Real will take.
+// Whether "Finish draft" can go: a deal (or No deal) chosen, a template (or No template)
+// for every form, and a subject Real will take. The button greys out until then rather
+// than saying so only after it's pressed (Dan, 2026-10-28); the note under it says why.
 function canFinish() {
   const id = $("rs-deal").value;
   const chosen = !!rsState?.c.deals.find((d) => d.id === id) || id === "none";
-  return chosen && !subjectHeld();
+  const tplHeld = chosen && !templatesChosen();
+  $("rs-go-why").hidden = !tplHeld;
+  return chosen && !tplHeld && !subjectHeld();
+}
+
+function templatesChosen() {
+  return (rsState?.job.forms || []).every((_, i) => !!$(`tpl-${i}`)?.value);
 }
 
 function subjectHeld() {
@@ -616,10 +624,10 @@ function updateDeal() {
   const chosen = !!deal || id === "none";
   $("rs-after-deal").hidden = !chosen;
   $("rs-deal-first").hidden = chosen;
-  $("rs-go").disabled = !canFinish();
   // Before the counts: they read the template picks, and the side picks the templates.
   const side = signingSide({ deal, agentSide: job.agentSide });
   if (side !== rsState.tplSide) renderTemplates(side);
+  $("rs-go").disabled = !canFinish(); // after the templates are drawn: it reads the picks
   const notes = [];
   // A template picked by hand that has blocks only for the side that isn't signing.
   job.forms.forEach((form, i) => {

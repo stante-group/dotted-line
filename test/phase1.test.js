@@ -623,3 +623,14 @@ test("a subject over 70 is held for the agent, not cut on the way", async () => 
   const html = await readFile(new URL("../src/panel/panel.html", import.meta.url), "utf8");
   assert.match(html, /id="rs-subject"/);
 });
+
+test("Finish draft stays grey until every form has a template (or No template), and says why", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const panel = await readFile(new URL("../src/panel/panel.js", import.meta.url), "utf8");
+  const html = await readFile(new URL("../src/panel/panel.html", import.meta.url), "utf8");
+  assert.match(panel, /return chosen && !tplHeld && !subjectHeld\(\);/);
+  assert.match(panel, /function templatesChosen\(\) \{\n  return \(rsState\?\.job\.forms \|\| \[\]\)\.every\(\(_, i\) => !!\$\(`tpl-\$\{i\}`\)\?\.value\);/);
+  // Worked out after the templates are drawn, or it reads the old picks.
+  assert.match(panel, /renderTemplates\(side\);\n  \$\("rs-go"\)\.disabled = !canFinish\(\);/);
+  assert.match(html, /<p class="note" id="rs-go-why" hidden>Choose a template/);
+});

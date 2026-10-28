@@ -15,6 +15,8 @@ Dotted Line by itself a few hours after a version is published.
 - The same error happening again within a few minutes is sent once, and the panel says so.
 - **Two copies of the same form** (say, one for each signer) now go into the draft together.
   They used to be refused until you renamed one.
+- **Finish draft stays grey until every form has a template** (or No template), with a
+  note saying so, instead of telling you only after you press it.
 
 ## 0.1.1 — 2026-10-27
 
