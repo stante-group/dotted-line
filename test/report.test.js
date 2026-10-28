@@ -227,13 +227,17 @@ test("every panel error path reports once: the WEBForms button, an Acting-as rel
 
 // The real background worker, with a fake chrome whose storage round-trips through JSON and
 // a counted fetch: one failure must never become two reports (Dan's test, 2026-10-27).
+const sortKeys = (v) => (Array.isArray(v) ? v.map(sortKeys)
+  : v && typeof v === "object" ? Object.fromEntries(Object.keys(v).sort().map((k) => [k, sortKeys(v[k])])) : v);
+
 async function backgroundWorker() {
   const store = {}, changed = [], onMsg = [];
   const ev = (arr) => ({ addListener: (f) => arr.push(f) });
   const any = new Proxy(function () {}, { get: (_, k) => (k === "then" ? undefined : any), apply: () => Promise.resolve() });
   const local = {
     get: async (keys) => Object.fromEntries((keys == null ? Object.keys(store) : [].concat(keys)).filter((k) => k in store).map((k) => [k, JSON.parse(store[k])])),
-    set: async (o) => { for (const [k, v] of Object.entries(o)) store[k] = JSON.stringify(v); changed.forEach((f) => f(o, "local")); },
+    // Like Chrome's: objects come back with their keys in alphabetical order.
+    set: async (o) => { for (const [k, v] of Object.entries(o)) store[k] = JSON.stringify(sortKeys(v)); changed.forEach((f) => f(o, "local")); },
     remove: async (k) => { for (const x of [].concat(k)) delete store[x]; },
   };
   globalThis.chrome = new Proxy({

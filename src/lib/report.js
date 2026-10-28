@@ -263,12 +263,16 @@ export function errorReport({ error, step, ctx = null, version, chrome, local = 
  *  the draft around it (deal match, forms, signers, acting…), the version and Chrome — all
  *  but the browser's running totals, which change with every error. Six error fields used
  *  to decide it, so a different draft failing the same way was taken for a repeat and not
- *  reported (Dan, 2026-10-27). Both are sanitizeReport() output, so key order is fixed. */
+ *  reported (Dan, 2026-10-27).
+ *  Both go through sanitizeReport() again before comparing: one of them has been through
+ *  chrome.storage, which hands objects back with their keys in ALPHABETICAL order, so the
+ *  same report as text didn't match itself and every repeat was sent (Dan's test,
+ *  2026-10-28). sanitizeReport builds its output in one fixed order. */
 export function sameFailure(a, b) {
   if (!a || !b) return false;
-  const { local: _a, ...x } = a;
-  const { local: _b, ...y } = b;
-  return JSON.stringify(x) === JSON.stringify(y);
+  const x = sanitizeReport({ ...a, local: null });
+  const y = sanitizeReport({ ...b, local: null });
+  return !!x && !!y && JSON.stringify(x) === JSON.stringify(y);
 }
 
 /** One day's successful drafts for one version, counted in this browser. */
