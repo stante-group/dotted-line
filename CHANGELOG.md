@@ -3,7 +3,7 @@
 What changed in each version, in plain words. The newest is at the top. Chrome updates
 Dotted Line by itself a few hours after a version is published.
 
-## Not released yet
+## 0.1.2 — 2026-10-28
 
 - **Error reports, only if you say yes.** The first time you open Dotted Line it asks
   whether it may send the Deal Dates team a short report when a draft fails, and a daily

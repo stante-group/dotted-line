@@ -12,9 +12,9 @@ Each update (Dan picks what goes in and the number):
 3. The store has no "what's new" field: replace the **What's new** paragraph at the end of
    the description below with that version's lines, shortened.
 
-**Error reports:** 0.1.1 (2026-10-27) shipped with them OFF. From the next release they are
-ON (`REPORTS_ON` in `src/lib/report.js`): with that upload, paste the description with its
-error-report line and tick **User activity** under data usage (both below).
+**Error reports:** 0.1.1 (2026-10-27) shipped with them OFF; 0.1.2 (2026-10-28) switches
+them ON (`REPORTS_ON` in `src/lib/report.js`). With the 0.1.2 upload, paste the description
+with its error-report line and tick **User activity** under data usage (both below).
 
 ## Store listing tab
 
@@ -49,7 +49,7 @@ If an agent has given you Real Signature access in reZEN, pick them under "Actin
 
 Free and open source (MIT): https://github.com/stante-group/dotted-line
 
-What's new (next release): optional error reports. Dotted Line asks once whether it may send a short report when a draft fails; you can change your answer in Settings. Every version's changes: https://github.com/stante-group/dotted-line/blob/main/CHANGELOG.md
+What's new in 0.1.2: optional error reports (Dotted Line asks once whether it may send a short report when a draft fails; change your answer any time in Settings). Two copies of the same form now go into one draft. Finish draft stays grey until every form has a template. Every version's changes: https://github.com/stante-group/dotted-line/blob/main/CHANGELOG.md
 
 Made by the Deal Dates team — your deal deadlines in your inbox at 6am (dealdates.app).
 Dotted Line is an independent tool. It is not made, endorsed or supported by Lone Wolf Technologies, CREA or Real Broker. WEBForms, reZEN and Real Signature are their owners' trademarks.
