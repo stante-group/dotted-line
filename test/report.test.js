@@ -287,3 +287,14 @@ test("one failure is one report: repeats, and a switch from no to yes, don't sen
   await fail(); await w.settle();
   assert.equal(w.sent.length, 1, "the unsent first report goes once the answer is yes");
 });
+
+test("a failure that never saw the ticked forms says the count is unknown, not 1", async () => {
+  const { contextFromDraft, sanitizeReport } = await import("../src/lib/report.js");
+  assert.equal(contextFromDraft({ path: "panel" }).forms, "unknown");
+  assert.equal(contextFromDraft({ path: "panel", job: { forms: [{}, {}] } }).forms, "2-3");
+  const base = { kind: "error", version: "0.1.2", chrome: "141", step: "handoff" };
+  assert.equal(sanitizeReport({ ...base, ctx: { path: "panel", forms: "unknown" } }).ctx.forms, "unknown");
+  assert.equal(sanitizeReport({ ...base, ctx: { path: "panel", forms: "1" } }).ctx.forms, "1");
+  assert.equal(sanitizeReport({ ...base, ctx: { path: "panel", forms: "7 forms" } }).ctx.forms, "unknown");
+  assert.equal(sanitizeReport({ kind: "ok", version: "0.1.2", day: "2026-10-28", forms: { unknown: 3 } }).forms.unknown, undefined);
+});

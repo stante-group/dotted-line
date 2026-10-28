@@ -54,7 +54,7 @@ half-made draft may be left; and, about the draft, one click or the side panel, 
 an agent or not, how the two sign-ins compare (same person, the agent's own corporation,
 different, or can't tell), how the deal was matched (address, buyer name, picked by hand,
 none), whether it is another agent's deal, templates on all, some or no forms, whether
-their page counts match, the number of forms (1, 2–3, 4+) and signers (0, 1, 2, 3+),
+their page counts match, the number of forms (1, 2–3, 4+, or not known) and signers (0, 1, 2, 3+),
 whether a signer has no email, which step was slow (over 30 seconds), and whether a
 warning was showing.
 

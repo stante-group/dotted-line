@@ -44,6 +44,11 @@ export const ENUMS = {
   tpl: ["all", "some", "none"],
   pages: ["agree", "differ", "unknown", "none"],
   forms: ["1", "2-3", "4+"],
+  // A failed draft's form count can be unknown: a tab the extension can't reach never says
+  // what was ticked. It used to be reported as "1", which the report didn't know (Dan's
+  // test, 2026-10-28). The daily count of drafts that worked always knows, so it keeps
+  // the three bands above.
+  ctxForms: ["1", "2-3", "4+", "unknown"],
   signers: ["0", "1", "2", "3+"],
   slow: ["none", "realSignatureReady", "pdfDownload", "upload", "readBack", "save", "packet", "draftMade"],
 };
@@ -178,7 +183,7 @@ export function draftContext({ path, acting = false, wf = "none", dealBy = "none
   return {
     path, acting: !!acting, wf, deal: dealBy, othersDeal: !!othersDeal,
     tpl: !chosen.length ? "none" : chosen.length === forms.length ? "all" : "some",
-    pages, forms: formsBand(forms.length || 1), signers: signersBand(signers),
+    pages, forms: forms.length ? formsBand(forms.length) : "unknown", signers: signersBand(signers),
     noEmail: !!noEmail, slow: slowStep(timings), warned: !!warned,
   };
 }
@@ -244,7 +249,7 @@ export function sanitizeReport(r) {
       othersDeal: c.othersDeal === true,
       tpl: pick(c.tpl, ENUMS.tpl, "none"),
       pages: pick(c.pages, ENUMS.pages, "unknown"),
-      forms: pick(c.forms, ENUMS.forms, "1"),
+      forms: pick(c.forms, ENUMS.ctxForms, "unknown"),
       signers: pick(c.signers, ENUMS.signers, "0"),
       noEmail: c.noEmail === true,
       slow: pick(c.slow, ENUMS.slow, "none"),
