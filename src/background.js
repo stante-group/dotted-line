@@ -69,7 +69,7 @@ const draftKey = (url) => String(url).match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}
 // test 26, 2026-10-29).
 const fromRoot = (paths) => Object.fromEntries(Object.entries(paths).map(([k, v]) => [k, `/${String(v).replace(/^\//, "")}`]));
 const ICON = fromRoot(chrome.runtime.getManifest().action?.default_icon || {});
-const DOT_ICON = { 16: "/icons/icon-16-dot.png", 32: "/icons/icon-32-dot.png" };
+const DOT_ICON = { 16: "/icons/toolbar-dot-16.png", 32: "/icons/toolbar-dot-32.png" };
 const iconFailed = (e) => console.warn("Dotted Line: couldn't set the toolbar icon", e);
 async function showMade(tabId, made) {
   const { madeFor = {} } = await chrome.storage.session.get("madeFor");
