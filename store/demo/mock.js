@@ -28,11 +28,10 @@
   const slots = (b, s, a) => ({ BUYER: b, SELLER: s, AGENT: a });
   const templates = [
     { id: "t1", name: "Purchase Contract – buyers", pagesCount: 10, blocks: 38, shared: false, slots: slots(2, 0, 1), agentRole: "BUYERS_AGENT" },
-    { id: "t2", name: "Consumer Relationships Guide – buyer", pagesCount: 4, blocks: 6, shared: false, slots: slots(2, 0, 1), agentRole: "BUYERS_AGENT" },
     { id: "t3", name: "Purchase Contract – team", pagesCount: 10, blocks: 30, shared: true, slots: slots(2, 0, 1), agentRole: "BUYERS_AGENT" },
   ];
   const job = {
-    id: "job1", title: "Residential Purchase Contract + Consumer Relationships Guide – 120 Example Street NW",
+    id: "job1", title: "120 Example Street NW – Purchase Contract",
     address: "120 Example Street NW Calgary", buyerNames: ["Jordan Sample", "Casey Sample"], agentSide: "BUYER",
     parties: { BUYER: 2, SELLER: 0 }, contactPeople: [], webformsUserName: "Alex Example", webformsUserEmail: "alex@example.com",
     forms: [
@@ -40,10 +39,12 @@
       { id: "f2", name: "Consumer Relationships Guide", pageCount: 4, parties: { BUYER: 2, SELLER: 0 } },
     ],
   };
-  // Templates already remembered for these forms, so the shot shows a finished pick
-  // ("(last used)") rather than "Choose a template…".
+  // The purchase contract's template already remembered, so the shot shows a finished pick
+  // ("(last used)"); the guide has no template, so it shows Auto place. Reports already
+  // answered, so the first-run question doesn't cover the panel.
   const ready = import("../../src/lib/match.js").then((m) => {
-    store.local.templateFor = Object.fromEntries(job.forms.map((f, i) => [m.rememberKey(f, "BUYER"), m.rememberEntry(f, templates[i])]));
+    store.local.templateFor = { [m.rememberKey(job.forms[0], "BUYER")]: m.rememberEntry(job.forms[0], templates[0]) };
+    store.local.reporting = "yes";
   });
 
   const tabReply = {
@@ -75,7 +76,7 @@
       sendMessage: async (msg) => (msg.type === "job:forTab" ? job : null),
       onMessage: ev(),
       getURL: (p) => `../../${p}`,
-      getManifest: () => ({ version: "0.1.0" }),
+      getManifest: () => ({ version: "0.2.0", action: { default_title: "Dotted Line" } }),
       openOptionsPage() {},
     },
     action: { setPopup: async () => {} },

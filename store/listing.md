@@ -33,7 +33,7 @@ Dotted Line moves the forms you filled in CREA WEBForms into Real Signature for 
 How it works
 1. In WEBForms, tick the forms you want signed.
 2. Click the Dotted Line icon and press Prepare in Real Signature.
-3. Dotted Line brings those forms into Real Signature, picks the matching reZEN deal and your templates, and adds the signers.
+3. Dotted Line brings those forms into Real Signature, picks the matching reZEN deal, adds the signers, and places the signature, initials and date blocks: from your Real Signature templates, or with Auto place, from the form's own printed labels.
 4. When one deal clearly matches and every form has its usual template, the draft is made straight away. Otherwise a side panel asks you to check the deal and templates — then press Finish draft.
 5. Check the draft in Real Signature and send it yourself.
 
@@ -49,7 +49,7 @@ If an agent has given you Real Signature access in reZEN, pick them under "Actin
 
 Free and open source (MIT): https://github.com/stante-group/dotted-line
 
-What's new in 0.1.2: optional error reports (Dotted Line asks once whether it may send a short report when a draft fails; change your answer any time in Settings). Two copies of the same form now go into one draft. Finish draft stays grey until every form has a template. Every version's changes: https://github.com/stante-group/dotted-line/blob/main/CHANGELOG.md
+What's new in 0.2.0: Auto place puts signature, initials and date blocks on forms you have no template for, from the form's own labels (Alberta, BC, Manitoba, Ontario and Saskatchewan forms so far). No deal is picked for you when nothing comes close. After a one-click draft, click the icon to see what it chose. Tidier deal and template lists, and a new icon. Every version's changes: https://github.com/stante-group/dotted-line/blob/main/CHANGELOG.md
 
 Made by the Deal Dates team — your deal deadlines in your inbox at 6am (dealdates.app).
 Dotted Line is an independent tool. It is not made, endorsed or supported by Lone Wolf Technologies, CREA or Real Broker. WEBForms, reZEN and Real Signature are their owners' trademarks.

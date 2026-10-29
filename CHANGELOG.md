@@ -3,37 +3,44 @@
 What changed in each version, in plain words. The newest is at the top. Chrome updates
 Dotted Line by itself a few hours after a version is published.
 
-## Not released yet
+## 0.2.0 — 2026-10-29
 
 - **Auto place: blocks placed for you, with no template.** For a form you have no template
   for, Dotted Line reads the form's printed labels ("Signature of Seller", "Buyer's
   Initials", "Signed and dated … on") and places signature, initials, date and time blocks
-  on them. Alberta, British Columbia, Manitoba, Ontario and Saskatchewan forms so far, and the Consumer
-  Relationships Guide. Signature and date boxes stop short of printed text just above them.
-  Names are left for you to type in WEBForms. It's the default when no template is
-  remembered or suggested; "No template" is still in the list.
-- Where the form has a separate time blank, the time and the date are separate blocks.
-  Every placed block is required, so a signer can't skip a date or time.
-- "Add the agent as a signer" is ticked when a form placed this way has an agent line.
-- A small gap in the template list separates your templates from the two other choices.
-- The reZEN deal list shows the close matches first, then No deal, then your deals,
-  listings and Buyer Records in groups of their own, each in address or name order.
-- When no reZEN deal or Buyer Record comes anywhere near the form's address or buyers
-  (usually a form signed before there's a deal), No deal is picked for you, and one click
-  goes ahead. When several deals could match, you still choose.
-- **After a one-click draft, click the Dotted Line icon to see what it chose:** the deal
-  (or No deal, and why), each form's template or Auto place, and
-  whether the agent signs. When one click chose for you, the icon shows a small amber dot
-  until you've looked or moved past the first step.
+  on them. Alberta, British Columbia, Manitoba, Ontario and Saskatchewan forms so far, and
+  the Consumer Relationships Guide. Names are left for you to type in WEBForms.
+  - It's the choice when no template is remembered or suggested; "No template" is still
+    in the list.
+  - Switch a form from your usual template to Auto place and that's remembered too.
+  - Where the form has a separate time blank, the time and the date are separate blocks.
+    Every placed block is required, so a signer can't skip a date or time; delete any you
+    don't want in Real Signature.
+  - Signature and date boxes stop short of printed text just above them.
+  - "Add the agent as a signer" is ticked when a form placed this way has an agent line.
+- **No deal when nothing comes close.** When no reZEN deal or Buyer Record comes anywhere
+  near the form's address or buyers (usually a form signed before there's a deal), No deal
+  is picked for you, and one click goes ahead. When several deals could match, you still
+  choose.
+- **See what one click chose.** After a one-click draft, click the Dotted Line icon on it:
+  the deal (or No deal, and why), each form's template or Auto place, and whether the agent
+  signs. When one click chose for you, the icon shows a small amber dot until you've looked
+  or moved past the first step.
+- **Tidier lists.** The reZEN deal list shows the close matches first, then No deal, then
+  your deals, listings and Buyer Records in groups of their own, in address or name order.
+  A small gap in the template list separates your templates from the two other choices,
+  and long names wrap instead of running off the panel.
+- **A new icon.**
 - With "Start as soon as I click the Dotted Line icon" on, the popup shows what it's doing
-  instead of a grey Prepare button; the button comes back if something stops it.
+  instead of a grey Prepare button and a title you could no longer change; both come back
+  if something stops it.
 - Check my setup shows two more timings: reading the forms from WEBForms, and reading
   their labels.
 - Using the Real Signature app? Finish the draft in the browser tab first (see the README).
-- **Error reports** (only if you said yes) now also say when a form placed from its labels
-  got no blocks, and which form type it was (WEBForms' code for the blank form, like
+- **Error reports** (only if you said yes) now also say when Auto place found nothing to
+  place on a form, and which form type it was (WEBForms' code for the blank form, like
   AREA0287), so we know which forms to add next. They also tell No deal picked for you from
-  No deal you chose, and count drafts that used label placement.
+  No deal you chose, and count drafts that used Auto place.
   [What a report can hold](PRIVACY.md#error-reports-if-you-say-yes).
 
 ## 0.1.2 — 2026-10-28

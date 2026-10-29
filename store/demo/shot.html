@@ -31,7 +31,7 @@
   const scene = new URLSearchParams(location.search).get("scene") || "rs";
   const text = {
     wf: ["Start from the forms you ticked in WEBForms.", "Dotted Line reads the forms you ticked and names the draft for you.", "Nothing changes in WEBForms — your PDFs go over exactly as they are."],
-    rs: ["A Real Signature draft, on the right deal.", "It picks the matching reZEN deal, adds your clients as signers and places your template's signature blocks.", "It stops at a draft. You check it and press Send yourself."],
+    rs: ["A Real Signature draft, on the right deal.", "It picks the matching reZEN deal, adds your clients as signers and places the signature blocks: from your templates, or from the form itself.", "It stops at a draft. You check it and press Send yourself."],
   }[scene];
   ["h", "p1", "p2"].forEach((id, i) => { document.getElementById(id).textContent = text[i]; });
   // The popup is short; the side panel needs nearly the full height to show its last line.

@@ -2,8 +2,9 @@
 
 A free browser extension for Canadian Real Broker agents and transaction coordinators.
 It turns the forms you filled in **CREA WEBForms** into a **Real Signature draft** on the
-matching reZEN deal, with your signature, initial and date blocks already placed from your
-Real Signature templates. You review the draft and press Send yourself.
+matching reZEN deal, with your signature, initial and date blocks already placed: from your
+Real Signature templates, or, for a form you have no template for, by **Auto place**, which
+reads the form's own printed labels. You review the draft and press Send yourself.
 
 Open source, so anyone can check exactly what it does.
 
@@ -18,9 +19,11 @@ See [CHANGELOG.md](CHANGELOG.md) for what changed in each version, and [PLAN.md]
 2. Click the Dotted Line icon (a small popup opens over WEBForms), check the title, click **Prepare in Real Signature**.
    It uses WEBForms' own zip download and keeps the PDFs exactly as WEBForms made them.
 3. **When the choices are clear, that's it.** If one reZEN deal clearly matches the
-   address and every form has its usual template, the draft is made straight away and
-   you land on it (or a packet, for several forms), deal and signers filled in. Check it
-   and press Send yourself.
+   address (or none comes close, and it's a form signed before there's a deal) and every
+   form has its usual template or Auto place, the draft is made straight away and you land
+   on it (or a packet, for several forms), deal and signers filled in. Click the Dotted
+   Line icon there to see what it chose; a small amber dot on the icon means it chose
+   something for you. Check it and press Send yourself.
 4. **Otherwise Real Signature opens with a panel** that says what needs you. Check the
    reZEN deal (best address match first) and pick a template for each form — it's
    remembered, so next time that form goes through in one click. It's remembered per side,
@@ -33,6 +36,13 @@ See [CHANGELOG.md](CHANGELOG.md) for what changed in each version, and [PLAN.md]
 
 It falls back to the panel, too, when the deal is another agent's or a client on it has no
 email in reZEN — both are worth a look before the draft exists.
+
+**Auto place** puts signature, initials, date and time blocks where the form's printed
+labels say ("Signature of Seller", "Buyer's Initials", "Signed and dated … on"). It knows
+Alberta, British Columbia, Manitoba, Ontario and Saskatchewan forms so far, and RECA's
+Consumer Relationships Guide; names are left for you to type in WEBForms. It's the choice
+when a form has no template, and a form it can't read simply gets no blocks. Check the
+blocks in Real Signature's Prepare step, as with any draft.
 
 **Using the Real Signature app?** Finish the draft in the browser tab first, then open it
 in the app. Chrome doesn't show extension panels in app windows, so the panel closes if you
