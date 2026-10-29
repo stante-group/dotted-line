@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="440" height="280" viewBox="0 0 440 280">
+<rect width="440" height="280" fill="#eef2f8"/>
+<g transform="translate(36 88)">
+  <rect width="104" height="104" rx="22" fill="#1d4ed8"/>
+  <g transform="scale(1.0833333)">
+    <circle cx="25" cy="65" r="4.25" fill="#ffffff"/>
+    <circle cx="36" cy="65" r="4.25" fill="#ffffff"/>
+    <circle cx="47" cy="65" r="4.25" fill="#ffffff"/>
+    <rect x="61.5" y="24" width="12.5" height="6.5" rx="1.6" fill="#ffffff"/>
+    <path d="M62.8 34.5 H72.8 L78 47.5 L68 72.5 L58 47.5 Z" fill="#ffffff"/>
+    <circle cx="68" cy="45.5" r="2.4" fill="#1d4ed8"/>
+    <path d="M68 48 V66.5" stroke="#1d4ed8" stroke-width="2.2" stroke-linecap="round"/>
+  </g>
+</g>
+<text x="166" y="137" font-family="Arial, Helvetica, sans-serif" font-size="38" font-weight="600" letter-spacing="-0.8" fill="#111827">Dotted Line</text>
+<text x="166" y="175" font-family="Arial, Helvetica, sans-serif" font-size="17" fill="#334155">Your forms, ready to sign.</text>
+<text x="166" y="202" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#334155">by Deal Dates</text>
+</svg>

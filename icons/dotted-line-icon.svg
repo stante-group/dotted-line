@@ -1,15 +1,12 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
-  <title>Dotted Line</title>
-  <!-- Master icon. 96x96 art on a 128 canvas (Chrome Web Store spec).
-       For a full-bleed version (48 px), use viewBox="16 16 96 96". -->
-  <rect x="16" y="16" width="96" height="96" rx="20" fill="#1d4ed8"/>
-  <g fill="#ffffff">
-    <circle cx="44" cy="84" r="4.5"/>
-    <circle cx="56" cy="84" r="4.5"/>
-    <circle cx="68" cy="84" r="4.5"/>
-    <rect x="73" y="40" width="14" height="6" rx="1.5"/>
-    <path d="M80 84 L72 62 C71.3 60 71 58 71.5 56 L73 50 H87 L88.5 56 C89 58 88.7 60 88 62 Z"/>
-  </g>
-  <circle cx="80" cy="62" r="3" fill="#1d4ed8"/>
-  <rect x="79" y="62" width="2" height="16" fill="#1d4ed8"/>
+<rect x="16" y="16" width="96" height="96" rx="20" fill="#1d4ed8"/>
+<g transform="translate(16 16)">
+        <circle cx="25" cy="65" r="4.25" fill="#ffffff"/>
+        <circle cx="36" cy="65" r="4.25" fill="#ffffff"/>
+        <circle cx="47" cy="65" r="4.25" fill="#ffffff"/>
+        <rect x="61.5" y="24" width="12.5" height="6.5" rx="1.6" fill="#ffffff"/>
+        <path d="M62.8 34.5 H72.8 L78 47.5 L68 72.5 L58 47.5 Z" fill="#ffffff"/>
+        <circle cx="68" cy="45.5" r="2.4" fill="#1d4ed8"/>
+        <path d="M68 48 V66.5" stroke="#1d4ed8" stroke-width="2.2" stroke-linecap="round"/>
+        </g>
 </svg>
