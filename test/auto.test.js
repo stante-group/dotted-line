@@ -150,3 +150,19 @@ test("placed blocks: an agent line on the form ticks the agent in, as a template
   const noLine = job({ forms: [{ ...job().forms[0], placed: { blocks: 9, agent: false } }] });
   assert.equal(planDraft({ job: noLine, c: { me, deals: [deal()], templates: [] }, remembered: {} }).agentChoice, null);
 });
+
+test("no deal anywhere near the address or the buyers: No deal without a click", () => {
+  const far = [deal({ id: "d2", address: "9 Other Road SW" }), deal({ id: "d3", address: "120 Example Avenue SE" })];
+  const m = confidentDeal("120 Example St NW", far);
+  assert.equal(m.deal, null);
+  // 120 Example Avenue SE shares the civic number and the street name: close enough to ask.
+  assert.equal(m.by, null);
+  const nothing = confidentDeal("120 Example St NW", [deal({ id: "d2", address: "9 Other Road SW" })]);
+  assert.equal(nothing.by, "none");
+  const p = planDraft({ job: job(), c: { me, deals: [deal({ id: "d2", address: "9 Other Road SW" })], templates: [tpl()] }, remembered });
+  assert.equal(p.dealId, null);
+  assert.ok(!p.needs.some((n) => /deal/i.test(n)), p.needs.join(" "));
+  assert.equal(p.ready, true, p.needs.join(" "));
+  // Nothing to match on at all says nothing either way: still the agent's choice.
+  assert.equal(confidentDeal("", [deal()]).by, null);
+});

@@ -31,7 +31,13 @@ export function confidentDeal(address, deals, buyerNames = []) {
     return { ranked: [a, ...all.filter((x) => x.deal !== a.deal)], deal: a.deal, by: "address" };
   }
   if (named.length === 1) return { ranked: all, deal: named[0], by: "name" };
-  return { ranked: all, deal: null, by: null };
+  // Nothing even close: no deal with the civic number AND a street word in common (above
+  // 0.5, see addressScore), no Buyer Record with the buyers' names — usually a form signed
+  // before any deal exists (a representation agreement, the Consumer Relationships Guide).
+  // Then No deal is the default rather than a click (Dan, 2026-10-29). Only when there was
+  // something to match on: no address and no names says nothing either way.
+  const none = !!(address || buyerNames.length) && !named.length && !ranked.some((x) => x.score > 0.5);
+  return { ranked: all, deal: null, by: none ? "none" : null };
 }
 
 /** Templates that can help a form: same page count AND at least one signature, initial or
@@ -49,7 +55,8 @@ export function usableTemplates(form, templates) {
 export function planDraft({ job, c, remembered = {}, agentMode = "one" }) {
   const needs = [];
   const { deal, by } = confidentDeal(job.address, c.deals, job.buyerNames);
-  if (!deal) {
+  // by "none": nothing came close, so No deal needs no choice (confidentDeal).
+  if (!deal && by !== "none") {
     needs.push(job.address
       ? "No reZEN deal or Buyer Record clearly matches — choose one (or No deal)."
       : "No address or buyer name to match a reZEN deal with — choose one (or No deal).");

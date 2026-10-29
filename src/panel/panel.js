@@ -521,11 +521,15 @@ async function showRealsig(tab, job) {
   // Deals: everything, best address match first — a bad match never hides the right deal.
   const { ranked, deal: best, by } = confidentDeal(job.address, c.deals, job.buyerNames);
   const confident = !!best;
+  // Nothing came close to the address or the buyers: No deal, picked and said so. Several
+  // possible deals still wait for the agent's choice.
+  const noneFits = by === "none";
   rsState.autoBy = by;
+  rsState.noneFits = noneFits;
   const sel = $("rs-deal");
   sel.replaceChildren(
-    option("", "Choose a deal…", { selected: !confident, disabled: true }),
-    option("none", "No deal (standalone)"),
+    option("", "Choose a deal…", { selected: !confident && !noneFits, disabled: true }),
+    option("none", "No deal (standalone)", { selected: noneFits }),
     ...ranked.map(({ deal }, i) => option(deal.id, deal.kind === "buyer"
       ? `Buyer Record: ${deal.buyerNames.join(" & ") || "(no buyer)"} · ${deal.agentName || "?"}`
       : `${deal.address || "(no address)"} · ${deal.agentName || "?"}${deal.kind === "listing" ? " · listing" : ""}`,
@@ -654,6 +658,9 @@ function updateDeal() {
     const why = t && sideMismatch(t, side);
     if (why) notes.push(`${form.name}: "${t.name}" would place no blocks — ${why}.`);
   });
+  if (id === "none" && rsState.noneFits) {
+    notes.push({ level: "info", text: "No reZEN deal matches this address or buyer, so it's made without one. Choose a deal if there is one." });
+  }
   if (deal && deal.id === rsState.autoPicked) {
     notes.push(rsState.autoBy === "name"
       ? "Picked for you because the buyer's name matches this Buyer Record. Check it's the right one, or choose another (or No deal)."
