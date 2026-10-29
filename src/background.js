@@ -90,7 +90,9 @@ async function madeBadge(tabId, url) {
   }
   if (!made.guessed || made.seen) return;
   const chose = [!made.deal && "No deal", made.forms.some((f) => f.how === "labels") && "blocks from the form's labels"].filter(Boolean).join(" and ");
-  await chrome.action.setBadgeBackgroundColor({ tabId, color: "#1f5fbf" }).catch(() => {});
+  // Amber, not the icon's own blue, which it would vanish into.
+  await chrome.action.setBadgeBackgroundColor({ tabId, color: "#f59e0b" }).catch(() => {});
+  await chrome.action.setBadgeTextColor({ tabId, color: "#111827" }).catch(() => {});
   await chrome.action.setBadgeText({ tabId, text: "i" }).catch(() => {});
   await chrome.action.setTitle({ tabId, title: `Dotted Line made this draft with ${chose}. Click to see what it chose.` }).catch(() => {});
 }
