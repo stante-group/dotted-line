@@ -42,8 +42,12 @@
        a thin line and margins are ignored; before 119, nothing. */
     @supports (appearance: base-select) {
       .form select, .form select::picker(select) { appearance: base-select; }
-      .form select::picker(select) { border: 1px solid #c9cfdb; border-radius: 6px; padding: 4px 0; }
-      .form select option { padding: 4px 8px; }
+      /* As wide as the box it opens from, and long names wrap: the list used to run past
+         the panel's edge and hide the ends of names, "(suggested)" included (Dan's test
+         31, 2026-10-29). */
+      .form select::picker(select) { border: 1px solid #c9cfdb; border-radius: 6px; padding: 4px 0;
+        inline-size: anchor-size(inline); box-sizing: border-box; }
+      .form select option { padding: 4px 8px; white-space: normal; overflow-wrap: anywhere; }
       .form select hr { margin: 0 0 0.5em; border: 0; }
     }
     button { font: inherit; padding: 8px 14px; border-radius: 6px; border: 1px solid #1d4ed8; background: #1d4ed8; color: #fff; cursor: pointer; margin-top: 12px; }
