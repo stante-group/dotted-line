@@ -53,6 +53,11 @@ export function rememberedId(entry) {
 }
 
 /** The entry to keep for a choice just made. */
+/** A remembered choice that isn't a template: blocks from the form's labels (autoplace.js).
+ *  The same value as the panel's option and planDraft's template id. */
+export const LABELS = "auto";
+export const LABELS_NAME = "Place blocks from the form's labels";
+
 export function rememberEntry(form, template, now = Date.now()) {
   return { id: template.id, template: template.name || "", form: String(form.name || "").replace(/\.pdf$/i, ""), at: now };
 }
@@ -89,6 +94,9 @@ function overlap(a, b) {
  *  refused.kind: "pages" (the form was revised) or "side" (see sideMismatch). */
 export function suggestTemplate(form, templates, remembered = {}, side = null) {
   const id = rememberedId(remembered[rememberKey(form, side)] ?? remembered[formKey(form)]);
+  // The agent switched a remembered template to "Place blocks from the form's labels"
+  // (Dan, 2026-10-29: remembered like a template). labels: that's the choice to pre-select.
+  if (id === LABELS) return { remembered: null, labels: true, refused: null, suggestions: [] };
   const chosen = id && templates.find((t) => t.id === id);
   let refused = null;
   if (chosen) {

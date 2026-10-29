@@ -183,5 +183,30 @@ test("what one click chose, for the panel afterwards: guessed only when it chose
   assert.equal(n.deal, null);
   assert.equal(n.dealBy, null);
   assert.equal(n.forms[0].how, "labels");
+  assert.equal(n.forms[0].chosen, false); // the default for a form with no template
   assert.equal(n.guessed, true);
+});
+
+test("labels chosen over a remembered template are remembered, and one click uses them", async () => {
+  const { suggestTemplate, rememberEntry, rememberKey, LABELS, LABELS_NAME } = await import("../src/lib/match.js");
+  const form = job().forms[0];
+  // What the panel saves when the agent switches from the template used last time.
+  const remembered = { [rememberKey(form, "BUYER")]: rememberEntry(form, { id: LABELS, name: LABELS_NAME }) };
+  const s = suggestTemplate(form, [tpl()], remembered, "BUYER");
+  assert.equal(s.labels, true);
+  assert.equal(s.remembered, null);
+  const p = planDraft({ job: job(), c: { me, deals: [deal()], templates: [tpl()] }, remembered });
+  assert.equal(p.ready, true, p.needs.join(" "));
+  assert.deepEqual(p.templateIds, ["auto"]);
+  assert.deepEqual(p.labelsChosen, [true]); // the agent's choice: no "chose for you" dot
+  const m = madeSummary({ plan: p, job: job(), c: { me, deals: [deal()], templates: [tpl()] } });
+  assert.deepEqual(m.forms[0], { name: "Residential Purchase Contract", how: "labels", template: null, chosen: true });
+  assert.equal(m.guessed, false);
+  // The same form with nothing remembered: a template fits, so one click still asks.
+  const asks = planDraft({ job: job(), c: { me, deals: [deal()], templates: [tpl()] }, remembered: {} });
+  assert.equal(asks.ready, false);
+  // No template fits at all: labels by default, not by choice.
+  const none = planDraft({ job: job(), c: { me, deals: [deal()], templates: [] }, remembered: {} });
+  assert.deepEqual(none.templateIds, ["auto"]);
+  assert.deepEqual(none.labelsChosen, [false]);
 });
