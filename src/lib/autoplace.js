@@ -151,6 +151,11 @@ const FOOTER_INITIALS = /^\s*INITIALS\s*$/;
 const FOOTER_Y = 100;
 // BCREA: "DATE   DATE   DATE" under lines, each signer's date under their signature.
 const DATE_ROW = /^(?:\s*DATE)+\s*$/i;
+// BCFSA's Disclosure of Representation in Trading Services: "Initials (optional)   Date",
+// once per consumer, under one line each. Optional on paper, placed anyway (Dan,
+// 2026-10-29): deleting a block in Real Signature is one click, and a template without
+// them is the way to skip them every time.
+const INITIALS_DATE_ROW = /^(?:\s*(?:Initials \(optional\)|Date))+\s*$/;
 // "(date)" under its blank (BCFSA forms: "____ (place) on ____ (date)"): the date of the
 // signature below it.
 const DATE_UNDER = /\(date\)/g; // lower case: Ontario's "(Date)" rows are PAREN_ROW's
@@ -291,6 +296,17 @@ export function pageBlocks(page) {
       if (r) {
         const n = r.x2 - r.x1 >= 2 * SIG.w + 6 ? 2 : 1;
         for (let k = 0; k < n; k++) add(SIG, ROLE(split[1]), r.x1 + 2 + k * (SIG.w + 4), r.y + 1, { sig: true, index: k });
+      }
+    }
+    if (INITIALS_DATE_ROW.test(line.text) && /Initials/.test(line.text)) {
+      let last = null;
+      for (const m of line.text.matchAll(/Initials \(optional\)|Date/g)) {
+        const x = xAt(line, m.index), xEnd = xAt(line, m.index + m[0].length);
+        const r = ruleAbove(rules, x, xEnd, line.y, line.size);
+        if (!r) continue;
+        if (m[0] === "Date") { if (last) add(DATE, null, x, r.y + 1, { date: true, pair: last }); continue; }
+        add(INI, "CLIENT", x, r.y + 1);
+        last = out.at(-1);
       }
     }
     if (DATE_ROW.test(line.text)) {

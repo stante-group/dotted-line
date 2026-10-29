@@ -357,3 +357,11 @@ test("BCFSA remuneration: fake bold read once; licensee and client lines, each w
   const f = autoLayout([p]).layout.fieldDefinitions.map((d) => `${d.type} ${d.signeeType} ${d.signeeIndex}`);
   assert.deepEqual(f, ["SIGNED_DATE AGENT 0", "SIGNATURE AGENT 0", "SIGNED_DATE CLIENT 0", "SIGNATURE CLIENT 0"]);
 });
+
+test("BCFSA disclosure of representation: each consumer initials and dates their line (optional on paper)", () => {
+  const p = page([word("Initials (optional)", 63, 122, 7), word("Date", 180, 122, 7), word("Initials (optional)", 312, 122, 7), word("Date", 429, 122, 7)],
+    [rule(63, 300, 131), rule(312, 549, 131)]);
+  const f = autoLayout([p]).layout.fieldDefinitions;
+  assert.deepEqual(f.map((d) => `${d.type} ${d.signeeType} ${d.signeeIndex} x${d.fieldLocations[0].position[0]}`),
+    ["INITIALS CLIENT 0 x63", "SIGNED_DATE CLIENT 0 x180", "INITIALS CLIENT 1 x312", "SIGNED_DATE CLIENT 1 x429"]);
+});
