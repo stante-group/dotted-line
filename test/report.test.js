@@ -182,11 +182,20 @@ test("each job:/report: message is sent only from the context the worker accepts
   const rsOnly = JSON.parse(`[${/RS_TAB_ONLY = new Set\(\[([^\]]*)\]\)/.exec(bg)[1]}]`);
   const sent = (f) => [...readFileSync(f, "utf8").matchAll(/sendMessage\(\{ type: "((?:job|report):[\w-]+)"/g)].map((m) => m[1]);
   for (const t of sent("src/realsig/content.js")) assert.ok(rsOnly.includes(t), `${t} from the Real Signature tab`);
-  for (const f of ["src/panel/panel.js", "src/options/options.js"]) {
+  for (const f of ["src/panel/panel.js", "src/options/options.js", "src/options/import.js"]) {
     for (const t of sent(f)) assert.ok(!rsOnly.includes(t), `${t} from ${f}`);
   }
   assert.deepEqual(sent("src/webforms/content.js"), [], "WEBForms tab sends no job:/report: message");
   assert.ok(rsOnly.includes("job:get"));
+});
+
+test("Import templates: only Real Signature's refusal is reported, as its route and rule", () => {
+  const refused = errorReport({ error: new Error("PUT /document-templates/ec2d0000-1111-2222-3333-444455556666 → 400: fieldDefinitions[3].fieldLocations: must not be empty"), step: "import", version: "0.2.1", chrome: "141" });
+  assert.equal(refused.step, "import");
+  assert.equal(refused.route, "PUT /document-templates/{id}");
+  assert.equal(refused.field, "fieldDefinitions[n].fieldLocations");
+  // A file that won't read isn't Real Signature's answer: import.js doesn't send it at all.
+  assert.notEqual(classifyError(new Error("Jordan Sample offer.json isn't a template file")).site, "real-signature");
 });
 
 test("Chrome's major version only", () => {

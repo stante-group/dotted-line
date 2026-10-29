@@ -11,6 +11,12 @@ Dotted Line by itself a few hours after a version is published.
   this ___ Day of").
 - **Fix:** Check my setup now says "yes (own corporation)" when WEBForms is signed in as
   your personal real estate corporation, as the panel already did, instead of "no".
+- **Fix:** error reports (only if you said yes) now cover Import templates in Settings:
+  when Real Signature refuses a template, its answer is reported, never your file or its
+  name.
+- **Fix:** error reports (only if you said yes) now cover Import templates in Settings:
+  when Real Signature refuses a template, its answer is reported, never your file or its
+  name.
 
 ## 0.2.0 — 2026-10-29
 

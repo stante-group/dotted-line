@@ -7,6 +7,7 @@ import { readDocusignTemplate, guessRoles, roleBlocks, leftOutText, buildTemplat
 import { unzip } from "../lib/unzip.js";
 import { isPdf, countPages, toBase64 } from "../lib/pdf.js";
 import { sendToTab } from "../messaging.js";
+import { classifyError } from "../lib/report.js";
 
 const RS = "https://signature.therealbrokerage.com/";
 const OFFER_BLANK = false; // the "Blank form PDF" picker on each card (see card())
@@ -177,6 +178,12 @@ function card(parsed, doc) {
     } catch (e) {
       out.className = "out err";
       out.textContent = String(e?.message || e);
+      // Reported (with a yes) only when Real Signature refused it: a file that won't read is
+      // the agent's file, not a bug, and its name could carry a client's (issue #7). Only
+      // the classification travels (report.js), never this message.
+      if (classifyError(e).site === "real-signature") {
+        chrome.runtime.sendMessage({ type: "report:error", error: { message: String(e?.message || e), name: e?.name }, step: "import", ctx: null }).catch(() => {});
+      }
       go.disabled = false;
       for (const s of selects) s.disabled = false;
       blankInput.disabled = false;

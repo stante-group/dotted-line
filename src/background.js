@@ -454,7 +454,10 @@ const OWN = chrome.runtime.getURL("");
 const RS_TAB_ONLY = new Set(["job:get", "job:status", "made:next"]);
 chrome.runtime.onMessage.addListener((msg, sender, reply) => {
   const fromRsTab = !!sender.tab?.url?.startsWith(RS);
-  const fromOwnPage = !sender.tab && String(sender.url || "").startsWith(OWN);
+  // One of Dotted Line's own pages: the panel, the popup, or Settings, which opens in a tab
+  // of its own (so has a sender.tab, whose page is ours too). A content script's sender.url
+  // is the website's, never ours.
+  const fromOwnPage = String(sender.url || "").startsWith(OWN) && (!sender.tab || String(sender.tab.url || "").startsWith(OWN));
   if (RS_TAB_ONLY.has(msg?.type) ? !fromRsTab : !fromOwnPage) return false;
   (async () => {
     if (msg.type === "job:start") return startJob(msg);

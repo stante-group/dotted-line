@@ -29,7 +29,8 @@ export const ENUMS = {
   // Where it failed: the WEBForms → Real Signature hand-off, loading deals and templates,
   // Finish draft in the panel, or the one-click draft. "labels": not a failed draft — a
   // form placed from its printed labels that got no blocks (autoplace.js placeOutcome).
-  step: ["handoff", "context", "create", "one-click", "labels"],
+  // "import": Real Signature refusing a template made by Import templates (Settings).
+  step: ["handoff", "context", "create", "one-click", "labels", "import"],
   // What kind of failure. The receiving end alerts on some and only logs others (signed-out
   // and network are the agent's connection, not a bug).
   cls: ["signed-out", "network", "rejected", "forbidden", "not-found", "real-server", "changed-shape", "interrupted", "ours"],

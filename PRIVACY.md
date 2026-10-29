@@ -34,7 +34,8 @@ Dotted Line's Settings.
 With your yes, it sends the Deal Dates team:
 
 - **a report when a draft fails:** which step failed (bringing the forms over, loading
-  your deals, or making the draft); the kind of error and its code, such as "Real
+  your deals, or making the draft), or when Real Signature refuses a template made with
+  Import templates in Settings; the kind of error and its code, such as "Real
   Signature refused the email subject: longer than 70 characters"; and choices about the
   draft, such as "the deal was matched by address", "2–3 forms", "a template on every
   form", "acting as an agent in Real Signature" or "WEBForms and Real Signature are signed
