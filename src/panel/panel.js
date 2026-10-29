@@ -584,7 +584,8 @@ function renderTemplates(side) {
     const none = "No template — I'll place blocks in Real Signature";
     // Blocks placed from the form's own printed labels (autoplace.js): Alberta and Manitoba
     // forms so far. The agent checks them in Real Signature, as with any draft.
-    const auto = "Place blocks from the form's labels";
+    // "Auto place", not "labels" (Dan, 2026-10-29: the word confused). LABELS_NAME is the same.
+    const auto = LABELS_NAME;
     if (!usable.length) {
       // The option text says it; why none fit is in the Templates ⓘ.
       pick.replaceChildren(option("auto", auto, { selected: true }), option("none", none));
@@ -615,7 +616,7 @@ function renderTemplates(side) {
       tellRemembered = () => {
         const v = pick.value;
         note.textContent = !v || v === "none" ? ""
-          : v === "auto" ? (s.labels ? "" : s.remembered ? `Placing from the labels is remembered${forSide} next time.`
+          : v === "auto" ? (s.labels ? "" : s.remembered ? `Auto place is remembered${forSide} next time.`
             : "Not remembered: one click asks again next time. Choose a template to have it remembered.")
           : v === s.remembered?.id ? "" : `Remembered${forSide} next time.`;
         note.hidden = !note.textContent;
@@ -984,14 +985,14 @@ function showMade(made) {
     ? el("li", `Deal: ${made.deal} (${made.dealBy === "name" ? "Buyer Record, matched by the buyers' names" : "matched by address"})`)
     : el("li", "No deal: no reZEN deal or Buyer Record matched the form's address or buyers."));
   for (const f of made.forms) {
-    items.push(el("li", `${f.name}: ${f.how === "labels" ? `blocks placed from the form's labels${f.chosen ? " (your choice last time)" : ""}`
+    items.push(el("li", `${f.name}: ${f.how === "labels" ? `auto placed from the form's labels${f.chosen ? " (your choice last time)" : ""}`
       : f.how === "template" ? `your template "${f.template}"` : "no template"}`));
   }
   if (made.agent) items.push(el("li", "The agent is added as a signer."));
   $("made-list").replaceChildren(...items);
   const fixes = [];
   if (!made.deal) fixes.push("If there is a deal, choose it in Real Signature's Transaction step.");
-  if (made.forms.some((f) => f.how === "labels")) fixes.push("Check the placed blocks in Prepare.");
+  if (made.forms.some((f) => f.how === "labels")) fixes.push("Check the auto placed blocks in Prepare.");
   $("made-note").textContent = fixes.join(" ");
   if (!$("msg").querySelector(".ok")) say("");
   show("made");
