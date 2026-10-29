@@ -584,7 +584,8 @@ function renderTemplates(side) {
     const none = "No template — I'll place blocks in Real Signature";
     // Blocks placed from the form's own printed labels (autoplace.js): Alberta and Manitoba
     // forms so far. The agent checks them in Real Signature, as with any draft.
-    const auto = "Place blocks from the form's labels";
+    // "Auto place", not "labels" (Dan, 2026-10-29: the word confused). LABELS_NAME is the same.
+    const auto = LABELS_NAME;
     if (!usable.length) {
       // The option text says it; why none fit is in the Templates ⓘ.
       pick.replaceChildren(option("auto", auto, { selected: true }), option("none", none));
@@ -615,7 +616,7 @@ function renderTemplates(side) {
       tellRemembered = () => {
         const v = pick.value;
         note.textContent = !v || v === "none" ? ""
-          : v === "auto" ? (s.labels ? "" : s.remembered ? `Placing from the labels is remembered${forSide} next time.`
+          : v === "auto" ? (s.labels ? "" : s.remembered ? `Auto place is remembered${forSide} next time.`
             : "Not remembered: one click asks again next time. Choose a template to have it remembered.")
           : v === s.remembered?.id ? "" : `Remembered${forSide} next time.`;
         note.hidden = !note.textContent;

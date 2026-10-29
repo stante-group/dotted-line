@@ -3,7 +3,7 @@
 
 import { WORDS, DEFAULT_SETTINGS, SAMPLE_VALUES, fillPattern } from "../lib/pattern.js";
 import { cleanSubject, SUBJECT_MAX } from "../lib/draft.js";
-import { pruneRemembered } from "../lib/match.js";
+import { pruneRemembered, LABELS, LABELS_NAME } from "../lib/match.js";
 import { runSetupCheck } from "../setup-check.js";
 import { REPORTS_ON } from "../lib/report.js";
 
@@ -142,7 +142,7 @@ function rememberedRow(key, entry) {
   f.textContent = form;
   const t = document.createElement("div");
   t.className = "tpl";
-  t.textContent = old ? "Template chosen before this list existed" : `→ ${entry.template || "a template"}`;
+  t.textContent = old ? "Template chosen before this list existed" : `→ ${entry.id === LABELS ? LABELS_NAME : entry.template || "a template"}`;
   what.append(f, t);
   const b = document.createElement("button");
   b.type = "button";
