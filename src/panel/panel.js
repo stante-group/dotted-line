@@ -5,7 +5,7 @@ import { suggestTitle, matchAddress } from "../lib/title.js";
 import { wrongDealWarnings } from "../lib/deals.js";
 import { confidentDeal, usableTemplates } from "../lib/auto.js";
 import { sendToTab } from "../messaging.js";
-import { suggestTemplate, rememberKey, normalizeName, rememberEntry, pruneRemembered, signingSide, sideMismatch } from "../lib/match.js";
+import { suggestTemplate, rememberKey, normalizeName, rememberEntry, pruneRemembered, signingSide, sideMismatch, LABELS, LABELS_NAME } from "../lib/match.js";
 import { titleValues, titleFor, subjectFor, DEFAULT_SETTINGS } from "../lib/pattern.js";
 import { signerCounts, signersWithoutEmail, signeesFromDeal, agentRoleFor, agentPeople, cleanSubject, subjectTooLong, SUBJECT_MAX } from "../lib/draft.js";
 import { actingNotes } from "../lib/actor.js";
@@ -563,7 +563,12 @@ function renderTemplates(side) {
     div.append(el("b", form.name)); // page counts only matter for matching; the ⓘ says so
     const pick = document.createElement("select");
     pick.id = `tpl-${i}`;
-    pick.onchange = () => updateDeal(); // a template can change who signs and how many
+    const note = el("div", "", "note");
+    let tellRemembered = () => {}; // set below when there are templates to choose between
+    pick.onchange = () => { tellRemembered(); updateDeal(); }; // a template can change who signs and how many
+    // The template pre-selected because it was used last time: switching from it to the
+    // labels is remembered (Dan, 2026-10-29), see rs-go.
+    (rsState.lastTemplate ||= [])[i] = s.remembered?.id || null;
     const none = "No template — I'll place blocks in Real Signature";
     // Blocks placed from the form's own printed labels (autoplace.js): Alberta and Manitoba
     // forms so far. The agent checks them in Real Signature, as with any draft.
@@ -575,6 +580,7 @@ function renderTemplates(side) {
     } else {
       // Nothing remembered or suggested: placing from the labels is the default (Dan,
       // 2026-10-29). A suggestion still waits for the agent's pick, as before.
+      // A remembered choice of the labels (s.labels) is pre-selected the same way.
       const pickAuto = !s.remembered && !s.suggestions.length;
       const opts = [option("", "Choose a template…", { selected: !s.remembered && !pickAuto, disabled: true })];
       if (s.remembered) opts.push(option(s.remembered.id, `${s.remembered.name} (last used)`, { selected: true }));
@@ -582,7 +588,7 @@ function renderTemplates(side) {
       // Separators that can't be picked, between the templates and the two choices that
       // aren't templates.
       const line = () => option("", "──────────", { disabled: true });
-      opts.push(line(), option("auto", auto, { selected: pickAuto }), option("none", none), line());
+      opts.push(line(), option("auto", s.labels ? `${auto} (last used)` : auto, { selected: pickAuto }), option("none", none), line());
       const shown = new Set(opts.map((o) => o.value));
       for (const t of usable.filter((t) => !shown.has(t.id)).sort((a, b) => a.name.localeCompare(b.name))) {
         opts.push(option(t.id, `${t.name}${t.shared ? " (shared)" : ""}`));
@@ -590,9 +596,20 @@ function renderTemplates(side) {
       pick.replaceChildren(...opts);
       if (before[i] && opts.some((o) => o.value === before[i])) pick.value = before[i];
       div.append(pick);
-      // Nothing remembered yet: the one thing between this form and one click next time.
+      // What next time will do with this choice — the one thing between this form and one
+      // click. It said "Remembered" under the labels too, which were never remembered
+      // (Dan's test, 2026-10-29).
       const forSide = side ? ` for ${side === "BUYER" ? "buyer" : "seller"} deals` : "";
-      if (!s.remembered) div.append(el("div", `Remembered${forSide} next time.`, "note"));
+      tellRemembered = () => {
+        const v = pick.value;
+        note.textContent = !v || v === "none" ? ""
+          : v === "auto" ? (s.labels ? "" : s.remembered ? `Placing from the labels is remembered${forSide} next time.`
+            : "Not remembered: one click asks again next time. Choose a template to have it remembered.")
+          : v === s.remembered?.id ? "" : `Remembered${forSide} next time.`;
+        note.hidden = !note.textContent;
+      };
+      div.append(note);
+      tellRemembered();
       // usableTemplates lists them all when the page count is unknown: say it can't vouch.
       if (!form.pageCount) div.append(el("div", "Couldn't read this form's page count — make sure the template is for this form.", "warn"));
     }
@@ -885,7 +902,14 @@ $("rs-go").addEventListener("click", async () => {
     const side = signingSide({ deal: c.deals.find((d) => d.id === dealId) || null, agentSide: job.agentSide });
     job.forms.forEach((f, i) => {
       const tid = templateIds[i];
-      if (tid === "none" || tid === "auto") return; // a choice, not a template to remember
+      if (tid === "none") return; // a choice, not a template to remember
+      // The labels are remembered only when the agent switched to them from the template
+      // used last time (Dan, 2026-10-29). As the default for a form with nothing
+      // remembered they're not a choice, and one click keeps asking until there is one.
+      if (tid === "auto") {
+        if (rsState.lastTemplate?.[i]) next[rememberKey(f, side)] = rememberEntry(f, { id: LABELS, name: LABELS_NAME });
+        return;
+      }
       next[rememberKey(f, side)] = rememberEntry(f, c.templates.find((t) => t.id === tid) || { id: tid });
     });
     await chrome.storage.local.set({ templateFor: next });
@@ -947,7 +971,7 @@ function showMade(made) {
     ? el("li", `Deal: ${made.deal} (${made.dealBy === "name" ? "Buyer Record, matched by the buyers' names" : "matched by address"})`)
     : el("li", "No deal: no reZEN deal or Buyer Record matched the form's address or buyers."));
   for (const f of made.forms) {
-    items.push(el("li", `${f.name}: ${f.how === "labels" ? "blocks placed from the form's labels"
+    items.push(el("li", `${f.name}: ${f.how === "labels" ? `blocks placed from the form's labels${f.chosen ? " (your choice last time)" : ""}`
       : f.how === "template" ? `your template "${f.template}"` : "no template"}`));
   }
   if (made.agent) items.push(el("li", "The agent is added as a signer."));
