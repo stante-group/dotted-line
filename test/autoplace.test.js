@@ -290,3 +290,58 @@ test("Saskatchewan footer: both sellers' initials on the line over \"Seller(s) I
   const [a, b] = ini.map((f) => f.fieldLocations[0].position);
   assert.ok(a[2] <= b[0] && b[2] <= 479 + 19 * 4 + 1, "side by side, on the line");
 });
+
+// British Columbia (BCREA, BCFSA) wording, written out by hand.
+const box = (x1, y1, x2, y2) => ({ rect: true, x1, y1, x2, y2 });
+
+test("BC footer initials: a cell per signer, for whoever signs the form; choice boxes higher up stay empty", () => {
+  const cells = [box(467, 83, 506, 110), box(506, 83, 545, 110), box(545, 83, 585, 110)];
+  const p1 = page([word("INITIALS", 506, 72, 10)], cells);
+  const p2 = page([
+    word("RESIDENT OF CANADA", 150, 440), word("INITIALS", 250, 424, 7), // a choice: not every seller initials it
+    word("SELLER'S SIGNATURE", 42, 362, 7), word("SELLER'S SIGNATURE", 227, 362, 7),
+    word("DESIGNATED AGENT'S SIGNATURE", 335, 276, 7),
+  ], [box(240, 430, 270, 455), rule(42, 210, 371), rule(227, 393, 371), rule(335, 585, 285)]);
+  const f = autoLayout([p1, p2]).layout.fieldDefinitions.map((d) => `p${d.fieldLocations[0].pageNum} ${d.type} ${d.signeeType} ${d.signeeIndex}`);
+  assert.deepEqual(f.sort(), ["p1 INITIALS SELLER 0", "p1 INITIALS SELLER 1", "p1 INITIALS SELLER 2",
+    "p2 SIGNATURE AGENT 0", "p2 SIGNATURE SELLER 0", "p2 SIGNATURE SELLER 1"]);
+  // With nobody's signature line on the form, nobody can be said to initial: none placed.
+  assert.equal(autoLayout([p1]).layout, null);
+});
+
+test("BC rows: SIGNATURE and DATE under lines, each date with the signature above it", () => {
+  const p = page([
+    word("SIGNATURE", 29, 158, 7), word("SIGNATURE", 224, 158, 7), word("SIGNATURE", 418, 158, 7),
+    word("DATE", 29, 135, 7), word("DATE", 224, 135, 7), word("DATE", 418, 135, 7),
+  ], [rule(29, 200, 166), rule(224, 395, 166), rule(418, 590, 166), rule(29, 200, 143), rule(224, 395, 143), rule(418, 590, 143)]);
+  const f = autoLayout([p]).layout.fieldDefinitions;
+  const at = (t) => f.filter((d) => d.type === t).map((d) => `${d.signeeType} ${d.signeeIndex} x${Math.round(d.fieldLocations[0].position[0])}`);
+  assert.deepEqual(at("SIGNATURE"), ["CLIENT 0 x31", "CLIENT 1 x226", "CLIENT 2 x420"]);
+  assert.deepEqual(at("SIGNED_DATE"), ["CLIENT 0 x31", "CLIENT 1 x226", "CLIENT 2 x420"]);
+});
+
+test("BC release: SIGNATURE OF / SELLER(S): over two lines, its long line shared by two sellers", () => {
+  const p = page([word("SIGNATURE OF", 72, 383, 14), word("SELLER(S):", 72, 363, 14)], [rule(163, 545, 358)]);
+  const f = autoLayout([p]).layout.fieldDefinitions;
+  assert.deepEqual(f.map((d) => `${d.signeeType} ${d.signeeIndex} x${d.fieldLocations[0].position[0]}`), ["SELLER 0 x165", "SELLER 1 x319"]);
+});
+
+test("BCFSA remuneration: fake bold read once; licensee and client lines, each with the (date) above", () => {
+  // Fake bold: each letter drawn twice, a hair apart. Read as words, not "Signatuure".
+  const bold = (str, x, y, size = 8) => {
+    const xs = []; let s = "";
+    [...str].forEach((ch, i) => { s += ch; xs.push(x + i * size * 0.5); if (ch !== " ") { s += ch; xs.push(x + i * size * 0.5 + 0.15); } });
+    return { str: s, x, y, w: str.length * size * 0.5, size, xs };
+  };
+  assert.equal(toLines([bold("Signature of Licensee", 319, 118)])[0].text, "Signature of Licensee");
+  assert.equal(toLines([word("Seller will", 40, 100)])[0].text, "Seller will"); // real double letters stay
+  const p = page([
+    word("________________ on ____________________.", 44, 143, 8), word("(place) (date)", 100, 135, 7),
+    bold("Signature of Licensee", 319, 118), word("________________________________", 410, 118, 8),
+    word("The undersigned acknowledges receipt of this Disclosure at ______________ on ______________.", 41, 92, 8),
+    word("(place) (date)", 360, 83, 7),
+    word("Signature of person/persons to whom disclosure has been made: ________________________", 41, 66, 8),
+  ]);
+  const f = autoLayout([p]).layout.fieldDefinitions.map((d) => `${d.type} ${d.signeeType} ${d.signeeIndex}`);
+  assert.deepEqual(f, ["SIGNED_DATE AGENT 0", "SIGNATURE AGENT 0", "SIGNED_DATE CLIENT 0", "SIGNATURE CLIENT 0"]);
+});
