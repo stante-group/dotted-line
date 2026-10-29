@@ -339,7 +339,10 @@ async function showWebforms(tab) {
   const s = await settings();
   $("wf-title").value = titleFor(s, wfState.titleValues, suggested);
   say("");
-  $("wf-title-wrap").hidden = false;
+  // Not when the icon click starts it: the title goes the moment it's filled in, so a box
+  // to edit it changed nothing (Dan, 2026-10-29). It's in the Real Signature panel, and it
+  // comes back here, with the button, if the start fails.
+  $("wf-title-wrap").hidden = !!(POPUP && s.startOnOpen && !autoStarted);
   if (sel.unsaved) {
     say(sel.cantCheck ? CANT_CHECK : UNSAVED, "warn");
     startPoll(tab.id);
@@ -402,6 +405,7 @@ $("wf-go").addEventListener("click", async () => {
     if (e?.reported) showReport().catch(() => {});
     else await reportError(e, "handoff");
     $("wf-go").hidden = false;
+    $("wf-title-wrap").hidden = !wfState; // the title is back to edit before trying again
     $("wf-go").disabled = false;
   } finally {
     wfBusy = false;
