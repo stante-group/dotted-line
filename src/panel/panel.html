@@ -41,7 +41,14 @@
        (appearance: base-select, 135+). Older Chrome keeps its own list, where an <hr> is
        a thin line and margins are ignored; before 119, nothing. */
     @supports (appearance: base-select) {
-      .form select, .form select::picker(select) { appearance: base-select; }
+      /* The reZEN deal list the same way (Dan, 2026-10-29), with a group per type. */
+      .form select, .form select::picker(select), #rs-deal, #rs-deal::picker(select) { appearance: base-select; }
+      #rs-deal::picker(select) { border: 1px solid #c9cfdb; border-radius: 6px; padding: 4px 0;
+        inline-size: anchor-size(inline); box-sizing: border-box; }
+      #rs-deal option { padding: 4px 8px; white-space: normal; overflow-wrap: anywhere; }
+      #rs-deal hr { margin: 0 0 0.5em; border: 0; }
+      #rs-deal optgroup { font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: #5b6475; padding-top: 4px; }
+      #rs-deal optgroup option { font-weight: 400; font-size: 14px; text-transform: none; letter-spacing: normal; color: #1d2433; padding-left: 16px; }
       /* As wide as the box it opens from, and long names wrap: the list used to run past
          the panel's edge and hide the ends of names, "(suggested)" included (Dan's test
          31, 2026-10-29). */
