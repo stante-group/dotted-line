@@ -65,6 +65,7 @@ export function planDraft({ job, c, remembered = {}, agentMode = "one" }) {
   // Templates are remembered per side, and one with blocks only for the side that isn't
   // signing would place none — so the side is settled first (signingSide).
   const side = signingSide({ deal, agentSide: job.agentSide });
+  const fromLabelsByChoice = new Set();
   const templateIds = job.forms.map((form) => {
     const usable = usableTemplates(form, c.templates);
     // Nothing to choose: blocks placed from the form's labels, the panel's default too (Dan,
@@ -77,6 +78,7 @@ export function planDraft({ job, c, remembered = {}, agentMode = "one" }) {
       return null;
     }
     const s = suggestTemplate(form, usable, remembered, side);
+    if (s.labels) { fromLabelsByChoice.add(form); return "auto"; } // the agent's own choice, remembered
     if (s.remembered) return s.remembered.id;
     const refused = suggestTemplate(form, c.templates, remembered, side).refused;
     needs.push(!refused ? `${form.name}: choose a template once — it's remembered after that.`
@@ -111,6 +113,9 @@ export function planDraft({ job, c, remembered = {}, agentMode = "one" }) {
     dealId: deal?.id ?? null,
     dealBy: deal ? by : null, // "address" or "name", for error reports (report.js)
     templateIds,
+    // Per form, true when "auto" was the agent's remembered choice rather than the default
+    // for a form with no template (madeSummary: no "chose for you" dot for it).
+    labelsChosen: job.forms.map((f) => fromLabelsByChoice.has(f)),
     counts,
     agentChoice: agentOn ? (agentMode === "all" ? "all" : "best") : null,
   };
