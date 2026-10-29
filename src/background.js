@@ -56,20 +56,31 @@ chrome.tabs.onUpdated.addListener((tabId, info, tab) => {
 chrome.tabs.onRemoved.addListener((tabId) => forgetMade(tabId).catch(() => {}));
 
 // What one click chose, per Real Signature tab (auto.js madeSummary): the panel shows it
-// when the icon is clicked on that draft, and the icon carries an "i" when one click chose
-// for the agent. Session storage: gone when Chrome closes, and never in a report.
-// Kept while the tab is on that draft (its id in the URL); the badge is put back after
-// each load, as a tab's badge may not survive its navigation, and goes once the panel
-// has shown it.
+// when the icon is clicked on that draft. Session storage: gone when Chrome closes, and
+// never in a report. Kept while the tab is on that draft (its id in the URL).
+// When one click chose for the agent, the icon gets a small amber dot, like an app's
+// notification dot — informational, so not a badge (Chrome's are boxes, and read as
+// alarms; Dan, 2026-10-29). The dot goes once the panel has shown the summary, or the
+// agent moves on from the draft's first step (Next, or any change of address): by then
+// they've looked at the page the dot is about.
 const draftKey = (url) => String(url).match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i)?.[0] || String(url);
+const ICON = chrome.runtime.getManifest().action?.default_icon || {};
+const DOT_ICON = { 16: "icons/icon-16-dot.png", 32: "icons/icon-32-dot.png" };
 async function showMade(tabId, made) {
   const { madeFor = {} } = await chrome.storage.session.get("madeFor");
   await chrome.storage.session.set({ madeFor: { ...madeFor, [tabId]: { ...made, at: Date.now() } } });
   await madeBadge(tabId, null);
 }
-// The manifest's title again: a tab's own title can't be unset, only replaced.
+async function setMade(tabId, patch) {
+  const { madeFor = {} } = await chrome.storage.session.get("madeFor");
+  if (!madeFor[tabId]) return null;
+  const next = { ...madeFor[tabId], ...patch };
+  await chrome.storage.session.set({ madeFor: { ...madeFor, [tabId]: next } });
+  return next;
+}
+// The manifest's icon and title again: a tab's own can't be unset, only replaced.
 async function clearMadeBadge(tabId) {
-  await chrome.action.setBadgeText({ tabId, text: "" }).catch(() => {});
+  await chrome.action.setIcon({ tabId, path: ICON }).catch(() => {});
   await chrome.action.setTitle({ tabId, title: chrome.runtime.getManifest().action?.default_title || "Dotted Line" }).catch(() => {});
 }
 async function forgetMade(tabId) {
@@ -78,28 +89,32 @@ async function forgetMade(tabId) {
   delete madeFor[tabId];
   await chrome.storage.session.set({ madeFor });
 }
+/** The dot's done its job: the summary stays, the dot goes. */
+async function madeSeen(tabId) {
+  const made = await setMade(tabId, { seen: true });
+  if (made) await clearMadeBadge(tabId);
+}
 async function madeBadge(tabId, url) {
   const { madeFor = {} } = await chrome.storage.session.get("madeFor");
-  const made = madeFor[tabId];
+  let made = madeFor[tabId];
   if (!made) return;
   // Only once the tab has been seen ON the draft does leaving it count. Straight after the
   // switch Chrome still reports the page it came from, and judging by that threw every
   // summary away before anyone could see it (Dan's test 23, 2026-10-29).
   const here = url && String(url).includes(made.draft);
   if (here && !made.arrived) {
-    const { madeFor: now = {} } = await chrome.storage.session.get("madeFor");
-    if (now[tabId]) await chrome.storage.session.set({ madeFor: { ...now, [tabId]: { ...now[tabId], arrived: true } } });
+    made = await setMade(tabId, { arrived: String(url) });
   } else if (url && !here && made.arrived) {
     await forgetMade(tabId);
     await clearMadeBadge(tabId);
     return;
+  } else if (here && String(url) !== made.arrived && !made.seen) {
+    await madeSeen(tabId); // a later step of the same draft
+    return;
   }
-  if (!made.guessed || made.seen) return;
+  if (!made?.guessed || made.seen) return;
   const chose = [!made.deal && "No deal", made.forms.some((f) => f.how === "labels") && "blocks from the form's labels"].filter(Boolean).join(" and ");
-  // Amber, not the icon's own blue, which it would vanish into.
-  await chrome.action.setBadgeBackgroundColor({ tabId, color: "#f59e0b" }).catch(() => {});
-  await chrome.action.setBadgeTextColor({ tabId, color: "#111827" }).catch(() => {});
-  await chrome.action.setBadgeText({ tabId, text: "i" }).catch(() => {});
+  await chrome.action.setIcon({ tabId, path: DOT_ICON }).catch(() => {});
   await chrome.action.setTitle({ tabId, title: `Dotted Line made this draft with ${chose}. Click to see what it chose.` }).catch(() => {});
 }
 chrome.tabs.query({}).then((tabs) => tabs.forEach((t) => placeUi(t.id, t.url))).catch(() => {});
@@ -431,7 +446,7 @@ async function startJob({ wfTabId, wfForms, meta, background, auto }) {
 }
 
 const OWN = chrome.runtime.getURL("");
-const RS_TAB_ONLY = new Set(["job:get", "job:status"]);
+const RS_TAB_ONLY = new Set(["job:get", "job:status", "made:next"]);
 chrome.runtime.onMessage.addListener((msg, sender, reply) => {
   const fromRsTab = !!sender.tab?.url?.startsWith(RS);
   const fromOwnPage = !sender.tab && String(sender.url || "").startsWith(OWN);
@@ -439,6 +454,8 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
   (async () => {
     if (msg.type === "job:start") return startJob(msg);
     if (msg.type === "job:status") return handoffs.get(sender.tab?.id) || null;
+    // Next on a one-click draft's first step: Real Signature may not change the address.
+    if (msg.type === "made:next") return madeSeen(sender.tab?.id).then(() => ({ ok: true }));
     if (msg.type === "job:pending") return handoffs.get(msg.tabId) || null;
     if (msg.type === "job:forTab") {
       const cutoff = Date.now() - JOB_TTL_MS;
@@ -466,10 +483,7 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
       const { madeFor = {} } = await chrome.storage.session.get("madeFor");
       const made = madeFor[msg.tabId];
       if (!made || !String(msg.url || "").includes(made.draft)) return null;
-      if (!made.seen) {
-        await chrome.storage.session.set({ madeFor: { ...madeFor, [msg.tabId]: { ...made, seen: true } } });
-        await clearMadeBadge(msg.tabId);
-      }
+      if (!made.seen) await madeSeen(msg.tabId);
       return made;
     }
     if (msg.type === "report:error") return recordError({ error: msg.error, step: msg.step, ctx: msg.ctx });
