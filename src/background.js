@@ -65,8 +65,7 @@ const draftKey = (url) => String(url).match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}
 async function showMade(tabId, made) {
   const { madeFor = {} } = await chrome.storage.session.get("madeFor");
   await chrome.storage.session.set({ madeFor: { ...madeFor, [tabId]: { ...made, at: Date.now() } } });
-  const tab = await chrome.tabs.get(tabId).catch(() => null);
-  await madeBadge(tabId, tab?.url || made.draft);
+  await madeBadge(tabId, null);
 }
 // The manifest's title again: a tab's own title can't be unset, only replaced.
 async function clearMadeBadge(tabId) {
@@ -83,7 +82,14 @@ async function madeBadge(tabId, url) {
   const { madeFor = {} } = await chrome.storage.session.get("madeFor");
   const made = madeFor[tabId];
   if (!made) return;
-  if (url && !String(url).includes(made.draft)) {
+  // Only once the tab has been seen ON the draft does leaving it count. Straight after the
+  // switch Chrome still reports the page it came from, and judging by that threw every
+  // summary away before anyone could see it (Dan's test 23, 2026-10-29).
+  const here = url && String(url).includes(made.draft);
+  if (here && !made.arrived) {
+    const { madeFor: now = {} } = await chrome.storage.session.get("madeFor");
+    if (now[tabId]) await chrome.storage.session.set({ madeFor: { ...now, [tabId]: { ...now[tabId], arrived: true } } });
+  } else if (url && !here && made.arrived) {
     await forgetMade(tabId);
     await clearMadeBadge(tabId);
     return;
