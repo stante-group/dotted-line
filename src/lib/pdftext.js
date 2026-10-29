@@ -610,6 +610,11 @@ async function runContent(doc, data, resources, ctm0, out, depth = 0) {
           const data2 = await doc.stream(ref).catch(() => null);
           await runContent(doc, data2, doc.get(xo.get("Resources")) || resources,
             Array.isArray(m) && m.length === 6 ? mul(m, gs.ctm) : gs.ctm, out, depth + 1);
+        } else if (xo instanceof Map && isName(xo.get("Subtype"), "Image")) {
+          // Where a picture sits (its unit square through the CTM): some forms draw their
+          // initials boxes as a picture (BCREA's Subject Removal footer). Never its pixels.
+          const p1 = apply(gs.ctm, 0, 0), p2 = apply(gs.ctm, 1, 1);
+          out.shapes.push({ image: true, x1: Math.min(p1[0], p2[0]), y1: Math.min(p1[1], p2[1]), x2: Math.max(p1[0], p2[0]), y2: Math.max(p1[1], p2[1]) });
         }
         break;
       }

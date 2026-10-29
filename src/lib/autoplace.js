@@ -148,6 +148,9 @@ const INITIALS_UNDER = /\b(Seller|Buyer)\(s\) Initials\b/gi;
 // word under boxes higher up marks a choice — "RESIDENT OF CANADA" or "NON-RESIDENT",
 // "Opt Out" — that only some signers initial, and a required block would force it.
 const FOOTER_INITIALS = /^\s*INITIALS\s*$/;
+// BCREA's Contract of Purchase and Sale and Subject Removal name the side: "BUYER'S INITIALS"
+// and "SELLER'S INITIALS" at the foot, each under its own three cells.
+const FOOTER_SIDE_INITIALS = /\b(BUYER|SELLER)['’]S INITIALS\b/g;
 const FOOTER_Y = 100;
 // BCREA: "DATE   DATE   DATE" under lines, each signer's date under their signature.
 const DATE_ROW = /^(?:\s*DATE)+\s*$/i;
@@ -158,7 +161,10 @@ const DATE_ROW = /^(?:\s*DATE)+\s*$/i;
 const INITIALS_DATE_ROW = /^(?:\s*(?:Initials \(optional\)|Date))+\s*$/;
 // "(date)" under its blank (BCFSA forms: "____ (place) on ____ (date)"): the date of the
 // signature below it.
-const DATE_UNDER = /\(date\)/g; // lower case: Ontario's "(Date)" rows are PAREN_ROW's
+const DATE_UNDER = /\(date\)/g;
+// BCREA's Disclosure of Multiple Offers Presented: "(Seller's signature)" and "(Designated
+// Agent's signature)" under their lines.
+const PAREN_SIGNATURE = /\((Seller|Buyer|Designated Agent)['’]s signature\)/g; // lower case: Ontario's "(Date)" rows are PAREN_ROW's
 // BCREA's Unconditional Release: "SIGNATURE OF" on one line, "SELLER(S): ____" on the next.
 const ROLE_AFTER_SIGNATURE_OF = /^\s*(SELLER|BUYER)\(S\):\s*$/;
 // Ontario (OREA) signing rows: "(Witness) (Buyer) (Seal) (Date)" under a dotted line, and the
@@ -176,7 +182,8 @@ const INITIALS_OVAL = /\bINITIALS OF (BUYER|SELLER)\(S\):/g;
 // Saskatchewan: "SIGNED AND SEALED by the Buyer at ____ on the ____ day of ____, 20__" (the
 // "at" is a place, not a time) and "Signed at ____ (on) mm ____ dd ____ yyyy ____".
 // BCREA: "SIGNED, SEALED, & DELIVERED THIS ____ DAY OF ____ YR. ____".
-const DATED = /\bsigned and dated\b.*?\bon(?![a-z])|\bsigned and sealed\b.*?\bday of\b|\bsigned, sealed,? (?:&|and) delivered\b.*?\bday of\b|^\s*Signed at\b.*?\bmm(?![a-ce-z])|^\s*Signed on\b|^\s*Date\b/i;
+// BCREA: "Confirmed and signed this ___ Day of ____ Year".
+const DATED = /\bsigned this(?![a-z]).*?day of(?![a-z])|\bsigned and dated\b.*?\bon(?![a-z])|\bsigned and sealed\b.*?\bday of\b|\bsigned, sealed,? (?:&|and) delivered\b.*?\bday of\b|^\s*Signed at\b.*?\bmm(?![a-ce-z])|^\s*Signed on\b|^\s*Date\b/i;
 
 /** The blocks one page's labels point to: [{type, role, x, y (bottom), w, h, order}]. */
 export function pageBlocks(page) {
@@ -274,6 +281,30 @@ export function pageBlocks(page) {
       // Two signers on one line: halves of it, narrower than usual if it's short.
       const w = Math.min(INI.w, (r.x2 - r.x1 - 6) / 2);
       [0, 1].forEach((n) => add(INI, ROLE(m[1]), r.x1 + 2 + n * (w + 2), r.y - 1, { index: n, w, h: Math.min(INI.h, 16) }));
+    }
+    if (line.y < FOOTER_Y) {
+      for (const m of line.text.matchAll(FOOTER_SIDE_INITIALS)) {
+        const x = xAt(line, m.index), xEnd = xAt(line, m.index + m[0].length);
+        let cells = boxes.filter((b) => b.y1 >= line.y && b.y1 - line.y <= 20 && b.x2 >= x - 30 && b.x1 <= xEnd + 30)
+          .sort((a, b) => a.x1 - b.x1);
+        if (!cells.length) {
+          // Drawn as one picture of three boxes (Subject Removal): its three thirds.
+          const pic = (page.shapes || []).find((s) => s.image && s.y1 >= line.y && s.y1 - line.y <= 25
+            && s.x2 >= x - 30 && s.x1 <= xEnd + 30 && s.x2 - s.x1 >= 60 && s.x2 - s.x1 <= 200 && s.y2 - s.y1 <= 60);
+          if (pic) {
+            // The picture has uneven blank margins, but its boxes sit centred over the label
+            // and fill about 3.6 box-widths of it, and its middle two-thirds in height.
+            const w = (pic.x2 - pic.x1) / 3.6, mid = (x + xEnd) / 2, h = pic.y2 - pic.y1;
+            cells = [0, 1, 2].map((k) => ({ x1: mid + (k - 1.5) * w + 2, x2: mid + (k - 0.5) * w - 2, y1: pic.y1 + h * 0.17, y2: pic.y1 + h * 0.83 }));
+          }
+        }
+        cells.forEach((b, n) => add(INI, ROLE(m[1]), b.x1 + 1, b.y1 + 1, { index: n, w: b.x2 - b.x1 - 2, h: b.y2 - b.y1 - 2 }));
+      }
+    }
+    for (const m of line.text.matchAll(PAREN_SIGNATURE)) {
+      const x = xAt(line, m.index), xEnd = xAt(line, m.index + m[0].length);
+      const r = ruleAbove(rules, x, xEnd, line.y, line.size);
+      if (r) add(SIG, ROLE(m[1]), r.x1 + 2, r.y + 1, { sig: true });
     }
     if (FOOTER_INITIALS.test(line.text) && line.y < FOOTER_Y) {
       const x = xAt(line, line.text.search(/\S/)), xEnd = line.x1;
