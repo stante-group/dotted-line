@@ -64,8 +64,13 @@ chrome.tabs.onRemoved.addListener((tabId) => forgetMade(tabId).catch(() => {}));
 // agent moves on from the draft's first step (Next, or any change of address): by then
 // they've looked at the page the dot is about.
 const draftKey = (url) => String(url).match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i)?.[0] || String(url);
-const ICON = chrome.runtime.getManifest().action?.default_icon || {};
-const DOT_ICON = { 16: "icons/icon-16-dot.png", 32: "icons/icon-32-dot.png" };
+// Paths from the extension's root ("/icons/…"): a relative one is read from where THIS
+// script is, src/, and src/icons/ doesn't exist — the dot never showed, silently (Dan's
+// test 26, 2026-10-29).
+const fromRoot = (paths) => Object.fromEntries(Object.entries(paths).map(([k, v]) => [k, `/${String(v).replace(/^\//, "")}`]));
+const ICON = fromRoot(chrome.runtime.getManifest().action?.default_icon || {});
+const DOT_ICON = { 16: "/icons/icon-16-dot.png", 32: "/icons/icon-32-dot.png" };
+const iconFailed = (e) => console.warn("Dotted Line: couldn't set the toolbar icon", e);
 async function showMade(tabId, made) {
   const { madeFor = {} } = await chrome.storage.session.get("madeFor");
   await chrome.storage.session.set({ madeFor: { ...madeFor, [tabId]: { ...made, at: Date.now() } } });
@@ -80,7 +85,7 @@ async function setMade(tabId, patch) {
 }
 // The manifest's icon and title again: a tab's own can't be unset, only replaced.
 async function clearMadeBadge(tabId) {
-  await chrome.action.setIcon({ tabId, path: ICON }).catch(() => {});
+  await chrome.action.setIcon({ tabId, path: ICON }).catch(iconFailed);
   await chrome.action.setTitle({ tabId, title: chrome.runtime.getManifest().action?.default_title || "Dotted Line" }).catch(() => {});
 }
 async function forgetMade(tabId) {
@@ -114,7 +119,7 @@ async function madeBadge(tabId, url) {
   }
   if (!made?.guessed || made.seen) return;
   const chose = [!made.deal && "No deal", made.forms.some((f) => f.how === "labels") && "blocks from the form's labels"].filter(Boolean).join(" and ");
-  await chrome.action.setIcon({ tabId, path: DOT_ICON }).catch(() => {});
+  await chrome.action.setIcon({ tabId, path: DOT_ICON }).catch(iconFailed);
   await chrome.action.setTitle({ tabId, title: `Dotted Line made this draft with ${chose}. Click to see what it chose.` }).catch(() => {});
 }
 chrome.tabs.query({}).then((tabs) => tabs.forEach((t) => placeUi(t.id, t.url))).catch(() => {});
