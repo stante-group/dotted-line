@@ -247,3 +247,58 @@ test("why a form got no blocks: locked, unreadable, no text, unmapped fonts, or 
   assert.equal(placeOutcome({ pages: page("The buyer and the seller agree to the terms of the offer and the deposit."), blocks: 0 }), "no-labels");
   assert.equal(placeOutcome({ pages: page("Le vendeur et l'acheteur de la propriété acceptent les conditions de la promesse."), blocks: 0 }), "no-labels");
 });
+
+test("an inline image doesn't derail the page: lines and words after it still count", async () => {
+  // Its bytes would read as an unclosed string, swallowing the rest of the page.
+  const pdf = await readPdfText(makePdf([
+    "q 20 0 0 20 72 700 cm BI /W 4 /H 1 /BPC 8 /CS /G ID ((((<<[ EI Q",
+    "0 0 0 RG 72 120 m 300 120 l S",
+    "BT /F1 10 Tf 72 108 Td (Signature of Seller) Tj ET",
+  ].join("\n")));
+  assert.equal(pdf[0].shapes.length, 1);
+  assert.ok(pdf[0].items.some((i) => i.str === "Signature of Seller"));
+});
+
+// Saskatchewan (SREC / Saskatchewan REALTORS® Association) wording, written out by hand.
+test("Saskatchewan purchase contract: capital-letter signature lines, and the SIGNED AND SEALED date", () => {
+  const p = page([
+    word("SIGNED AND SEALED by the Buyer at ____________ on the _______ day of ____________________, ", 38, 312),
+    word("WITNESS", 38, 280), word("BUYER' SIGNATURE_____________________________________", 308, 280),
+    word("WITNESS", 38, 259), word("BUYER' SIGNATURE_____________________________________", 308, 259),
+    word("BUYER'S SOLICITOR", 38, 79), word("SELLER'S SOLICITOR____________________", 308, 79), // a name, not a signature
+  ], [rule(76, 272, 279), rule(76, 272, 257)]);
+  const { layout } = autoLayout([p]);
+  const got = layout.fieldDefinitions.map((f) => `${f.type} ${f.signeeType} ${f.signeeIndex}`);
+  assert.deepEqual(got, ["SIGNED_DATE BUYER 0", "SIGNATURE BUYER 0", "SIGNATURE BUYER 1"]);
+  // The date goes on the month blank after "day of" ("at" is a place: no time block).
+  const date = layout.fieldDefinitions[0].fieldLocations[0].position[0];
+  assert.ok(date > 38 + "SIGNED AND SEALED by the Buyer at ____________ on the _______ day of".length * 4.5, `date at ${date}`);
+});
+
+test("Saskatchewan rows of names under lines: sellers, the brokerage, and a bare Signature for the client", () => {
+  const p = page([
+    word("SIGNED at ____________ on mm ______ dd ______ yyyy ____________.", 29, 190),
+    word("WITNESS", 29, 120), word("SELLER", 195, 120), word("Authorized Brokerage Representative", 407, 120, 8),
+    word("WITNESS", 29, 88), word("SELLER", 195, 88), word("Witness", 407, 88, 8),
+  ], [rule(29, 186, 128), rule(195, 369, 128), rule(408, 569, 128), rule(29, 186, 96), rule(195, 369, 96), rule(407, 569, 96)]);
+  const { layout } = autoLayout([p]);
+  const got = layout.fieldDefinitions.map((f) => `${f.type} ${f.signeeType} ${f.signeeIndex}`);
+  assert.deepEqual(got, ["SIGNED_DATE SELLER 0", "SIGNATURE SELLER 0", "SIGNATURE AGENT 0", "SIGNATURE SELLER 1"]);
+  // Agency Disclosure: "Witness          Signature", the client's line on the right.
+  const q = page([word("Witness", 36, 114), word("Signature", 324, 114), word("Witness", 36, 87), word("Signature", 324, 87)],
+    [rule(36, 276, 122), rule(324, 558, 122), rule(36, 276, 95), rule(324, 558, 95)]);
+  const c = autoLayout([q]).layout.fieldDefinitions;
+  assert.deepEqual(c.map((f) => `${f.signeeType} ${f.signeeIndex} x${f.fieldLocations[0].position[0]}`), ["CLIENT 0 x326", "CLIENT 1 x326"]);
+  // The lower box stops short of the row above's label instead of covering it.
+  const [top, low] = c.map((f) => f.fieldLocations[0].position);
+  assert.ok(low[3] < 114 - 1, `lower box reaches y=${low[3]}`);
+  assert.ok(top[3] - top[1] > low[3] - low[1]);
+});
+
+test("Saskatchewan footer: both sellers' initials on the line over \"Seller(s) Initials\"", () => {
+  const p = page([word("___________________", 479, 89, 8), word("Seller(s) Initials", 492, 80, 8)]);
+  const ini = autoLayout([p]).layout.fieldDefinitions;
+  assert.deepEqual(ini.map((f) => `${f.type} ${f.signeeType} ${f.signeeIndex}`), ["INITIALS SELLER 0", "INITIALS SELLER 1"]);
+  const [a, b] = ini.map((f) => f.fieldLocations[0].position);
+  assert.ok(a[2] <= b[0] && b[2] <= 479 + 19 * 4 + 1, "side by side, on the line");
+});

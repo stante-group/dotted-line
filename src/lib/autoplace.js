@@ -68,6 +68,20 @@ function ruleAbove(rules, x, xEnd, y, size) {
   return best;
 }
 
+/** Whether text[start, end) is set apart from the words either side of it by more than a
+ *  couple of letters' width: a name of its own rather than a word in a phrase. */
+function standsAlone(line, start, end) {
+  const t = line.text;
+  let p = start - 1;
+  while (p >= 0 && t[p] === " ") p--;
+  let n = end;
+  while (n < t.length && t[n] === " ") n++;
+  const gap = 2.5 * line.size;
+  if (p >= 0 && xAt(line, start) - xAt(line, p) < gap) return false;
+  if (n < t.length && xAt(line, n) - xAt(line, end - 1) < gap) return false;
+  return true;
+}
+
 /** A line that starts just after a label, on its baseline. */
 function ruleRight(rules, xEnd, y) {
   return rules.find((r) => Math.abs(r.y - y) <= 3 && r.x1 >= xEnd - 4 && r.x1 <= xEnd + 30) || null;
@@ -96,13 +110,25 @@ const ROLE = (w) => {
 // of brokerage representative"), signed only when cash changes hands.
 // Ontario's "(Signature of Seller or Buyer)" confirms acceptance — whoever accepted last.
 const SIGNATURE_LABEL = /\bSignature of (?:the )?(Seller|Buyer|Brokerage Representative)\b(?! or\b)|\b(Buyer|Seller|Consumer) Signature\b/g;
+// Saskatchewan (SREC purchase contract) prints them in capitals, one with a stray
+// apostrophe: "BUYER' SIGNATURE_____", "SELLER'S SIGNATURE_____". Capitals are a heading
+// as often as a line, so these count only with a line to sign on.
+const SIGNATURE_CAPS = /\b(BUYER|SELLER)['’]?S?['’]? SIGNATURE(?![A-Z])/g; // its underscores follow with no space
 // "Seller's Initials ____ ____ Buyer's Initials ____ ____" (AREA page footers and schedules).
 const INITIALS_RUNS = /\b(Seller|Buyer|Brokerage Representative)['’]?s? Initials\s*((?:_{4,}\s*)+)/gi;
 // "Initials (Buyer)" beside a drawn box (MREA offer, page 1).
 const INITIALS_BOX = /\bInitials \((Buyer|Seller|Buyer['’]s brokerage representative|Seller['’]s brokerage representative)\)/gi;
 // A line that is nothing but signers' names under their lines: "Buyer Buyer", "Witness
 // Seller", "Buyer Seller" (MREA offer and disclosure statement).
-const BARE_ROLES = /^(?:\s*(?:Buyer|Seller|Witness))+\s*$/i;
+const BARE_ROLES = /^(?:\s*(?:Buyer|Seller|Witness|Signature|Authori[sz]ed Brokerage Representative))+\s*$/i;
+// The names in such a row that sign. Saskatchewan: "WITNESS SELLER Authorized Brokerage
+// Representative" (Seller's MLS Brokerage Contract) and "Witness Signature" (Agency
+// Disclosure, signed by whichever client it's given to: CLIENT, as RECA's "Consumer").
+const BARE_SIGNER = /\b(Buyer|Seller|Signature|Authori[sz]ed Brokerage Representative)\b/gi;
+const bareRole = (w) => (/^signature$/i.test(w) ? "CLIENT" : ROLE(w));
+// "Seller(s) Initials" under a line (Saskatchewan's Seller's MLS Brokerage Contract page
+// footers): both sellers' initials on that one line, side by side.
+const INITIALS_UNDER = /\b(Seller|Buyer)\(s\) Initials\b/gi;
 // Ontario (OREA) signing rows: "(Witness) (Buyer) (Seal) (Date)" under a dotted line, and the
 // acknowledgement's "(Seller) (Date) (Buyer) (Date)". Only on a row with (Witness), (Seal)
 // or (Date) — "(Buyer)" in a sentence is just a word.
@@ -115,7 +141,9 @@ const PAREN_ROLE = /\((Buyer|Seller|Date)\)/g;
 const INITIALS_OVAL = /\bINITIALS OF (BUYER|SELLER)\(S\):/g;
 // Where the date goes: "Signed and dated at ____ m. on ____, 20__", "SIGNED AND DATED on
 // ____", "Date ____, 20__".
-const DATED = /\bsigned and dated\b.*?\bon(?![a-z])|^\s*Signed on\b|^\s*Date\b/i;
+// Saskatchewan: "SIGNED AND SEALED by the Buyer at ____ on the ____ day of ____, 20__" (the
+// "at" is a place, not a time) and "Signed at ____ (on) mm ____ dd ____ yyyy ____".
+const DATED = /\bsigned and dated\b.*?\bon(?![a-z])|\bsigned and sealed\b.*?\bday of\b|^\s*Signed at\b.*?\bmm(?![a-ce-z])|^\s*Signed on\b|^\s*Date\b/i;
 
 /** The blocks one page's labels point to: [{type, role, x, y (bottom), w, h, order}]. */
 export function pageBlocks(page) {
@@ -127,7 +155,25 @@ export function pageBlocks(page) {
   const rules = [...rulesOf(page.shapes), ...typed];
   const boxes = boxesOf(page.shapes);
   const out = [];
-  const add = (spec, role, x, bottom, extra = {}) => out.push({ spec, role, x, y: bottom, ...extra });
+  // A signature or date box stops short of text just above it — the row above's labels, a
+  // heading — rather than covering it (Saskatchewan's Agency Disclosure: two signing rows
+  // 27pt apart; Alberta's purchase contract, printed text close over the lines). Never
+  // shorter than 12pt. Only text over the box itself counts, letter by letter: a row's
+  // words spread across the page.
+  const roomAbove = (x, w, bottom, h) => {
+    let top = bottom + h;
+    for (const l of lines) {
+      const under = l.y - 0.25 * l.size; // the bottom of its letters, descenders included
+      if (l.y <= bottom + 2 || under >= top) continue;
+      if ([...l.text].some((ch, i) => ch !== " " && ch !== "_" && xAt(l, i) >= x - 2 && xAt(l, i) <= x + w)) top = under;
+    }
+    return Math.max(12, top - bottom - 1);
+  };
+  const add = (spec, role, x, bottom, extra = {}) => {
+    const h = extra.h ?? spec.h;
+    const fit = spec !== INI ? roomAbove(x, extra.w ?? spec.w, bottom, h) : h; // initials are sized already
+    out.push({ spec, role, x, y: bottom, ...extra, ...(fit < h ? { h: fit } : {}) });
+  };
 
   for (const line of lines) {
     // Signature labels under a line.
@@ -140,13 +186,22 @@ export function pageBlocks(page) {
       const r = ruleRight(rules, xEnd, line.y) || ruleAbove(rules, x, xEnd, line.y, line.size);
       add(SIG, role, r ? r.x1 + 2 : x, r ? r.y + 1 : line.y + line.size + 2, { sig: true });
     }
+    for (const m of line.text.matchAll(SIGNATURE_CAPS)) {
+      const x = xAt(line, m.index), xEnd = xAt(line, m.index + m[0].length);
+      const r = ruleRight(rules, xEnd, line.y) || ruleAbove(rules, x, xEnd, line.y, line.size);
+      if (r) add(SIG, ROLE(m[1]), r.x1 + 2, r.y + 1, { sig: true });
+    }
     // Bare role names under lines.
     if (BARE_ROLES.test(line.text)) {
-      for (const m of line.text.matchAll(/\b(Buyer|Seller)\b/gi)) {
+      for (const m of line.text.matchAll(BARE_SIGNER)) {
+        // A name on its own under its line, not part of a label: Alberta's "Buyer Signature
+        // Witness Signature" is two labels (SIGNATURE_LABEL has the first, the witness has
+        // no role), Saskatchewan's "Witness          Signature" two names a column apart.
+        if (!standsAlone(line, m.index, m.index + m[0].length)) continue;
         const x = xAt(line, m.index), xEnd = xAt(line, m.index + m[0].length);
         const r = ruleAbove(rules, x, xEnd, line.y, line.size);
         if (!r) continue; // a name with no line over it is a heading, not a signing line
-        add(SIG, ROLE(m[1]), r.x1 + 2, r.y + 1, { sig: true });
+        add(SIG, bareRole(m[1]), r.x1 + 2, r.y + 1, { sig: true });
       }
     }
     // Ontario rows: a signature on the dotted line over each (Buyer) / (Seller), and the
@@ -179,6 +234,14 @@ export function pageBlocks(page) {
         add(INI, role, x + Math.max(0, (xEnd - x - INI.w) / 2), line.y - 1, { index: n });
       });
     }
+    for (const m of line.text.matchAll(INITIALS_UNDER)) {
+      const x = xAt(line, m.index), xEnd = xAt(line, m.index + m[0].length);
+      const r = ruleAbove(rules, x, xEnd, line.y, line.size);
+      if (!r) continue;
+      // Two signers on one line: halves of it, narrower than usual if it's short.
+      const w = Math.min(INI.w, (r.x2 - r.x1 - 6) / 2);
+      [0, 1].forEach((n) => add(INI, ROLE(m[1]), r.x1 + 2 + n * (w + 2), r.y - 1, { index: n, w, h: Math.min(INI.h, 16) }));
+    }
     // Initials in a drawn box to the label's left.
     for (const m of line.text.matchAll(INITIALS_BOX)) {
       const role = ROLE(m[1]);
@@ -192,7 +255,12 @@ export function pageBlocks(page) {
     // "Date" alone starts a heading too ("Date and Buyer's Signature"); only with a blank.
     if (d && (run || !/^\s*Date$/i.test(d[0]) || /^\s*Date\s*,\s*20/i.test(line.text))) {
       const after = d.index + d[0].length;
-      const x = run ? xAt(line, after + run.index) + 2 : xAt(line, after) + 6;
+      // A drawn line right after the word, when there's no typed one (Saskatchewan's Agency
+      // Disclosure: "mm" then a line).
+      // Its "mm" can come out glued to the rest ("mmddyyyy"), which puts the end of "mm" in
+      // the wrong place: look from where "mm" starts instead.
+      const drawn = !run && ruleRight(rules, xAt(line, /mm$/i.test(d[0]) ? after - 2 : after), line.y);
+      const x = run ? xAt(line, after + run.index) + 2 : drawn ? drawn.x1 + 2 : xAt(line, after) + 6;
       // A blank of its own for the time ("Signed and dated at ____ .m. on ____", AREA and
       // MREA): time on that one, date-only on the other. Otherwise one Date & Time block
       // carries both (Dan, 2026-10-29).

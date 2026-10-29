@@ -8,7 +8,8 @@ Dotted Line by itself a few hours after a version is published.
 - **Auto place: blocks placed for you, with no template.** For a form you have no template
   for, Dotted Line reads the form's printed labels ("Signature of Seller", "Buyer's
   Initials", "Signed and dated … on") and places signature, initials, date and time blocks
-  on them. Alberta, Manitoba and Ontario forms so far, and the Consumer Relationships Guide.
+  on them. Alberta, Manitoba, Ontario and Saskatchewan forms so far, and the Consumer
+  Relationships Guide. Signature and date boxes stop short of printed text just above them.
   Names are left for you to type in WEBForms. It's the default when no template is
   remembered or suggested; "No template" is still in the list.
 - Where the form has a separate time blank, the time and the date are separate blocks.
