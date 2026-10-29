@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { classifyError, errorReport, okReport, sanitizeReport, draftContext, routeShape, validationShape,
+import { classifyError, errorReport, labelsReport, okReport, sanitizeReport, draftContext, routeShape, validationShape,
   tallyOk, tallyDue, chromeMajor, slowStep } from "../src/lib/report.js";
 import { wfMatch } from "../src/lib/actor.js";
 
@@ -56,7 +56,7 @@ test("every other field is rebuilt from fixed choices: injected values and keys 
   assert.equal(r.cls, "ours");
   assert.equal(r.partial, false);
   assert.deepEqual(r.ctx, { path: "panel", acting: false, wf: "none", deal: "none", othersDeal: false, tpl: "none",
-    pages: "unknown", forms: "4+", signers: "0", noEmail: false, slow: "upload", warned: false });
+    labels: "none", pages: "unknown", forms: "4+", signers: "0", noEmail: false, slow: "upload", warned: false, form: null });
   assert.deepEqual(r.local, { made: 0, failed: 2 });
   assert.equal(sanitizeReport({ kind: "gossip" }), null);
 });
@@ -93,7 +93,7 @@ test("the draft's context: categories only", () => {
     signers: 4, noEmail: true, timings: { upload: 12, save: 41.5, oneClickTotal: 90 }, warned: true,
   });
   assert.deepEqual(ctx, { path: "panel", acting: true, wf: "own-corp", deal: "address", othersDeal: false,
-    tpl: "all", pages: "differ", forms: "2-3", signers: "3+", noEmail: true, slow: "save", warned: true });
+    tpl: "all", labels: "none", pages: "differ", forms: "2-3", signers: "3+", noEmail: true, slow: "save", warned: true });
   assert.equal(draftContext({ path: "one-click", forms: [{ pageCount: 6 }], templates: [null] }).pages, "none");
   assert.equal(draftContext({ path: "one-click", forms: [{}, {}], templates: [{ pagesCount: 6 }, null] }).tpl, "some");
   assert.equal(slowStep({ upload: 29 }), "none");
@@ -113,16 +113,44 @@ test("successful drafts are tallied per day and version, and sent when the day m
   assert.equal(due, null);
   ({ tally, due } = tallyOk(tally, { day: "2026-10-26", version: "0.1.2", path: "one-click", forms: 3 }));
   assert.equal(due, null);
-  assert.deepEqual(tally.counts, { "one-click": 1, panel: 1 });
+  assert.deepEqual(tally.counts, { "one-click": 1, panel: 1, labels: 0 });
   assert.deepEqual(tally.forms, { "1": 1, "2-3": 1, "4+": 0 });
   assert.equal(tallyDue(tally, { day: "2026-10-26", version: "0.1.2" }), false);
   assert.equal(tallyDue(tally, { day: "2026-10-27", version: "0.1.2" }), true);
   const next = tallyOk(tally, { day: "2026-10-27", version: "0.1.2", path: "panel", forms: 5 });
   assert.equal(next.due, tally);
-  assert.deepEqual(next.tally.counts, { "one-click": 0, panel: 1 });
+  assert.deepEqual(next.tally.counts, { "one-click": 0, panel: 1, labels: 0 });
   const r = okReport({ version: "0.1.2", chrome: "141", ...next.due });
   assert.deepEqual(r, { v: 1, kind: "ok", version: "0.1.2", chrome: "141", day: "2026-10-26",
-    counts: { "one-click": 1, panel: 1 }, forms: { "1": 1, "2-3": 1, "4+": 0 } });
+    counts: { "one-click": 1, panel: 1, labels: 0 }, forms: { "1": 1, "2-3": 1, "4+": 0 } });
+  // A draft with a form placed from its labels counts once more, under labels.
+  const l = tallyOk(null, { day: "2026-10-26", version: "0.1.2", path: "one-click", forms: 2, labels: true });
+  assert.deepEqual(l.tally.counts, { "one-click": 1, panel: 0, labels: 1 });
+  // A tally stored before labels existed still adds up.
+  const old = { day: "2026-10-26", version: "0.1.2", counts: { "one-click": 2, panel: 0 }, forms: { "1": 2, "2-3": 0, "4+": 0 } };
+  assert.equal(tallyOk(old, { day: "2026-10-26", version: "0.1.2", path: "panel", forms: 1, labels: true }).tally.counts.labels, 1);
+});
+
+test("a form placed from its labels with no blocks: the reason and the form's library code, nothing typed on it", () => {
+  const r = labelsReport({ code: "no-labels", form: "AREA0287", path: "one-click", version: "0.1.2", chrome: "141" });
+  assert.equal(r.step, "labels");
+  assert.equal(r.code, "no-labels");
+  assert.equal(r.ctx.form, "AREA0287");
+  assert.equal(r.ctx.path, "one-click");
+  // A form name, a file name or anything typed is not a library code, and is left out.
+  for (const form of ["Jordan Sample Offer", "120 Example Street NW.pdf", "area0287", "AREA0287 Jordan", "A1234567X Sample"]) {
+    const x = labelsReport({ code: "fonts", form, path: "panel", version: "0.1.2", chrome: "141" });
+    assert.equal(x.ctx.form, null, form);
+    assert.deepEqual(leaks(x), []);
+  }
+  assert.equal(labelsReport({ code: "Jordan Sample", form: null, path: "panel", version: "0.1.2" }).code, "unknown");
+});
+
+test("No deal as the default is told apart from No deal picked", async () => {
+  const { contextFromDraft } = await import("../src/lib/report.js");
+  assert.equal(contextFromDraft({ path: "one-click", dealBy: "none" }).deal, "none-default");
+  assert.equal(contextFromDraft({ path: "panel", dealBy: null }).deal, "none");
+  assert.equal(contextFromDraft({ path: "panel", job: { forms: [{}, {}] }, templateIds: ["auto", "t1"] }).labels, "some");
 });
 
 test("the only request that leaves for anywhere but Real Signature and WEBForms is post(), with a sanitized report", async () => {
@@ -141,7 +169,7 @@ test("the only request that leaves for anywhere but Real Signature and WEBForms 
   assert.match(bg, /fetch\(REPORT_URL,/);
   // Every post() gets a report straight out of report.js (or the stored one it made).
   for (const call of bg.match(/\bpost\([^)]*\)?/g).filter((c) => !c.startsWith("post(report) {"))) {
-    assert.match(call, /^post\((report|okReport\(|l\.report)/, call);
+    assert.match(call, /^post\((report|okReport\(|labelsReport\(|l\.report)/, call);
   }
 });
 

@@ -634,3 +634,14 @@ test("Finish draft stays grey until every form has a template (or No template), 
   assert.match(panel, /renderTemplates\(side\);\n  \$\("rs-go"\)\.disabled = !canFinish\(\);/);
   assert.match(html, /<p class="note" id="rs-go-why" hidden>Choose a template/);
 });
+
+test("start-on-click hides the Prepare button while it runs, and brings it back if the start fails", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const panel = await readFile(new URL("../src/panel/panel.js", import.meta.url), "utf8");
+  // Hidden only in the popup, only before the automatic click, only with the setting on.
+  assert.match(panel, /\$\("wf-go"\)\.hidden = !!\(POPUP && !autoStarted && \(await settings\(\)\)\.startOnOpen\);/);
+  // A failed start shows it again, live, with the title to edit, so the agent can retry.
+  assert.match(panel, /\$\("wf-go"\)\.hidden = false;\n    \$\("wf-title-wrap"\)\.hidden = !wfState;[^\n]*\n    \$\("wf-go"\)\.disabled = false;/);
+  // No title box while it starts by itself: the title has already gone (Dan, 2026-10-29).
+  assert.match(panel, /\$\("wf-title-wrap"\)\.hidden = !!\(POPUP && s\.startOnOpen && !autoStarted\);/);
+});

@@ -27,21 +27,27 @@ export const SCHEMA = 1;
 export const ENUMS = {
   kind: ["error", "ok"],
   // Where it failed: the WEBForms → Real Signature hand-off, loading deals and templates,
-  // Finish draft in the panel, or the one-click draft.
-  step: ["handoff", "context", "create", "one-click"],
+  // Finish draft in the panel, or the one-click draft. "labels": not a failed draft — a
+  // form placed from its printed labels that got no blocks (autoplace.js placeOutcome).
+  step: ["handoff", "context", "create", "one-click", "labels"],
   // What kind of failure. The receiving end alerts on some and only logs others (signed-out
   // and network are the agent's connection, not a bug).
   cls: ["signed-out", "network", "rejected", "forbidden", "not-found", "real-server", "changed-shape", "interrupted", "ours"],
   // Our own messages, by what they mean (the text itself names forms and templates).
   code: ["not-pdf", "fillable-pdf", "handoff-expired", "stale-tab", "deal-gone", "template-missing",
     "acting-no-deals", "page-count", "same-signer", "block-off-page", "zip", "duplicate-names",
-    "no-forms", "refused-route", "changed-shape", "http", "unknown"],
+    "no-forms", "refused-route", "changed-shape", "http", "unknown",
+    // step "labels" only: why the form got no blocks.
+    "pdf-locked", "pdf-unreadable", "no-text", "fonts", "no-labels"],
   site: ["real-signature", "webforms", "none"],
   err: ["Error", "TypeError", "RangeError", "SyntaxError", "ReferenceError", "DOMException", "NotSignedIn", "other"],
   path: ["one-click", "panel"],
   wf: ["same", "own-corp", "different", "unknown", "none"],
-  deal: ["address", "name", "picked", "none"],
+  // none-default: No deal because nothing came close (auto.js confidentDeal), not picked.
+  deal: ["address", "name", "picked", "none", "none-default"],
   tpl: ["all", "some", "none"],
+  // Forms placed from their labels: all, some or none of them.
+  labels: ["all", "some", "none"],
   pages: ["agree", "differ", "unknown", "none"],
   forms: ["1", "2-3", "4+"],
   // A failed draft's form count can be unknown: a tab the extension can't reach never says
@@ -50,7 +56,8 @@ export const ENUMS = {
   // the three bands above.
   ctxForms: ["1", "2-3", "4+", "unknown"],
   signers: ["0", "1", "2", "3+"],
-  slow: ["none", "realSignatureReady", "pdfDownload", "upload", "readBack", "save", "packet", "draftMade"],
+  slow: ["none", "realSignatureReady", "pdfDownload", "upload", "readBack", "save", "packet", "draftMade",
+    "formDetails", "labels"],
 };
 
 const VERSION = /^\d{1,3}\.\d{1,3}\.\d{1,3}$/;
@@ -61,6 +68,9 @@ const ROUTE = /^(GET|PUT|POST|DELETE) (\/(\{id\}|[A-Za-z][A-Za-z-]{0,40})){1,6}$
 // "defaults.signees[n].email": a schema path, no spaces, no @, no digits except [n].
 const FIELD = /^[A-Za-z][A-Za-z_]{0,40}(\[n\])?(\.[A-Za-z][A-Za-z_]{0,40}(\[n\])?){0,5}$/;
 const RULE = /^(size \d{1,5}-\d{1,5}|not-null|not-blank|not-empty|email|pattern|range|other)$/;
+// A form's TYPE, as WEBForms' library code ("AREA0287"): which printed form, never what was
+// typed on it. Anything else (a form with no code, a code shaped otherwise) is left out.
+const FORM = /^[A-Z]{2,8}[0-9]{1,6}[A-Z]{0,2}$/;
 
 const pick = (v, list, fallback = undefined) => (list.includes(v) ? v : fallback);
 const count = (n) => (Number.isInteger(n) && n >= 0 && n <= 1e6 ? n : 0);
@@ -174,7 +184,7 @@ export function slowStep(timings = {}) {
  *  know; nothing about the deal itself.
  *  forms: [{pageCount}], templates: the chosen template per form ({pagesCount} or null). */
 export function draftContext({ path, acting = false, wf = "none", dealBy = "none", othersDeal = false,
-  forms = [], templates = [], signers = 0, noEmail = false, timings = {}, warned = false }) {
+  forms = [], templates = [], labels = 0, signers = 0, noEmail = false, timings = {}, warned = false }) {
   const chosen = templates.filter(Boolean);
   const withTpl = forms.map((f, i) => (templates[i] ? [f?.pageCount, templates[i].pagesCount] : null)).filter(Boolean);
   const pages = !withTpl.length ? "none"
@@ -183,6 +193,7 @@ export function draftContext({ path, acting = false, wf = "none", dealBy = "none
   return {
     path, acting: !!acting, wf, deal: dealBy, othersDeal: !!othersDeal,
     tpl: !chosen.length ? "none" : chosen.length === forms.length ? "all" : "some",
+    labels: !labels ? "none" : labels >= forms.length ? "all" : "some",
     pages, forms: forms.length ? formsBand(forms.length) : "unknown", signers: signersBand(signers),
     noEmail: !!noEmail, slow: slowStep(timings), warned: !!warned,
   };
@@ -200,10 +211,11 @@ export function contextFromDraft({ path, c = null, job = null, dealId = null, de
     path,
     acting: !!me?.actingForAgent,
     wf: job ? wfMatch({ me, webformsUserName: job.webformsUserName, webformsUserEmail: job.webformsUserEmail }) : "none",
-    dealBy: !deal ? "none" : dealBy === "address" || dealBy === "name" ? dealBy : "picked",
+    dealBy: !deal ? (dealBy === "none" ? "none-default" : "none") : dealBy === "address" || dealBy === "name" ? dealBy : "picked",
     othersDeal: isOthersDeal(me, deal),
     forms: job?.forms || [],
     templates: (job?.forms || []).map((_, i) => (templateIds[i] && c?.templates?.find((t) => t.id === templateIds[i])) || null),
+    labels: templateIds.filter((t) => t === "auto").length,
     signers: (n.BUYER || 0) + (n.SELLER || 0),
     noEmail: deal ? signersWithoutEmail(deal, n).length > 0 : false,
     timings, warned,
@@ -222,7 +234,8 @@ export function sanitizeReport(r) {
     chrome: CHROME.test(String(r.chrome)) ? String(r.chrome) : null };
   if (kind === "ok") {
     out.day = DAY.test(r.day) ? r.day : null;
-    out.counts = { "one-click": count(r.counts?.["one-click"]), panel: count(r.counts?.panel) };
+    // labels: how many of those drafts had a form placed from its labels (of either path).
+    out.counts = { "one-click": count(r.counts?.["one-click"]), panel: count(r.counts?.panel), labels: count(r.counts?.labels) };
     out.forms = Object.fromEntries(ENUMS.forms.map((b) => [b, count(r.forms?.[b])]));
     return out;
   }
@@ -248,12 +261,14 @@ export function sanitizeReport(r) {
       deal: pick(c.deal, ENUMS.deal, "none"),
       othersDeal: c.othersDeal === true,
       tpl: pick(c.tpl, ENUMS.tpl, "none"),
+      labels: pick(c.labels, ENUMS.labels, "none"),
       pages: pick(c.pages, ENUMS.pages, "unknown"),
       forms: pick(c.forms, ENUMS.ctxForms, "unknown"),
       signers: pick(c.signers, ENUMS.signers, "0"),
       noEmail: c.noEmail === true,
       slow: pick(c.slow, ENUMS.slow, "none"),
       warned: c.warned === true,
+      form: typeof c.form === "string" && FORM.test(c.form) ? c.form : null,
     };
   }
   if (r.local && typeof r.local === "object") out.local = { made: count(r.local.made), failed: count(r.local.failed) };
@@ -262,6 +277,14 @@ export function sanitizeReport(r) {
 
 export function errorReport({ error, step, ctx = null, version, chrome, local = null }) {
   return sanitizeReport({ kind: "error", step, version, chrome, ctx, local, ...classifyError(error) });
+}
+
+/** A form placed from its labels that got no blocks: why (code), and which printed form
+ *  (form, its library code), so it can be fixed with a blank copy of that form. The draft
+ *  itself was made. path: one click or the panel. */
+export function labelsReport({ code, form, path, version, chrome }) {
+  return sanitizeReport({ kind: "error", step: "labels", cls: "ours", code, version, chrome,
+    ctx: { path, form, labels: "some" } });
 }
 
 /** Two error reports are the same failure only when EVERY field matches — the error and
@@ -290,7 +313,7 @@ export function okReport({ version, chrome, day, counts, forms }) {
 // is the point. The tally lives in this browser's storage and goes when the day (or the
 // version) has moved on.
 
-const emptyTally = (day, version) => ({ day, version, counts: { "one-click": 0, panel: 0 }, forms: { "1": 0, "2-3": 0, "4+": 0 } });
+const emptyTally = (day, version) => ({ day, version, counts: { "one-click": 0, panel: 0, labels: 0 }, forms: { "1": 0, "2-3": 0, "4+": 0 } });
 
 /** Is the tally from an earlier day or another version? Then it's ready to send. */
 export function tallyDue(tally, { day, version }) {
@@ -299,10 +322,11 @@ export function tallyDue(tally, { day, version }) {
 }
 
 /** Adds one draft. → {tally, due}: due is the previous tally when it should go now. */
-export function tallyOk(tally, { day, version, path, forms }) {
+export function tallyOk(tally, { day, version, path, forms, labels = false }) {
   const due = tallyDue(tally, { day, version }) ? tally : null;
   const next = tally && tally.day === day && tally.version === version ? structuredClone(tally) : emptyTally(day, version);
   if (ENUMS.path.includes(path)) next.counts[path] += 1;
+  if (labels) next.counts.labels = (next.counts.labels || 0) + 1; // a tally from before labels has none
   next.forms[formsBand(forms || 1)] += 1;
   return { tally: next, due };
 }

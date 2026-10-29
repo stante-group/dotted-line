@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { planDraft, confidentDeal, usableTemplates } from "../src/lib/auto.js";
+import { planDraft, confidentDeal, usableTemplates, madeSummary } from "../src/lib/auto.js";
 import { summarizeBuyerRecord, matchesBuyerNames, wrongDealWarnings } from "../src/lib/deals.js";
 import { buyerNamesFromFormValues } from "../src/lib/webforms-api.js";
 
@@ -115,10 +115,10 @@ test("a usual template with blocks only for the other side → the panel, never 
   assert.deepEqual(q.templateIds, ["t2"]);
 });
 
-test("no templates that fit at all: nothing to choose, so still one click", () => {
+test("no templates that fit at all: one click, with blocks placed from the form's labels", () => {
   const p = planDraft({ job: job(), c: { me, deals: [deal()], templates: [tpl({ pagesCount: 3 })] }, remembered: {} });
   assert.equal(p.ready, true, p.needs.join(" "));
-  assert.deepEqual(p.templateIds, [null]);
+  assert.deepEqual(p.templateIds, ["auto"]);
   assert.equal(p.agentChoice, null);
 });
 
@@ -140,4 +140,99 @@ test("someone else's deal, or a client without an email → the panel", () => {
   const p = planDraft({ job: job(), c: { me, deals: [noEmail], templates: [tpl()] }, remembered });
   assert.equal(p.ready, false);
   assert.match(p.needs.join(" "), /no email/);
+});
+
+test("placed blocks: an agent line on the form ticks the agent in, as a template's agent blocks do", () => {
+  const withLine = job({ forms: [{ ...job().forms[0], placed: { blocks: 9, agent: true } }] });
+  const p = planDraft({ job: withLine, c: { me, deals: [deal()], templates: [] }, remembered: {} });
+  assert.deepEqual(p.templateIds, ["auto"]);
+  assert.equal(p.agentChoice, "best");
+  const noLine = job({ forms: [{ ...job().forms[0], placed: { blocks: 9, agent: false } }] });
+  assert.equal(planDraft({ job: noLine, c: { me, deals: [deal()], templates: [] }, remembered: {} }).agentChoice, null);
+});
+
+test("no deal anywhere near the address or the buyers: No deal without a click", () => {
+  const far = [deal({ id: "d2", address: "9 Other Road SW" }), deal({ id: "d3", address: "120 Example Avenue SE" })];
+  const m = confidentDeal("120 Example St NW", far);
+  assert.equal(m.deal, null);
+  // 120 Example Avenue SE shares the civic number and the street name: close enough to ask.
+  assert.equal(m.by, null);
+  const nothing = confidentDeal("120 Example St NW", [deal({ id: "d2", address: "9 Other Road SW" })]);
+  assert.equal(nothing.by, "none");
+  const p = planDraft({ job: job(), c: { me, deals: [deal({ id: "d2", address: "9 Other Road SW" })], templates: [tpl()] }, remembered });
+  assert.equal(p.dealId, null);
+  assert.ok(!p.needs.some((n) => /deal/i.test(n)), p.needs.join(" "));
+  assert.equal(p.ready, true, p.needs.join(" "));
+  // Nothing to match on at all says nothing either way: still the agent's choice.
+  assert.equal(confidentDeal("", [deal()]).by, null);
+});
+
+test("what one click chose, for the panel afterwards: guessed only when it chose for the agent", () => {
+  const c = { me, deals: [deal()], templates: [tpl()] };
+  const chosen = planDraft({ job: job(), c, remembered });
+  const m = madeSummary({ plan: chosen, job: job(), c });
+  assert.equal(m.deal, "120 Example Street NW, Calgary");
+  assert.equal(m.dealBy, "address");
+  assert.deepEqual(m.forms, [{ name: "Residential Purchase Contract", how: "template", template: "Offer" }]);
+  assert.equal(m.agent, true);
+  assert.equal(m.guessed, false); // all from the agent's own remembered choices: no badge
+
+  const far = { me, deals: [deal({ id: "d2", address: "9 Other Road SW" })], templates: [] };
+  const noDeal = planDraft({ job: job(), c: far, remembered });
+  const n = madeSummary({ plan: noDeal, job: job(), c: far });
+  assert.equal(n.deal, null);
+  assert.equal(n.dealBy, null);
+  assert.equal(n.forms[0].how, "labels");
+  assert.equal(n.forms[0].chosen, false); // the default for a form with no template
+  assert.equal(n.guessed, true);
+});
+
+test("labels chosen over a remembered template are remembered, and one click uses them", async () => {
+  const { suggestTemplate, rememberEntry, rememberKey, LABELS, LABELS_NAME } = await import("../src/lib/match.js");
+  const form = job().forms[0];
+  // What the panel saves when the agent switches from the template used last time.
+  const remembered = { [rememberKey(form, "BUYER")]: rememberEntry(form, { id: LABELS, name: LABELS_NAME }) };
+  const s = suggestTemplate(form, [tpl()], remembered, "BUYER");
+  assert.equal(s.labels, true);
+  assert.equal(s.remembered, null);
+  const p = planDraft({ job: job(), c: { me, deals: [deal()], templates: [tpl()] }, remembered });
+  assert.equal(p.ready, true, p.needs.join(" "));
+  assert.deepEqual(p.templateIds, ["auto"]);
+  assert.deepEqual(p.labelsChosen, [true]); // the agent's choice: no "chose for you" dot
+  const m = madeSummary({ plan: p, job: job(), c: { me, deals: [deal()], templates: [tpl()] } });
+  assert.deepEqual(m.forms[0], { name: "Residential Purchase Contract", how: "labels", template: null, chosen: true });
+  assert.equal(m.guessed, false);
+  // The same form with nothing remembered: a template fits, so one click still asks.
+  const asks = planDraft({ job: job(), c: { me, deals: [deal()], templates: [tpl()] }, remembered: {} });
+  assert.equal(asks.ready, false);
+  // No template fits at all: labels by default, not by choice.
+  const none = planDraft({ job: job(), c: { me, deals: [deal()], templates: [] }, remembered: {} });
+  assert.deepEqual(none.templateIds, ["auto"]);
+  assert.deepEqual(none.labelsChosen, [false]);
+});
+
+test("deal picker: close matches first, then a sorted group per type, nothing twice", async () => {
+  const { dealGroups } = await import("../src/lib/auto.js");
+  const named = summarizeBuyerRecord(record("b1", "Jordan", "Sample"));
+  const other = summarizeBuyerRecord(record("b2", "Casey", "Example"));
+  const deals = [
+    deal({ id: "d9", address: "9 Other Road SW" }),
+    deal({ id: "d1" }), // 120 Example Street NW: the match
+    deal({ id: "d10", address: "10 Other Road SW" }),
+    deal({ id: "l1", kind: "listing", side: "SELLER", address: "44 Example Crescent NW" }),
+    named, other,
+  ];
+  const { ranked } = confidentDeal("120 Example St NW", deals, ["Jordan Sample"]);
+  const { top, groups } = dealGroups(ranked);
+  assert.deepEqual(top.map((d) => d.id).sort(), ["b1", "d1"]); // the address match and the named record
+  assert.deepEqual(groups.map((g) => g.label), ["Deals", "Listings", "Buyer Records"]);
+  assert.deepEqual(groups[0].deals.map((d) => d.id), ["d9", "d10"]); // numeric order: 9 before 10
+  assert.deepEqual(groups[1].deals.map((d) => d.id), ["l1"]);
+  assert.deepEqual(groups[2].deals.map((d) => d.id), ["b2"]);
+  const all = [...top, ...groups.flatMap((g) => g.deals)];
+  assert.equal(new Set(all.map((d) => d.id)).size, deals.length); // every deal once
+  // Nothing close: no top part, everything in its group.
+  const far = dealGroups(confidentDeal("77 Nowhere Lane", [deal({ id: "d9", address: "9 Other Road SW" })]).ranked);
+  assert.deepEqual(far.top, []);
+  assert.deepEqual(far.groups.map((g) => g.label), ["Deals"]);
 });

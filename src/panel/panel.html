@@ -34,6 +34,29 @@
     .row { display: flex; gap: 16px; align-items: center; }
     .form { border: 1px solid #e3e6ec; border-radius: 6px; padding: 8px 10px; margin: 8px 0; }
     .form b { display: block; font-size: 13px; }
+    /* Template lists: a gap, not a line, between the templates and the two choices that
+       aren't templates (Dan, 2026-10-29: disabled "──────" rows, then lines, were both
+       clutter; "needs like a half line more spacing"). The gap is an <hr> (Chrome 119+)
+       drawn as empty space, which needs Chrome to let the page draw the list
+       (appearance: base-select, 135+). Older Chrome keeps its own list, where an <hr> is
+       a thin line and margins are ignored; before 119, nothing. */
+    @supports (appearance: base-select) {
+      /* The reZEN deal list the same way (Dan, 2026-10-29), with a group per type. */
+      .form select, .form select::picker(select), #rs-deal, #rs-deal::picker(select) { appearance: base-select; }
+      #rs-deal::picker(select) { border: 1px solid #c9cfdb; border-radius: 6px; padding: 4px 0;
+        inline-size: anchor-size(inline); box-sizing: border-box; }
+      #rs-deal option { padding: 4px 8px; white-space: normal; overflow-wrap: anywhere; }
+      #rs-deal hr { margin: 0 0 0.5em; border: 0; }
+      #rs-deal optgroup { font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: #5b6475; padding-top: 4px; }
+      #rs-deal optgroup option { font-weight: 400; font-size: 14px; text-transform: none; letter-spacing: normal; color: #1d2433; padding-left: 16px; }
+      /* As wide as the box it opens from, and long names wrap: the list used to run past
+         the panel's edge and hide the ends of names, "(suggested)" included (Dan's test
+         31, 2026-10-29). */
+      .form select::picker(select) { border: 1px solid #c9cfdb; border-radius: 6px; padding: 4px 0;
+        inline-size: anchor-size(inline); box-sizing: border-box; }
+      .form select option { padding: 4px 8px; white-space: normal; overflow-wrap: anywhere; }
+      .form select hr { margin: 0 0 0.5em; border: 0; }
+    }
     button { font: inherit; padding: 8px 14px; border-radius: 6px; border: 1px solid #1d4ed8; background: #1d4ed8; color: #fff; cursor: pointer; margin-top: 12px; }
     button.link { background: none; border: none; color: #1d4ed8; padding: 0; margin: 0; text-decoration: underline; font-size: 13px; }
     button:disabled { background: #c9cfdb; border-color: #c9cfdb; cursor: default; }
@@ -82,7 +105,7 @@
     <p>Dotted Line can send the Deal Dates team a short report when a draft fails, and once a day a count of drafts that worked.</p>
     <details>
       <summary>What's in a report</summary>
-      <p>Which step failed and the kind of error; the web address that failed with its IDs removed; the name of the field Real Signature refused and the rule it broke (like "email subject: at most 70 characters"); choices like "deal matched by address", "2–3 forms" or "acting as an agent"; how many drafts this browser has made and how many failed; and the Dotted Line and Chrome versions.</p>
+      <p>Which step failed and the kind of error; the web address that failed with its IDs removed; the name of the field Real Signature refused and the rule it broke (like "email subject: at most 70 characters"); choices like "deal matched by address", "2–3 forms" or "acting as an agent"; the form type's code (like AREA0287) when blocks couldn't be placed from a form's labels; how many drafts this browser has made and how many failed; and the Dotted Line and Chrome versions.</p>
       <p>A report never contains your forms, or any name, email, address, deal or template. (Your forms still go from WEBForms to Real Signature to make the draft, as always.) Your IP address isn't kept. Reports are deleted after 12 months. <a href="https://github.com/stante-group/dotted-line/blob/main/PRIVACY.md#error-reports-if-you-say-yes" target="_blank" rel="noopener">Everything a report can hold</a>.</p>
     </details>
     <div class="row">
@@ -95,6 +118,13 @@
   <!-- Nothing to act on -->
   <section id="idle">
     <p class="note">In WEBForms, open a form or tick forms on a deal, then click here again.</p>
+  </section>
+
+  <!-- A one-click draft, afterwards: what was chosen -->
+  <section id="made" hidden>
+    <p><strong>Made in one click</strong></p>
+    <ul id="made-list" class="forms"></ul>
+    <p id="made-note" class="note"></p>
   </section>
 
   <!-- Step 1: WEBForms -->
@@ -134,7 +164,7 @@
            template can change who signs. -->
       <div id="rs-after-deal" hidden>
       <h2>Templates<button class="i" type="button" aria-expanded="false" aria-controls="tip-templates" aria-label="About templates">i</button></h2>
-      <div id="tip-templates" class="tip" hidden>A template places the signature, initial and date blocks for you. Only your Real Signature templates that have blocks and the same number of pages as the form are listed. Your choice is remembered for next time. With no template, you place the blocks in Real Signature.</div>
+      <div id="tip-templates" class="tip" hidden>A template places the signature, initial and date blocks for you. Only your Real Signature templates that have blocks and the same number of pages as the form are listed. Your choice is remembered for next time. Auto place puts the blocks where the form's printed labels say ("Signature of Buyer", "Seller's Initials", "Signed and dated … on"). With no template, you place the blocks in Real Signature.</div>
       <div id="rs-templates"></div>
       <h2>Signers<button class="i" type="button" aria-expanded="false" aria-controls="tip-signers" aria-label="How the signers are set">i</button></h2>
       <div id="tip-signers" class="tip" hidden><span id="rs-counts-why"></span>

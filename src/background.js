@@ -6,14 +6,16 @@
 // Jobs live in the extension's own IndexedDB, are deleted once the draft is made, and
 // anything older than JOB_TTL_MS is purged on startup — contracts must not linger.
 
-import { planDraft } from "./lib/auto.js";
+import { planDraft, madeSummary } from "./lib/auto.js";
 import { DEFAULT_SETTINGS, subjectFor } from "./lib/pattern.js";
 import { subjectTooLong } from "./lib/draft.js";
 import { sendToTab } from "./messaging.js";
 import { unzip } from "./lib/unzip.js";
 import { isPdf, hasAcroForm, countPages, fromBase64, toBase64 } from "./lib/pdf.js";
 import { pairEntries, zipBatches } from "./lib/webforms-api.js";
-import { errorReport, okReport, sanitizeReport, tallyOk, tallyDue, contextFromDraft, draftContext, chromeMajor, REPORT_URL, REPORTS_ON, sameFailure } from "./lib/report.js";
+import { readPdfText } from "./lib/pdftext.js";
+import { autoLayout, placedSummary, placeOutcome } from "./lib/autoplace.js";
+import { errorReport, labelsReport, okReport, sanitizeReport, tallyOk, tallyDue, contextFromDraft, draftContext, chromeMajor, REPORT_URL, REPORTS_ON, sameFailure } from "./lib/report.js";
 
 const DB = "wfrs";
 const STORE = "jobs";
@@ -47,7 +49,79 @@ async function placeUi(tabId, url) {
   await chrome.action.setPopup({ tabId, popup: rs ? "" : POPUP }).catch(() => {});
   await chrome.sidePanel.setOptions(rs ? { tabId, path: PANEL, enabled: true } : { tabId, enabled: false }).catch(() => {});
 }
-chrome.tabs.onUpdated.addListener((tabId, info, tab) => { if (info.url || info.status === "loading") placeUi(tabId, tab.url); });
+chrome.tabs.onUpdated.addListener((tabId, info, tab) => {
+  if (info.url || info.status === "loading") placeUi(tabId, tab.url);
+  if (info.url || info.status === "complete") madeBadge(tabId, tab.url).catch(() => {});
+});
+chrome.tabs.onRemoved.addListener((tabId) => forgetMade(tabId).catch(() => {}));
+
+// What one click chose, per Real Signature tab (auto.js madeSummary): the panel shows it
+// when the icon is clicked on that draft. Session storage: gone when Chrome closes, and
+// never in a report. Kept while the tab is on that draft (its id in the URL).
+// When one click chose for the agent, the icon gets a small amber dot, like an app's
+// notification dot — informational, so not a badge (Chrome's are boxes, and read as
+// alarms; Dan, 2026-10-29). The dot goes once the panel has shown the summary, or the
+// agent moves on from the draft's first step (Next, or any change of address): by then
+// they've looked at the page the dot is about.
+const draftKey = (url) => String(url).match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i)?.[0] || String(url);
+// Paths from the extension's root ("/icons/…"): a relative one is read from where THIS
+// script is, src/, and src/icons/ doesn't exist — the dot never showed, silently (Dan's
+// test 26, 2026-10-29).
+const fromRoot = (paths) => Object.fromEntries(Object.entries(paths).map(([k, v]) => [k, `/${String(v).replace(/^\//, "")}`]));
+const ICON = fromRoot(chrome.runtime.getManifest().action?.default_icon || {});
+const DOT_ICON = { 16: "/icons/toolbar-dot-16.png", 32: "/icons/toolbar-dot-32.png" };
+const iconFailed = (e) => console.warn("Dotted Line: couldn't set the toolbar icon", e);
+async function showMade(tabId, made) {
+  const { madeFor = {} } = await chrome.storage.session.get("madeFor");
+  await chrome.storage.session.set({ madeFor: { ...madeFor, [tabId]: { ...made, at: Date.now() } } });
+  await madeBadge(tabId, null);
+}
+async function setMade(tabId, patch) {
+  const { madeFor = {} } = await chrome.storage.session.get("madeFor");
+  if (!madeFor[tabId]) return null;
+  const next = { ...madeFor[tabId], ...patch };
+  await chrome.storage.session.set({ madeFor: { ...madeFor, [tabId]: next } });
+  return next;
+}
+// The manifest's icon and title again: a tab's own can't be unset, only replaced.
+async function clearMadeBadge(tabId) {
+  await chrome.action.setIcon({ tabId, path: ICON }).catch(iconFailed);
+  await chrome.action.setTitle({ tabId, title: chrome.runtime.getManifest().action?.default_title || "Dotted Line" }).catch(() => {});
+}
+async function forgetMade(tabId) {
+  const { madeFor = {} } = await chrome.storage.session.get("madeFor");
+  if (!madeFor[tabId]) return;
+  delete madeFor[tabId];
+  await chrome.storage.session.set({ madeFor });
+}
+/** The dot's done its job: the summary stays, the dot goes. */
+async function madeSeen(tabId) {
+  const made = await setMade(tabId, { seen: true });
+  if (made) await clearMadeBadge(tabId);
+}
+async function madeBadge(tabId, url) {
+  const { madeFor = {} } = await chrome.storage.session.get("madeFor");
+  let made = madeFor[tabId];
+  if (!made) return;
+  // Only once the tab has been seen ON the draft does leaving it count. Straight after the
+  // switch Chrome still reports the page it came from, and judging by that threw every
+  // summary away before anyone could see it (Dan's test 23, 2026-10-29).
+  const here = url && String(url).includes(made.draft);
+  if (here && !made.arrived) {
+    made = await setMade(tabId, { arrived: String(url) });
+  } else if (url && !here && made.arrived) {
+    await forgetMade(tabId);
+    await clearMadeBadge(tabId);
+    return;
+  } else if (here && String(url) !== made.arrived && !made.seen) {
+    await madeSeen(tabId); // a later step of the same draft
+    return;
+  }
+  if (!made?.guessed || made.seen) return;
+  const chose = [!made.deal && "No deal", made.forms.some((f) => f.how === "labels" && !f.chosen) && "auto placed blocks"].filter(Boolean).join(" and ");
+  await chrome.action.setIcon({ tabId, path: DOT_ICON }).catch(iconFailed);
+  await chrome.action.setTitle({ tabId, title: `Dotted Line made this draft with ${chose}. Click to see what it chose.` }).catch(() => {});
+}
 chrome.tabs.query({}).then((tabs) => tabs.forEach((t) => placeUi(t.id, t.url))).catch(() => {});
 
 function db() {
@@ -158,12 +232,34 @@ function recordError({ error, step, ctx }) {
   });
 }
 
-function recordOk({ path, forms }) {
+function recordOk({ path, forms, labels = false }) {
   return serial(async () => {
     const { draftStats = {}, okTally = null, reporting } = await chrome.storage.local.get(["draftStats", "okTally", "reporting"]);
-    const { tally, due } = tallyOk(okTally, { day: today(), version: VERSION, path, forms });
+    const { tally, due } = tallyOk(okTally, { day: today(), version: VERSION, path, forms, labels });
     await chrome.storage.local.set({ draftStats: { made: (draftStats.made || 0) + 1, failed: draftStats.failed || 0 }, okTally: tally });
     if (due && reporting === "yes") post(okReport({ chrome: CHROME, ...due })); // not awaited: see recordError
+  });
+}
+
+// Forms placed from their labels that got no blocks (autoplace.js placeOutcome): the draft
+// was made, so nothing showed, and only a report says which printed forms to work on next.
+// Sent only with a yes, never offered as "Send this error" (the agent saw no error), and
+// once a day per form and reason, so an agent using the same form all day sends one.
+function recordLabels({ job, templateIds, path }) {
+  return serial(async () => {
+    const { reporting, labelsSent = {} } = await chrome.storage.local.get(["reporting", "labelsSent"]);
+    if (!REPORTS_ON || reporting !== "yes") return;
+    const day = today();
+    const sent = Object.fromEntries(Object.entries(labelsSent).filter(([, d]) => d === day));
+    for (const [i, f] of (job?.forms || []).entries()) {
+      const code = templateIds[i] === "auto" ? f.placed?.outcome : null;
+      if (!code) continue;
+      const key = `${VERSION}|${f.library || "?"}|${code}`;
+      if (sent[key]) continue;
+      sent[key] = day;
+      post(labelsReport({ code, form: f.library, path, version: VERSION, chrome: CHROME })); // not awaited: see recordError
+    }
+    await chrome.storage.local.set({ labelsSent: sent });
   });
 }
 
@@ -265,9 +361,12 @@ async function autoCreateOnce(id) {
     Object.assign(timings, r.timings || {});
     await tx("readwrite", (s) => s.delete(id));
     await chrome.tabs.update(job.tabId, { url: new URL(r.url, RS).toString(), active: true });
+    await showMade(job.tabId, { ...madeSummary({ plan, job: withoutPdfs(job), c }), draft: draftKey(r.url) });
     lap("oneClickTotal", t0);
     await keep();
-    recordOk({ path: "one-click", forms: job.forms.length }).catch(() => {});
+    const labels = plan.templateIds.includes("auto");
+    recordOk({ path: "one-click", forms: job.forms.length, labels }).catch(() => {});
+    if (labels) recordLabels({ job: withoutPdfs(job), templateIds: plan.templateIds, path: "one-click" }).catch(() => {});
     return { done: true, packet: !!r.packet };
   } catch (e) {
     // rs:create deletes its own half-made drafts before it throws.
@@ -321,6 +420,18 @@ async function startJob({ wfTabId, wfForms, meta, background, auto }) {
         formGuid: form.formGuid, pageCount: form.pageCount ?? countPages(data),
         parties: form.parties || null, pdfBase64: toBase64(data) };
     });
+    // What "Place blocks from the form's labels" would give each form, read now while the
+    // PDF is here: the panel and one click decide from it whether the agent signs (an agent
+    // line on the form ticks "Add the agent as a signer", as a template's agent blocks do).
+    const tPlace = Date.now();
+    // outcome: why it would get no blocks, for a report if it's placed this way (recordLabels).
+    for (const f of forms) {
+      f.placed = await readPdfText(fromBase64(f.pdfBase64)).then((pages) => {
+        const s = placedSummary(autoLayout(pages).layout);
+        return { ...s, outcome: placeOutcome({ pages, blocks: s.blocks }) };
+      }, (error) => ({ blocks: 0, agent: false, outcome: placeOutcome({ error }) }));
+    }
+    timings.labels = Math.round((Date.now() - tPlace) / 100) / 10;
     await purgeOld();
     const id = crypto.randomUUID();
     await tx("readwrite", (s) => s.put({ id, createdAt: Date.now(), ...meta, timings, forms, tabId }));
@@ -340,7 +451,7 @@ async function startJob({ wfTabId, wfForms, meta, background, auto }) {
 }
 
 const OWN = chrome.runtime.getURL("");
-const RS_TAB_ONLY = new Set(["job:get", "job:status"]);
+const RS_TAB_ONLY = new Set(["job:get", "job:status", "made:next"]);
 chrome.runtime.onMessage.addListener((msg, sender, reply) => {
   const fromRsTab = !!sender.tab?.url?.startsWith(RS);
   const fromOwnPage = !sender.tab && String(sender.url || "").startsWith(OWN);
@@ -348,6 +459,8 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
   (async () => {
     if (msg.type === "job:start") return startJob(msg);
     if (msg.type === "job:status") return handoffs.get(sender.tab?.id) || null;
+    // Next on a one-click draft's first step: Real Signature may not change the address.
+    if (msg.type === "made:next") return madeSeen(sender.tab?.id).then(() => ({ ok: true }));
     if (msg.type === "job:pending") return handoffs.get(msg.tabId) || null;
     if (msg.type === "job:forTab") {
       const cutoff = Date.now() - JOB_TTL_MS;
@@ -360,12 +473,26 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
       return j && j.createdAt >= Date.now() - JOB_TTL_MS ? j : null;
     }
     if (msg.type === "job:done") {
+      // The panel's draft: its forms placed from their labels, reported before the job goes.
+      if (msg.templateIds?.includes("auto")) {
+        const j = await tx("readonly", (s) => s.get(msg.id));
+        if (j) recordLabels({ job: withoutPdfs(j), templateIds: msg.templateIds, path: "panel" }).catch(() => {});
+      }
       await tx("readwrite", (s) => s.delete(msg.id));
       return { ok: true };
     }
     if (msg.type === "job:auto") return autoCreate(msg.id);
+    // The panel on a one-click draft: what was chosen, if the tab is still on that draft.
+    // Asking for it is seeing it, so the badge goes.
+    if (msg.type === "made:forTab") {
+      const { madeFor = {} } = await chrome.storage.session.get("madeFor");
+      const made = madeFor[msg.tabId];
+      if (!made || !String(msg.url || "").includes(made.draft)) return null;
+      if (!made.seen) await madeSeen(msg.tabId);
+      return made;
+    }
     if (msg.type === "report:error") return recordError({ error: msg.error, step: msg.step, ctx: msg.ctx });
-    if (msg.type === "report:ok") return recordOk({ path: msg.path, forms: msg.forms }).then(() => ({ ok: true }));
+    if (msg.type === "report:ok") return recordOk({ path: msg.path, forms: msg.forms, labels: msg.labels === true }).then(() => ({ ok: true }));
     if (msg.type === "report:last") {
       if (!REPORTS_ON) return null; // nothing to offer: the panel shows no report box
       const { lastReport: l } = await chrome.storage.local.get("lastReport");

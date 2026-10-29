@@ -3,9 +3,9 @@
 
 import { suggestTitle, matchAddress } from "../lib/title.js";
 import { wrongDealWarnings } from "../lib/deals.js";
-import { confidentDeal, usableTemplates } from "../lib/auto.js";
+import { confidentDeal, usableTemplates, dealGroups } from "../lib/auto.js";
 import { sendToTab } from "../messaging.js";
-import { suggestTemplate, rememberKey, normalizeName, rememberEntry, pruneRemembered, signingSide, sideMismatch } from "../lib/match.js";
+import { suggestTemplate, rememberKey, normalizeName, rememberEntry, pruneRemembered, signingSide, sideMismatch, LABELS, LABELS_NAME } from "../lib/match.js";
 import { titleValues, titleFor, subjectFor, DEFAULT_SETTINGS } from "../lib/pattern.js";
 import { signerCounts, signersWithoutEmail, signeesFromDeal, agentRoleFor, agentPeople, cleanSubject, subjectTooLong, SUBJECT_MAX } from "../lib/draft.js";
 import { actingNotes } from "../lib/actor.js";
@@ -50,7 +50,7 @@ function syncTips() {
 }
 
 function show(section) {
-  for (const s of ["idle", "wf", "rs"]) $(s).hidden = s !== section;
+  for (const s of ["idle", "made", "wf", "rs"]) $(s).hidden = s !== section;
   // No Settings link beside a draft waiting for its choices: it opens a new tab, and Chrome
   // then dropped this tab's panel — the agent came back to an empty Drafts list and no
   // panel (2026-10-15). Settings is in the WEBForms popup, and the icon's right-click menu.
@@ -277,6 +277,11 @@ async function showWebforms(tab) {
   show("wf");
   stopPoll();
   $("wf-go").disabled = true;
+  // Settings → "start when I click the icon": the click is made for the agent, so a grey
+  // button would only look stuck — the status line says what's happening instead (Dan,
+  // 2026-10-29). Shown again once it has started (a redraw after "your picks changed") or
+  // if the start fails, so the agent can try again from here.
+  $("wf-go").hidden = !!(POPUP && !autoStarted && (await settings()).startOnOpen);
   $("wf-title-wrap").hidden = true;
   $("wf-forms").replaceChildren();
   say("Checking which forms are picked…", "busy");
@@ -303,12 +308,15 @@ async function showWebforms(tab) {
   // Same-origin, read-only lookups for the title and the deal match (rule 2).
   const transactionId = sel.transactionId
     || (new Set(sel.forms.map((f) => f.transactionId)).size === 1 ? sel.forms[0].transactionId : "");
+  const tRead = Date.now();
   const d = await send(tab.id, { type: "webforms:details", transactionId, formIds: sel.forms.map((f) => f.id),
     preloaded: sel.preloaded || null, user: sel.user || null, transaction: sel.transaction || null });
+  // Seconds, for "Check my setup" (it rides along with the hand-off's other timings).
+  const formDetails = Math.round((Date.now() - tRead) / 100) / 10;
   const info = new Map(d.forms.map((f) => [f.id, f]));
   if (sel.address) d.firstFormValues = sel.address; // an open form: the page's saved copy is the freshest
   wfState = {
-    tabId: tab.id, sel, userName: d.userName, userEmail: d.userEmail || null,
+    tabId: tab.id, sel, userName: d.userName, userEmail: d.userEmail || null, formDetails,
     forms: sel.forms.map((f) => ({ ...f, ...info.get(f.id) })),
     address: matchAddress({ transaction: d.transaction, firstFormValues: d.firstFormValues }),
     buyerNames: d.buyerNames || [],
@@ -331,7 +339,10 @@ async function showWebforms(tab) {
   const s = await settings();
   $("wf-title").value = titleFor(s, wfState.titleValues, suggested);
   say("");
-  $("wf-title-wrap").hidden = false;
+  // Not when the icon click starts it: the title goes the moment it's filled in, so a box
+  // to edit it changed nothing (Dan, 2026-10-29). It's in the Real Signature panel, and it
+  // comes back here, with the button, if the start fails.
+  $("wf-title-wrap").hidden = !!(POPUP && s.startOnOpen && !autoStarted);
   if (sel.unsaved) {
     say(sel.cantCheck ? CANT_CHECK : UNSAVED, "warn");
     startPoll(tab.id);
@@ -371,6 +382,7 @@ $("wf-go").addEventListener("click", async () => {
     const r = await chrome.runtime.sendMessage({ type: "job:start", wfTabId: wfState.tabId, wfForms: wfState.forms, background: POPUP, auto, meta: {
       title: $("wf-title").value.trim() || wfState.forms[0].typeName || wfState.forms[0].name,
       source: wfState.sel.source, address: wfState.address, buyerNames: wfState.buyerNames, agentSide: wfState.agentSide, parties: wfState.parties, contactPeople: wfState.contactPeople, titleValues: wfState.titleValues, webformsUserName: wfState.userName, webformsUserEmail: wfState.userEmail,
+      timings: { formDetails: wfState.formDetails },
     } });
     if (r?.error) {
       // Still here, so the agent hasn't gone to that tab: close it, the error is shown here.
@@ -392,6 +404,8 @@ $("wf-go").addEventListener("click", async () => {
     // (re-reading the ticks, redrawing the list) is reported here.
     if (e?.reported) showReport().catch(() => {});
     else await reportError(e, "handoff");
+    $("wf-go").hidden = false;
+    $("wf-title-wrap").hidden = !wfState; // the title is back to edit before trying again
     $("wf-go").disabled = false;
   } finally {
     wfBusy = false;
@@ -511,15 +525,31 @@ async function showRealsig(tab, job) {
   // Deals: everything, best address match first — a bad match never hides the right deal.
   const { ranked, deal: best, by } = confidentDeal(job.address, c.deals, job.buyerNames);
   const confident = !!best;
+  // Nothing came close to the address or the buyers: No deal, picked and said so. Several
+  // possible deals still wait for the agent's choice.
+  const noneFits = by === "none";
   rsState.autoBy = by;
+  rsState.noneFits = noneFits;
+  // Close matches first, then a group per type (auto.js dealGroups), gaps between as in
+  // the template list. Rows at the top say their type themselves; a group's header does.
   const sel = $("rs-deal");
+  const { top, groups } = dealGroups(ranked);
+  const who = (d) => (d.kind === "buyer" ? d.buyerNames.join(" & ") || "(no buyer)" : d.address || "(no address)");
+  const row = (d, tagged) => option(d.id, `${tagged && d.kind === "buyer" ? "Buyer Record: " : ""}${who(d)} · ${d.agentName || "?"}${tagged && d.kind === "listing" ? " · listing" : ""}`,
+    { selected: confident && d === ranked[0].deal });
+  const gap = () => document.createElement("hr"); // drawn as space: panel.html
   sel.replaceChildren(
-    option("", "Choose a deal…", { selected: !confident, disabled: true }),
-    option("none", "No deal (standalone)"),
-    ...ranked.map(({ deal }, i) => option(deal.id, deal.kind === "buyer"
-      ? `Buyer Record: ${deal.buyerNames.join(" & ") || "(no buyer)"} · ${deal.agentName || "?"}`
-      : `${deal.address || "(no address)"} · ${deal.agentName || "?"}${deal.kind === "listing" ? " · listing" : ""}`,
-      { selected: confident && i === 0 })),
+    option("", "Choose a deal…", { selected: !confident && !noneFits, disabled: true }),
+    ...top.map((d) => row(d, true)),
+    ...(top.length ? [gap()] : []),
+    option("none", "No deal (standalone)", { selected: noneFits }),
+    ...(groups.length ? [gap()] : []),
+    ...groups.map((g) => {
+      const og = document.createElement("optgroup");
+      og.label = g.label;
+      og.append(...g.deals.map((d) => row(d, false)));
+      return og;
+    }),
   );
 
   // A deal picked for the agent must be visible as such — one agent didn't notice the
@@ -549,17 +579,33 @@ function renderTemplates(side) {
     div.append(el("b", form.name)); // page counts only matter for matching; the ⓘ says so
     const pick = document.createElement("select");
     pick.id = `tpl-${i}`;
-    pick.onchange = () => updateDeal(); // a template can change who signs and how many
+    const note = el("div", "", "note");
+    let tellRemembered = () => {}; // set below when there are templates to choose between
+    pick.onchange = () => { tellRemembered(); updateDeal(); }; // a template can change who signs and how many
+    // The template pre-selected because it was used last time: switching from it to the
+    // labels is remembered (Dan, 2026-10-29), see rs-go.
+    (rsState.lastTemplate ||= [])[i] = s.remembered?.id || null;
     const none = "No template — I'll place blocks in Real Signature";
+    // Blocks placed from the form's own printed labels (autoplace.js): Alberta and Manitoba
+    // forms so far. The agent checks them in Real Signature, as with any draft.
+    // "Auto place", not "labels" (Dan, 2026-10-29: the word confused). LABELS_NAME is the same.
+    const auto = LABELS_NAME;
     if (!usable.length) {
       // The option text says it; why none fit is in the Templates ⓘ.
-      pick.replaceChildren(option("none", none, { selected: true }));
+      pick.replaceChildren(option("auto", auto, { selected: true }), option("none", none));
       div.append(pick);
     } else {
-      const opts = [option("", "Choose a template…", { selected: !s.remembered, disabled: true })];
+      // Nothing remembered or suggested: placing from the labels is the default (Dan,
+      // 2026-10-29). A suggestion still waits for the agent's pick, as before.
+      // A remembered choice of the labels (s.labels) is pre-selected the same way.
+      const pickAuto = !s.remembered && !s.suggestions.length;
+      const opts = [option("", "Choose a template…", { selected: !s.remembered && !pickAuto, disabled: true })];
       if (s.remembered) opts.push(option(s.remembered.id, `${s.remembered.name} (last used)`, { selected: true }));
       for (const t of s.suggestions) opts.push(option(t.id, `${t.name} (suggested)`));
-      opts.push(option("none", none));
+      // A gap between the templates and the two choices that aren't templates (the <hr>
+      // is drawn as space: panel.html, .form select hr).
+      const line = () => document.createElement("hr");
+      opts.push(line(), option("auto", s.labels ? `${auto} (last used)` : auto, { selected: pickAuto }), option("none", none), line());
       const shown = new Set(opts.map((o) => o.value));
       for (const t of usable.filter((t) => !shown.has(t.id)).sort((a, b) => a.name.localeCompare(b.name))) {
         opts.push(option(t.id, `${t.name}${t.shared ? " (shared)" : ""}`));
@@ -567,9 +613,20 @@ function renderTemplates(side) {
       pick.replaceChildren(...opts);
       if (before[i] && opts.some((o) => o.value === before[i])) pick.value = before[i];
       div.append(pick);
-      // Nothing remembered yet: the one thing between this form and one click next time.
+      // What next time will do with this choice — the one thing between this form and one
+      // click. It said "Remembered" under the labels too, which were never remembered
+      // (Dan's test, 2026-10-29).
       const forSide = side ? ` for ${side === "BUYER" ? "buyer" : "seller"} deals` : "";
-      if (!s.remembered) div.append(el("div", `Remembered${forSide} next time.`, "note"));
+      tellRemembered = () => {
+        const v = pick.value;
+        note.textContent = !v || v === "none" ? ""
+          : v === "auto" ? (s.labels ? "" : s.remembered ? `Auto place is remembered${forSide} next time.`
+            : "Not remembered: one click asks again next time. Choose a template to have it remembered.")
+          : v === s.remembered?.id ? "" : `Remembered${forSide} next time.`;
+        note.hidden = !note.textContent;
+      };
+      div.append(note);
+      tellRemembered();
       // usableTemplates lists them all when the page count is unknown: say it can't vouch.
       if (!form.pageCount) div.append(el("div", "Couldn't read this form's page count — make sure the template is for this form.", "warn"));
     }
@@ -635,6 +692,9 @@ function updateDeal() {
     const why = t && sideMismatch(t, side);
     if (why) notes.push(`${form.name}: "${t.name}" would place no blocks — ${why}.`);
   });
+  if (id === "none" && rsState.noneFits) {
+    notes.push({ level: "info", text: "No reZEN deal matches this address or buyer, so it's made without one. Choose a deal if there is one." });
+  }
   if (deal && deal.id === rsState.autoPicked) {
     notes.push(rsState.autoBy === "name"
       ? "Picked for you because the buyer's name matches this Buyer Record. Check it's the right one, or choose another (or No deal)."
@@ -727,7 +787,10 @@ function updateAgent() {
   const deal = c.deals.find((d) => d.id === $("rs-deal").value) || null;
   const counts = { BUYER: Number($("rs-buyers").value) || 0, SELLER: Number($("rs-sellers").value) || 0 };
   const picked = job.forms.map((_, i) => $(`tpl-${i}`)?.value);
-  const roles = picked.map((tid) => (!tid ? null : tid === "none"
+  // Placed blocks: the agent signs a form whose labels include an agent line (placed, read
+  // in the background); with no such line there's nowhere to put their blocks.
+  const noAgentLine = (i) => picked[i] === "auto" && job.forms[i].placed && !job.forms[i].placed.agent;
+  const roles = picked.map((tid, i) => (!tid || noAgentLine(i) ? null : tid === "none" || tid === "auto"
     ? agentRoleFor({ layout: null, counts, dealSide: deal?.side || job.agentSide })
     : c.templates.find((t) => t.id === tid)?.agentRole ?? null));
   // Why a form gets no agent, in words about the TEMPLATE — the form itself may well have
@@ -736,14 +799,17 @@ function updateAgent() {
     if (roles[i]) return null;
     const tid = picked[i];
     if (!tid) return { form: f.name, why: "pick a template (or No template) first" };
-    if (tid !== "none") return { form: f.name, why: "its template has no agent blocks" };
+    if (tid !== "none" && tid !== "auto") return { form: f.name, why: "its template has no agent blocks" };
+    if (noAgentLine(i)) return { form: f.name, why: "the form has no agent line to place blocks on" };
     if (!counts.BUYER && !counts.SELLER) return { form: f.name, why: "no template and no buyers or sellers, so it can't tell whether the agent signs as buyer's or seller's agent" };
     return { form: f.name, why: "no template, and both buyers and sellers sign, so it can't tell whether the agent signs as buyer's or seller's agent" };
   }).filter(Boolean);
   // Ticked for the agent when a picked template already has agent blocks — the template
-  // says the agent signs. Otherwise off. Once the agent touches the box, theirs stands.
+  // says the agent signs — or a form placed from its labels has an agent line. Otherwise
+  // off. Once the agent touches the box, theirs stands.
   if (!rsState.agentTouched) {
-    $("rs-agent").checked = picked.some((tid) => c.templates.find((t) => t.id === tid)?.agentRole);
+    $("rs-agent").checked = picked.some((tid, i) => c.templates.find((t) => t.id === tid)?.agentRole
+      || (tid === "auto" && job.forms[i].placed?.agent));
   }
   const forms = roles.filter(Boolean);
   const role = forms[0];
@@ -773,7 +839,7 @@ function updateAgent() {
   const skippedText = skipped.map((s) => `${s.form}: ${s.why}.`).join(" ");
   if (!forms.length) {
     if (on) {
-      text = skipped.length === 1 && picked[0] === "none" && job.forms.length === 1
+      text = skipped.length === 1 && ["none", "auto"].includes(picked[0]) && job.forms.length === 1
         ? "Can't tell which agent role to use without a template — add the agent in Real Signature."
         : "Not added to any form here — add the agent in Real Signature.";
     }
@@ -853,12 +919,19 @@ $("rs-go").addEventListener("click", async () => {
     const side = signingSide({ deal: c.deals.find((d) => d.id === dealId) || null, agentSide: job.agentSide });
     job.forms.forEach((f, i) => {
       const tid = templateIds[i];
-      if (tid === "none") return;
+      if (tid === "none") return; // a choice, not a template to remember
+      // The labels are remembered only when the agent switched to them from the template
+      // used last time (Dan, 2026-10-29). As the default for a form with nothing
+      // remembered they're not a choice, and one click keeps asking until there is one.
+      if (tid === "auto") {
+        if (rsState.lastTemplate?.[i]) next[rememberKey(f, side)] = rememberEntry(f, { id: LABELS, name: LABELS_NAME });
+        return;
+      }
       next[rememberKey(f, side)] = rememberEntry(f, c.templates.find((t) => t.id === tid) || { id: tid });
     });
     await chrome.storage.local.set({ templateFor: next });
-    await chrome.runtime.sendMessage({ type: "job:done", id: job.id });
-    chrome.runtime.sendMessage({ type: "report:ok", path: "panel", forms: job.forms.length }).catch(() => {});
+    await chrome.runtime.sendMessage({ type: "job:done", id: job.id, templateIds });
+    chrome.runtime.sendMessage({ type: "report:ok", path: "panel", forms: job.forms.length, labels: templateIds.includes("auto") }).catch(() => {});
     await chrome.tabs.update(tab.id, { url: new URL(r.url, RS).toString() });
     say(r.packet && r.drafts === 1 ? `Draft ready. Add the ${roleWords(r.unfilled)} in Add Signees.`
       : r.packet ? `Packet ready (${r.drafts} forms).` : "Draft ready.", "ok");
@@ -875,7 +948,8 @@ $("rs-go").addEventListener("click", async () => {
     say(String(e.message || e), "err");
     $("rs-go").disabled = !canFinish();
     await reportError(e, "create", { c, job, dealId: dealId === "none" ? null : dealId,
-      dealBy: dealId === rsState?.autoPicked ? rsState.autoBy : null,
+      // "none": No deal was the default because nothing came close (report deal "none-default").
+      dealBy: dealId === rsState?.autoPicked || (dealId === "none" && rsState?.noneFits) ? rsState.autoBy : null,
       templateIds: templateIds.map((t) => (t === "none" ? null : t)), counts,
       warned: !!$("rs-warn").querySelector(".warn") });
   }
@@ -903,6 +977,30 @@ chrome.runtime.onMessage.addListener((msg) => {
     if (msg.ready) refresh(); else showHandoff(msg);
   });
 });
+
+// ---------- a one-click draft, afterwards ----------
+
+// What one click chose (auto.js madeSummary), on that draft: the panel used to say only
+// "open a form in WEBForms", and nothing showed that No deal or the labels were its choice
+// (Dan, 2026-10-29). Each fix is one Real Signature already offers on the draft.
+function showMade(made) {
+  const items = [];
+  items.push(made.deal
+    ? el("li", `Deal: ${made.deal} (${made.dealBy === "name" ? "Buyer Record, matched by the buyers' names" : "matched by address"})`)
+    : el("li", "No deal: no reZEN deal or Buyer Record matched the form's address or buyers."));
+  for (const f of made.forms) {
+    items.push(el("li", `${f.name}: ${f.how === "labels" ? `auto placed from the form's labels${f.chosen ? " (your choice last time)" : ""}`
+      : f.how === "template" ? `your template "${f.template}"` : "no template"}`));
+  }
+  if (made.agent) items.push(el("li", "The agent is added as a signer."));
+  $("made-list").replaceChildren(...items);
+  const fixes = [];
+  if (!made.deal) fixes.push("If there is a deal, choose it in Real Signature's Transaction step.");
+  if (made.forms.some((f) => f.how === "labels")) fixes.push("Check the auto placed blocks in Prepare.");
+  $("made-note").textContent = fixes.join(" ");
+  if (!$("msg").querySelector(".ok")) say("");
+  show("made");
+}
 
 // ---------- which screen ----------
 
@@ -936,6 +1034,8 @@ async function refresh() {
           else show("rs");
           return;
         }
+        const made = await chrome.runtime.sendMessage({ type: "made:forTab", tabId: tab.id, url: tab.url });
+        if (made && !made.error) { showMade(made); return; }
       }
       if (!$("msg").querySelector(".ok")) say("");
       show("idle");
@@ -953,6 +1053,12 @@ async function refresh() {
 
 $("open-settings").addEventListener("click", () => chrome.runtime.openOptionsPage());
 chrome.tabs.onActivated.addListener(() => refresh());
-chrome.tabs.onUpdated.addListener((_id, info) => info.status === "complete" && refresh());
+chrome.tabs.onUpdated.addListener((_id, info) => {
+  // Real Signature moves between its pages without a page load, so leaving a one-click
+  // draft for the Drafts list only changes the address — and the summary stayed up there
+  // (Dan's test, 2026-10-29). Only while the summary shows: elsewhere an address change
+  // would redraw choices the agent is in the middle of.
+  if (info.status === "complete" || (info.url && !$("made").hidden)) refresh();
+});
 syncTips();
 refresh();

@@ -31,7 +31,30 @@ export function confidentDeal(address, deals, buyerNames = []) {
     return { ranked: [a, ...all.filter((x) => x.deal !== a.deal)], deal: a.deal, by: "address" };
   }
   if (named.length === 1) return { ranked: all, deal: named[0], by: "name" };
-  return { ranked: all, deal: null, by: null };
+  // Nothing even close: no deal with the civic number AND a street word in common (above
+  // 0.5, see addressScore), no Buyer Record with the buyers' names — usually a form signed
+  // before any deal exists (a representation agreement, the Consumer Relationships Guide).
+  // Then No deal is the default rather than a click (Dan, 2026-10-29). Only when there was
+  // something to match on: no address and no names says nothing either way.
+  const none = !!(address || buyerNames.length) && !named.length && !ranked.some((x) => x.score > 0.5);
+  return { ranked: all, deal: null, by: none ? "none" : null };
+}
+
+/** The deal picker's layout (Dan, 2026-10-29): close matches first, best first and with
+ *  no header — the picked deal among them — then each type in its own group, sorted, so
+ *  a long list is scannable. Nothing appears twice. ranked: confidentDeal's. Close = above
+ *  0.5: the civic number and a street word in common, or a Buyer Record with the buyers'
+ *  names (scored 1). → {top: [deal], groups: [{kind, label, deals}]} (empty groups left out). */
+export const DEAL_GROUPS = [["deal", "Deals"], ["listing", "Listings"], ["buyer", "Buyer Records"]];
+export function dealGroups(ranked) {
+  const top = ranked.filter((x) => x.score > 0.5).map((x) => x.deal);
+  const rest = ranked.filter((x) => x.score <= 0.5).map((x) => x.deal);
+  const key = (d) => (d.kind === "buyer" ? (d.buyerNames || []).join(" & ") : d.address || "").toLowerCase();
+  const groups = DEAL_GROUPS.map(([kind, label]) => ({ kind, label,
+    deals: rest.filter((d) => (d.kind || "deal") === kind)
+      .sort((a, b) => key(a).localeCompare(key(b), undefined, { numeric: true })) }))
+    .filter((g) => g.deals.length);
+  return { top, groups };
 }
 
 /** Templates that can help a form: same page count AND at least one signature, initial or
@@ -49,7 +72,8 @@ export function usableTemplates(form, templates) {
 export function planDraft({ job, c, remembered = {}, agentMode = "one" }) {
   const needs = [];
   const { deal, by } = confidentDeal(job.address, c.deals, job.buyerNames);
-  if (!deal) {
+  // by "none": nothing came close, so No deal needs no choice (confidentDeal).
+  if (!deal && by !== "none") {
     needs.push(job.address
       ? "No reZEN deal or Buyer Record clearly matches — choose one (or No deal)."
       : "No address or buyer name to match a reZEN deal with — choose one (or No deal).");
@@ -58,15 +82,20 @@ export function planDraft({ job, c, remembered = {}, agentMode = "one" }) {
   // Templates are remembered per side, and one with blocks only for the side that isn't
   // signing would place none — so the side is settled first (signingSide).
   const side = signingSide({ deal, agentSide: job.agentSide });
+  const fromLabelsByChoice = new Set();
   const templateIds = job.forms.map((form) => {
     const usable = usableTemplates(form, c.templates);
-    if (!usable.length) return null; // nothing to choose: blocks are placed in Real Signature
+    // Nothing to choose: blocks placed from the form's labels, the panel's default too (Dan,
+    // 2026-10-29). A form it can't read gets no blocks, as before. Templates that fit but
+    // aren't remembered still stop for the agent: one of them may be the one they want.
+    if (!usable.length) return "auto";
     // Can't confirm any template fits: the agent chooses, even one remembered.
     if (!form.pageCount) {
       needs.push(`${form.name}: couldn't read its page count — choose the template.`);
       return null;
     }
     const s = suggestTemplate(form, usable, remembered, side);
+    if (s.labels) { fromLabelsByChoice.add(form); return "auto"; } // the agent's own choice, remembered
     if (s.remembered) return s.remembered.id;
     const refused = suggestTemplate(form, c.templates, remembered, side).refused;
     needs.push(!refused ? `${form.name}: choose a template once — it's remembered after that.`
@@ -91,15 +120,43 @@ export function planDraft({ job, c, remembered = {}, agentMode = "one" }) {
     if (signersWithoutEmail(deal, counts).length) needs.push("A client on this deal has no email in reZEN.");
   }
 
-  // Same default as the panel's box: the agent signs when a picked template has agent blocks.
-  const agentOn = picked.some((t) => t.agentRole);
+  // Same default as the panel's box: the agent signs when a picked template has agent
+  // blocks, or a form placed from its labels has an agent line (background.js `placed`).
+  const agentOn = picked.some((t) => t.agentRole)
+    || templateIds.some((id, i) => id === "auto" && job.forms[i].placed?.agent);
   return {
     ready: needs.length === 0,
     needs,
     dealId: deal?.id ?? null,
-    dealBy: deal ? by : null, // "address" or "name", for error reports (report.js)
+    // "address" or "name", or "none" when No deal was the default; for error reports (report.js).
+    dealBy: deal || by === "none" ? by : null,
     templateIds,
+    // Per form, true when "auto" was the agent's remembered choice rather than the default
+    // for a form with no template (madeSummary: no "chose for you" dot for it).
+    labelsChosen: job.forms.map((f) => fromLabelsByChoice.has(f)),
     counts,
     agentChoice: agentOn ? (agentMode === "all" ? "all" : "best") : null,
+  };
+}
+
+/** What one click chose, for the panel on that draft afterwards (Dan, 2026-10-29: so "it's
+ *  clear that that choice was made"). guessed: it chose FOR the agent — No deal, or blocks
+ *  from a form's labels — and the icon gets a badge. Stays in this browser (background.js
+ *  showMade), never in a report. */
+export function madeSummary({ plan, job, c }) {
+  const deal = plan.dealId ? c.deals.find((d) => d.id === plan.dealId) : null;
+  const forms = job.forms.map((f, i) => {
+    const id = plan.templateIds[i];
+    const t = c.templates.find((x) => x.id === id);
+    // chosen: the labels were the agent's remembered choice (planDraft labelsChosen).
+    return { name: f.name, how: id === "auto" ? "labels" : t ? "template" : "none", template: t?.name || null,
+      ...(id === "auto" ? { chosen: !!plan.labelsChosen?.[i] } : {}) };
+  });
+  return {
+    deal: deal ? (deal.address || (deal.buyerNames || []).join(" & ") || "a reZEN deal") : null,
+    dealBy: deal ? plan.dealBy : null,
+    forms,
+    agent: !!plan.agentChoice,
+    guessed: !deal || forms.some((f) => f.how === "labels" && !f.chosen),
   };
 }

@@ -14,7 +14,7 @@ let ctx = null; // { rs, lib, me, templates: Map, deals: Map } — this tab's li
 
 async function load() {
   const lib = {};
-  for (const p of ["realsig-api.js", "layout.js", "deals.js", "draft.js", "actor.js", "pdf.js"]) {
+  for (const p of ["realsig-api.js", "layout.js", "deals.js", "draft.js", "actor.js", "pdf.js", "pdftext.js", "autoplace.js"]) {
     Object.assign(lib, await import(chrome.runtime.getURL(`src/lib/${p}`)));
   }
   return lib;
@@ -166,7 +166,13 @@ async function create({ jobId, title, dealId, templateIds, counts, agentChoice =
       created.push(up.id);
       const draft = await timed("readBack", rs.getTemplate(up.id));
       let layout = null;
-      if (templateIds[i]) {
+      // "auto": blocks from the form's printed labels. Nothing recognised → no blocks, as
+      // with No template; the agent places them in Real Signature.
+      const auto = templateIds[i] === "auto";
+      if (auto) {
+        const found = lib.autoLayout(await lib.readPdfText(lib.fromBase64(form.pdfBase64)).catch(() => [])).layout;
+        if (found) layout = lib.dropUnusedSlots(found, counts);
+      } else if (templateIds[i]) {
         const t = c.templates.get(templateIds[i])?.t || (await rs.getTemplate(templateIds[i]));
         layout = lib.dropUnusedSlots(lib.stripTemplate(t), counts);
       }
@@ -174,9 +180,19 @@ async function create({ jobId, title, dealId, templateIds, counts, agentChoice =
       // template (blocks placed by hand); see agentRoleFor.
       let agents = null;
       if (agentChoice) {
-        const role = lib.agentRoleFor({ layout, counts, dealSide: deal?.side || job.agentSide });
+        // Placed blocks carry no agent side of their own: decide it as with No template.
+        // With no agent line on the form, the agent isn't added to it (as for a template
+        // without agent blocks).
+        const role = auto && !lib.placedSummary(layout).agent ? null
+          : lib.agentRoleFor({ layout: auto ? null : layout, counts, dealSide: deal?.side || job.agentSide });
         const people = role ? lib.chooseAgents(lib.agentPeople({ deal, role, me: c.me, webformsUserName: job.webformsUserName, webformsUserEmail: job.webformsUserEmail }), agentChoice) : [];
         if (people.length) agents = { signeeType: role, people };
+      }
+      // Placed blocks: the signing agent's lines stay, the other side's agent lines go, and
+      // every signer the counts ask for is set up even where the form had no line for them.
+      if (auto && layout) {
+        layout = lib.withSigners(lib.forAgent(lib.forClients(layout, counts), agents?.signeeType ?? null), counts);
+        if (!layout.fieldDefinitions.length) layout = null;
       }
       const body = lib.buildDraftBody({
         draft, layout,
@@ -274,6 +290,13 @@ async function openActing() {
     tell(v);
   }, 1000);
 }
+
+// Next on a draft's steps: the icon's "one click chose for you" dot has done its job by
+// then (background.js madeSeen). Only listens; nothing on the page is changed.
+document.addEventListener("click", (e) => {
+  const b = e.target?.closest?.("button");
+  if (b && /^\s*Next\b/.test(b.textContent || "")) chrome.runtime.sendMessage({ type: "made:next" }).catch(() => {});
+}, true);
 
 // A hand-off from WEBForms still under way when the agent clicks over to this tab — before
 // the side panel could open here — used to look like nothing at all (2026-10-15). A small
