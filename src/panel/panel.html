@@ -34,6 +34,18 @@
     .row { display: flex; gap: 16px; align-items: center; }
     .form { border: 1px solid #e3e6ec; border-radius: 6px; padding: 8px 10px; margin: 8px 0; }
     .form b { display: block; font-size: 13px; }
+    /* Template lists: a gap, not a line, between the templates and the two choices that
+       aren't templates (Dan, 2026-10-29: disabled "──────" rows, then lines, were both
+       clutter; "needs like a half line more spacing"). The gap is an <hr> (Chrome 119+)
+       drawn as empty space, which needs Chrome to let the page draw the list
+       (appearance: base-select, 135+). Older Chrome keeps its own list, where an <hr> is
+       a thin line and margins are ignored; before 119, nothing. */
+    @supports (appearance: base-select) {
+      .form select, .form select::picker(select) { appearance: base-select; }
+      .form select::picker(select) { border: 1px solid #c9cfdb; border-radius: 6px; padding: 4px 0; }
+      .form select option { padding: 4px 8px; }
+      .form select hr { margin: 0 0 0.5em; border: 0; }
+    }
     button { font: inherit; padding: 8px 14px; border-radius: 6px; border: 1px solid #1d4ed8; background: #1d4ed8; color: #fff; cursor: pointer; margin-top: 12px; }
     button.link { background: none; border: none; color: #1d4ed8; padding: 0; margin: 0; text-decoration: underline; font-size: 13px; }
     button:disabled { background: #c9cfdb; border-color: #c9cfdb; cursor: default; }
