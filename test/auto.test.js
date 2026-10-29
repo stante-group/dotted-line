@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { planDraft, confidentDeal, usableTemplates } from "../src/lib/auto.js";
+import { planDraft, confidentDeal, usableTemplates, madeSummary } from "../src/lib/auto.js";
 import { summarizeBuyerRecord, matchesBuyerNames, wrongDealWarnings } from "../src/lib/deals.js";
 import { buyerNamesFromFormValues } from "../src/lib/webforms-api.js";
 
@@ -165,4 +165,23 @@ test("no deal anywhere near the address or the buyers: No deal without a click",
   assert.equal(p.ready, true, p.needs.join(" "));
   // Nothing to match on at all says nothing either way: still the agent's choice.
   assert.equal(confidentDeal("", [deal()]).by, null);
+});
+
+test("what one click chose, for the panel afterwards: guessed only when it chose for the agent", () => {
+  const c = { me, deals: [deal()], templates: [tpl()] };
+  const chosen = planDraft({ job: job(), c, remembered });
+  const m = madeSummary({ plan: chosen, job: job(), c });
+  assert.equal(m.deal, "120 Example Street NW, Calgary");
+  assert.equal(m.dealBy, "address");
+  assert.deepEqual(m.forms, [{ name: "Residential Purchase Contract", how: "template", template: "Offer" }]);
+  assert.equal(m.agent, true);
+  assert.equal(m.guessed, false); // all from the agent's own remembered choices: no badge
+
+  const far = { me, deals: [deal({ id: "d2", address: "9 Other Road SW" })], templates: [] };
+  const noDeal = planDraft({ job: job(), c: far, remembered });
+  const n = madeSummary({ plan: noDeal, job: job(), c: far });
+  assert.equal(n.deal, null);
+  assert.equal(n.dealBy, null);
+  assert.equal(n.forms[0].how, "labels");
+  assert.equal(n.guessed, true);
 });

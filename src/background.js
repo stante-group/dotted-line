@@ -6,7 +6,7 @@
 // Jobs live in the extension's own IndexedDB, are deleted once the draft is made, and
 // anything older than JOB_TTL_MS is purged on startup — contracts must not linger.
 
-import { planDraft } from "./lib/auto.js";
+import { planDraft, madeSummary } from "./lib/auto.js";
 import { DEFAULT_SETTINGS, subjectFor } from "./lib/pattern.js";
 import { subjectTooLong } from "./lib/draft.js";
 import { sendToTab } from "./messaging.js";
@@ -49,7 +49,51 @@ async function placeUi(tabId, url) {
   await chrome.action.setPopup({ tabId, popup: rs ? "" : POPUP }).catch(() => {});
   await chrome.sidePanel.setOptions(rs ? { tabId, path: PANEL, enabled: true } : { tabId, enabled: false }).catch(() => {});
 }
-chrome.tabs.onUpdated.addListener((tabId, info, tab) => { if (info.url || info.status === "loading") placeUi(tabId, tab.url); });
+chrome.tabs.onUpdated.addListener((tabId, info, tab) => {
+  if (info.url || info.status === "loading") placeUi(tabId, tab.url);
+  if (info.url || info.status === "complete") madeBadge(tabId, tab.url).catch(() => {});
+});
+chrome.tabs.onRemoved.addListener((tabId) => forgetMade(tabId).catch(() => {}));
+
+// What one click chose, per Real Signature tab (auto.js madeSummary): the panel shows it
+// when the icon is clicked on that draft, and the icon carries an "i" when one click chose
+// for the agent. Session storage: gone when Chrome closes, and never in a report.
+// Kept while the tab is on that draft (its id in the URL); the badge is put back after
+// each load, as a tab's badge may not survive its navigation, and goes once the panel
+// has shown it.
+const draftKey = (url) => String(url).match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i)?.[0] || String(url);
+async function showMade(tabId, made) {
+  const { madeFor = {} } = await chrome.storage.session.get("madeFor");
+  await chrome.storage.session.set({ madeFor: { ...madeFor, [tabId]: { ...made, at: Date.now() } } });
+  const tab = await chrome.tabs.get(tabId).catch(() => null);
+  await madeBadge(tabId, tab?.url || made.draft);
+}
+// The manifest's title again: a tab's own title can't be unset, only replaced.
+async function clearMadeBadge(tabId) {
+  await chrome.action.setBadgeText({ tabId, text: "" }).catch(() => {});
+  await chrome.action.setTitle({ tabId, title: chrome.runtime.getManifest().action?.default_title || "Dotted Line" }).catch(() => {});
+}
+async function forgetMade(tabId) {
+  const { madeFor = {} } = await chrome.storage.session.get("madeFor");
+  if (!madeFor[tabId]) return;
+  delete madeFor[tabId];
+  await chrome.storage.session.set({ madeFor });
+}
+async function madeBadge(tabId, url) {
+  const { madeFor = {} } = await chrome.storage.session.get("madeFor");
+  const made = madeFor[tabId];
+  if (!made) return;
+  if (url && !String(url).includes(made.draft)) {
+    await forgetMade(tabId);
+    await clearMadeBadge(tabId);
+    return;
+  }
+  if (!made.guessed || made.seen) return;
+  const chose = [!made.deal && "No deal", made.forms.some((f) => f.how === "labels") && "blocks from the form's labels"].filter(Boolean).join(" and ");
+  await chrome.action.setBadgeBackgroundColor({ tabId, color: "#1f5fbf" }).catch(() => {});
+  await chrome.action.setBadgeText({ tabId, text: "i" }).catch(() => {});
+  await chrome.action.setTitle({ tabId, title: `Dotted Line made this draft with ${chose}. Click to see what it chose.` }).catch(() => {});
+}
 chrome.tabs.query({}).then((tabs) => tabs.forEach((t) => placeUi(t.id, t.url))).catch(() => {});
 
 function db() {
@@ -267,6 +311,7 @@ async function autoCreateOnce(id) {
     Object.assign(timings, r.timings || {});
     await tx("readwrite", (s) => s.delete(id));
     await chrome.tabs.update(job.tabId, { url: new URL(r.url, RS).toString(), active: true });
+    await showMade(job.tabId, { ...madeSummary({ plan, job: withoutPdfs(job), c }), draft: draftKey(r.url) });
     lap("oneClickTotal", t0);
     await keep();
     recordOk({ path: "one-click", forms: job.forms.length }).catch(() => {});
@@ -375,6 +420,18 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
       return { ok: true };
     }
     if (msg.type === "job:auto") return autoCreate(msg.id);
+    // The panel on a one-click draft: what was chosen, if the tab is still on that draft.
+    // Asking for it is seeing it, so the badge goes.
+    if (msg.type === "made:forTab") {
+      const { madeFor = {} } = await chrome.storage.session.get("madeFor");
+      const made = madeFor[msg.tabId];
+      if (!made || !String(msg.url || "").includes(made.draft)) return null;
+      if (!made.seen) {
+        await chrome.storage.session.set({ madeFor: { ...madeFor, [msg.tabId]: { ...made, seen: true } } });
+        await clearMadeBadge(msg.tabId);
+      }
+      return made;
+    }
     if (msg.type === "report:error") return recordError({ error: msg.error, step: msg.step, ctx: msg.ctx });
     if (msg.type === "report:ok") return recordOk({ path: msg.path, forms: msg.forms }).then(() => ({ ok: true }));
     if (msg.type === "report:last") {

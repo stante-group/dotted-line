@@ -50,7 +50,7 @@ function syncTips() {
 }
 
 function show(section) {
-  for (const s of ["idle", "wf", "rs"]) $(s).hidden = s !== section;
+  for (const s of ["idle", "made", "wf", "rs"]) $(s).hidden = s !== section;
   // No Settings link beside a draft waiting for its choices: it opens a new tab, and Chrome
   // then dropped this tab's panel — the agent came back to an empty Drafts list and no
   // panel (2026-10-15). Settings is in the WEBForms popup, and the icon's right-click menu.
@@ -936,6 +936,30 @@ chrome.runtime.onMessage.addListener((msg) => {
   });
 });
 
+// ---------- a one-click draft, afterwards ----------
+
+// What one click chose (auto.js madeSummary), on that draft: the panel used to say only
+// "open a form in WEBForms", and nothing showed that No deal or the labels were its choice
+// (Dan, 2026-10-29). Each fix is one Real Signature already offers on the draft.
+function showMade(made) {
+  const items = [];
+  items.push(made.deal
+    ? el("li", `Deal: ${made.deal} (${made.dealBy === "name" ? "Buyer Record, matched by the buyers' names" : "matched by address"})`)
+    : el("li", "No deal: no reZEN deal or Buyer Record matched the form's address or buyers."));
+  for (const f of made.forms) {
+    items.push(el("li", `${f.name}: ${f.how === "labels" ? "blocks placed from the form's labels"
+      : f.how === "template" ? `your template "${f.template}"` : "no template"}`));
+  }
+  if (made.agent) items.push(el("li", "The agent is added as a signer."));
+  $("made-list").replaceChildren(...items);
+  const fixes = [];
+  if (!made.deal) fixes.push("If there is a deal, choose it in Real Signature's Transaction step.");
+  if (made.forms.some((f) => f.how === "labels")) fixes.push("Check the placed blocks in Prepare.");
+  $("made-note").textContent = fixes.join(" ");
+  if (!$("msg").querySelector(".ok")) say("");
+  show("made");
+}
+
 // ---------- which screen ----------
 
 let refreshing = null;
@@ -968,6 +992,8 @@ async function refresh() {
           else show("rs");
           return;
         }
+        const made = await chrome.runtime.sendMessage({ type: "made:forTab", tabId: tab.id, url: tab.url });
+        if (made && !made.error) { showMade(made); return; }
       }
       if (!$("msg").querySelector(".ok")) say("");
       show("idle");

@@ -115,3 +115,23 @@ export function planDraft({ job, c, remembered = {}, agentMode = "one" }) {
     agentChoice: agentOn ? (agentMode === "all" ? "all" : "best") : null,
   };
 }
+
+/** What one click chose, for the panel on that draft afterwards (Dan, 2026-10-29: so "it's
+ *  clear that that choice was made"). guessed: it chose FOR the agent — No deal, or blocks
+ *  from a form's labels — and the icon gets a badge. Stays in this browser (background.js
+ *  showMade), never in a report. */
+export function madeSummary({ plan, job, c }) {
+  const deal = plan.dealId ? c.deals.find((d) => d.id === plan.dealId) : null;
+  const forms = job.forms.map((f, i) => {
+    const id = plan.templateIds[i];
+    const t = c.templates.find((x) => x.id === id);
+    return { name: f.name, how: id === "auto" ? "labels" : t ? "template" : "none", template: t?.name || null };
+  });
+  return {
+    deal: deal ? (deal.address || (deal.buyerNames || []).join(" & ") || "a reZEN deal") : null,
+    dealBy: deal ? plan.dealBy : null,
+    forms,
+    agent: !!plan.agentChoice,
+    guessed: !deal || forms.some((f) => f.how === "labels"),
+  };
+}
