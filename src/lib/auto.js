@@ -60,7 +60,10 @@ export function planDraft({ job, c, remembered = {}, agentMode = "one" }) {
   const side = signingSide({ deal, agentSide: job.agentSide });
   const templateIds = job.forms.map((form) => {
     const usable = usableTemplates(form, c.templates);
-    if (!usable.length) return null; // nothing to choose: blocks are placed in Real Signature
+    // Nothing to choose: blocks placed from the form's labels, the panel's default too (Dan,
+    // 2026-10-29). A form it can't read gets no blocks, as before. Templates that fit but
+    // aren't remembered still stop for the agent: one of them may be the one they want.
+    if (!usable.length) return "auto";
     // Can't confirm any template fits: the agent chooses, even one remembered.
     if (!form.pageCount) {
       needs.push(`${form.name}: couldn't read its page count — choose the template.`);
@@ -91,8 +94,10 @@ export function planDraft({ job, c, remembered = {}, agentMode = "one" }) {
     if (signersWithoutEmail(deal, counts).length) needs.push("A client on this deal has no email in reZEN.");
   }
 
-  // Same default as the panel's box: the agent signs when a picked template has agent blocks.
-  const agentOn = picked.some((t) => t.agentRole);
+  // Same default as the panel's box: the agent signs when a picked template has agent
+  // blocks, or a form placed from its labels has an agent line (background.js `placed`).
+  const agentOn = picked.some((t) => t.agentRole)
+    || templateIds.some((id, i) => id === "auto" && job.forms[i].placed?.agent);
   return {
     ready: needs.length === 0,
     needs,

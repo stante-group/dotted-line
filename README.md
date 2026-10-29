@@ -34,6 +34,10 @@ See [CHANGELOG.md](CHANGELOG.md) for what changed in each version, and [PLAN.md]
 It falls back to the panel, too, when the deal is another agent's or a client on it has no
 email in reZEN — both are worth a look before the draft exists.
 
+**Using the Real Signature app?** Finish the draft in the browser tab first, then open it
+in the app. Chrome doesn't show extension panels in app windows, so the panel closes if you
+switch to the app before the draft is made.
+
 ## Settings
 
 Optional. **Settings** at the bottom of the panel opens a page where you can:

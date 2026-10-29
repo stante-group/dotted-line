@@ -13,6 +13,8 @@ import { sendToTab } from "./messaging.js";
 import { unzip } from "./lib/unzip.js";
 import { isPdf, hasAcroForm, countPages, fromBase64, toBase64 } from "./lib/pdf.js";
 import { pairEntries, zipBatches } from "./lib/webforms-api.js";
+import { readPdfText } from "./lib/pdftext.js";
+import { autoLayout, placedSummary } from "./lib/autoplace.js";
 import { errorReport, okReport, sanitizeReport, tallyOk, tallyDue, contextFromDraft, draftContext, chromeMajor, REPORT_URL, REPORTS_ON, sameFailure } from "./lib/report.js";
 
 const DB = "wfrs";
@@ -321,6 +323,15 @@ async function startJob({ wfTabId, wfForms, meta, background, auto }) {
         formGuid: form.formGuid, pageCount: form.pageCount ?? countPages(data),
         parties: form.parties || null, pdfBase64: toBase64(data) };
     });
+    // What "Place blocks from the form's labels" would give each form, read now while the
+    // PDF is here: the panel and one click decide from it whether the agent signs (an agent
+    // line on the form ticks "Add the agent as a signer", as a template's agent blocks do).
+    const tPlace = Date.now();
+    for (const f of forms) {
+      f.placed = await readPdfText(fromBase64(f.pdfBase64))
+        .then((pages) => placedSummary(autoLayout(pages).layout), () => null);
+    }
+    timings.labels = Math.round((Date.now() - tPlace) / 100) / 10;
     await purgeOld();
     const id = crypto.randomUUID();
     await tx("readwrite", (s) => s.put({ id, createdAt: Date.now(), ...meta, timings, forms, tabId }));

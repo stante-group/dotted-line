@@ -115,10 +115,10 @@ test("a usual template with blocks only for the other side → the panel, never 
   assert.deepEqual(q.templateIds, ["t2"]);
 });
 
-test("no templates that fit at all: nothing to choose, so still one click", () => {
+test("no templates that fit at all: one click, with blocks placed from the form's labels", () => {
   const p = planDraft({ job: job(), c: { me, deals: [deal()], templates: [tpl({ pagesCount: 3 })] }, remembered: {} });
   assert.equal(p.ready, true, p.needs.join(" "));
-  assert.deepEqual(p.templateIds, [null]);
+  assert.deepEqual(p.templateIds, ["auto"]);
   assert.equal(p.agentChoice, null);
 });
 
@@ -140,4 +140,13 @@ test("someone else's deal, or a client without an email → the panel", () => {
   const p = planDraft({ job: job(), c: { me, deals: [noEmail], templates: [tpl()] }, remembered });
   assert.equal(p.ready, false);
   assert.match(p.needs.join(" "), /no email/);
+});
+
+test("placed blocks: an agent line on the form ticks the agent in, as a template's agent blocks do", () => {
+  const withLine = job({ forms: [{ ...job().forms[0], placed: { blocks: 9, agent: true } }] });
+  const p = planDraft({ job: withLine, c: { me, deals: [deal()], templates: [] }, remembered: {} });
+  assert.deepEqual(p.templateIds, ["auto"]);
+  assert.equal(p.agentChoice, "best");
+  const noLine = job({ forms: [{ ...job().forms[0], placed: { blocks: 9, agent: false } }] });
+  assert.equal(planDraft({ job: noLine, c: { me, deals: [deal()], templates: [] }, remembered: {} }).agentChoice, null);
 });

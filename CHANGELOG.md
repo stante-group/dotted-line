@@ -3,6 +3,22 @@
 What changed in each version, in plain words. The newest is at the top. Chrome updates
 Dotted Line by itself a few hours after a version is published.
 
+## Not released yet
+
+- **Blocks placed for you, with no template.** For a form you have no template for, Dotted
+  Line reads the form's own printed labels ("Signature of Seller", "Buyer's Initials",
+  "Signed and dated … on") and places signature, initials, date and time blocks on those
+  lines. Alberta, Manitoba and Ontario forms so far, and the Consumer Relationships Guide.
+  Names are left for you to type in WEBForms. It's the default when no template is
+  remembered or suggested; "No template" is still in the list.
+- Where the form has a separate time blank, the time and the date are separate blocks.
+  Every placed block is required, so a signer can't skip a date or time.
+- "Add the agent as a signer" is ticked when a form placed this way has an agent line.
+- Lines in the template list separate your templates from the two other choices.
+- Check my setup shows two more timings: reading the forms from WEBForms, and reading
+  their labels.
+- Using the Real Signature app? Finish the draft in the browser tab first (see the README).
+
 ## 0.1.2 — 2026-10-28
 
 - **Error reports, only if you say yes.** The first time you open Dotted Line it asks
