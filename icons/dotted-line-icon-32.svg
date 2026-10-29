@@ -1,15 +1,12 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
-  <title>Dotted Line (32 px, drawn on the pixel grid)</title>
-  <rect width="32" height="32" rx="7" fill="#1d4ed8"/>
-  <g fill="#ffffff">
-    <circle cx="6" cy="24" r="2"/>
-    <circle cx="12" cy="24" r="2"/>
-    <circle cx="18" cy="24" r="2"/>
-    <rect x="20" y="4" width="10" height="2"/>
-    <path d="M20 8 H30 V16 L25.5 24 H24.5 L20 16 Z"/>
-  </g>
-  <g fill="#1d4ed8">
-    <rect x="24" y="10" width="2" height="2"/>
-    <rect x="24" y="14" width="2" height="5"/>
-  </g>
+<rect x="0" y="0" width="32" height="32" rx="6.56" fill="#1d4ed8"/>
+<g>
+        <circle cx="8" cy="21.5" r="1.9" fill="#ffffff"/>
+        <circle cx="13" cy="21.5" r="1.9" fill="#ffffff"/>
+        <circle cx="18" cy="21.5" r="1.9" fill="#ffffff"/>
+        <rect x="22.5" y="7.5" width="5.5" height="3" rx="0.6" fill="#ffffff"/>
+        <path d="M22.8 12 H27.2 L29.7 18.5 L25 28 L20.4 18.5 Z" fill="#ffffff"/>
+        <circle cx="25" cy="17.5" r="1.1" fill="#1d4ed8"/>
+        <path d="M25 18.7 V25.5" stroke="#1d4ed8" stroke-width="1.3" stroke-linecap="round"/>
+        </g>
 </svg>
