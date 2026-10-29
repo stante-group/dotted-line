@@ -118,7 +118,7 @@ async function madeBadge(tabId, url) {
     return;
   }
   if (!made?.guessed || made.seen) return;
-  const chose = [!made.deal && "No deal", made.forms.some((f) => f.how === "labels" && !f.chosen) && "blocks from the form's labels"].filter(Boolean).join(" and ");
+  const chose = [!made.deal && "No deal", made.forms.some((f) => f.how === "labels" && !f.chosen) && "auto placed blocks"].filter(Boolean).join(" and ");
   await chrome.action.setIcon({ tabId, path: DOT_ICON }).catch(iconFailed);
   await chrome.action.setTitle({ tabId, title: `Dotted Line made this draft with ${chose}. Click to see what it chose.` }).catch(() => {});
 }

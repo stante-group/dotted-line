@@ -21,7 +21,7 @@ Dotted Line by itself a few hours after a version is published.
   (usually a form signed before there's a deal), No deal is picked for you, and one click
   goes ahead. When several deals could match, you still choose.
 - **After a one-click draft, click the Dotted Line icon to see what it chose:** the deal
-  (or No deal, and why), each form's template or blocks placed from its labels, and
+  (or No deal, and why), each form's template or Auto place, and
   whether the agent signs. When one click chose for you, the icon shows a small amber dot
   until you've looked or moved past the first step.
 - With "Start as soon as I click the Dotted Line icon" on, the popup shows what it's doing

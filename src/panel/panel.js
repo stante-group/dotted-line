@@ -984,14 +984,14 @@ function showMade(made) {
     ? el("li", `Deal: ${made.deal} (${made.dealBy === "name" ? "Buyer Record, matched by the buyers' names" : "matched by address"})`)
     : el("li", "No deal: no reZEN deal or Buyer Record matched the form's address or buyers."));
   for (const f of made.forms) {
-    items.push(el("li", `${f.name}: ${f.how === "labels" ? `blocks placed from the form's labels${f.chosen ? " (your choice last time)" : ""}`
+    items.push(el("li", `${f.name}: ${f.how === "labels" ? `auto placed from the form's labels${f.chosen ? " (your choice last time)" : ""}`
       : f.how === "template" ? `your template "${f.template}"` : "no template"}`));
   }
   if (made.agent) items.push(el("li", "The agent is added as a signer."));
   $("made-list").replaceChildren(...items);
   const fixes = [];
   if (!made.deal) fixes.push("If there is a deal, choose it in Real Signature's Transaction step.");
-  if (made.forms.some((f) => f.how === "labels")) fixes.push("Check the placed blocks in Prepare.");
+  if (made.forms.some((f) => f.how === "labels")) fixes.push("Check the auto placed blocks in Prepare.");
   $("made-note").textContent = fixes.join(" ");
   if (!$("msg").querySelector(".ok")) say("");
   show("made");
