@@ -277,6 +277,11 @@ async function showWebforms(tab) {
   show("wf");
   stopPoll();
   $("wf-go").disabled = true;
+  // Settings → "start when I click the icon": the click is made for the agent, so a grey
+  // button would only look stuck — the status line says what's happening instead (Dan,
+  // 2026-10-29). Shown again once it has started (a redraw after "your picks changed") or
+  // if the start fails, so the agent can try again from here.
+  $("wf-go").hidden = !!(POPUP && !autoStarted && (await settings()).startOnOpen);
   $("wf-title-wrap").hidden = true;
   $("wf-forms").replaceChildren();
   say("Checking which forms are picked…", "busy");
@@ -396,6 +401,7 @@ $("wf-go").addEventListener("click", async () => {
     // (re-reading the ticks, redrawing the list) is reported here.
     if (e?.reported) showReport().catch(() => {});
     else await reportError(e, "handoff");
+    $("wf-go").hidden = false;
     $("wf-go").disabled = false;
   } finally {
     wfBusy = false;
