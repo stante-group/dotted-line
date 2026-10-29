@@ -291,6 +291,13 @@ async function openActing() {
   }, 1000);
 }
 
+// Next on a draft's steps: the icon's "one click chose for you" dot has done its job by
+// then (background.js madeSeen). Only listens; nothing on the page is changed.
+document.addEventListener("click", (e) => {
+  const b = e.target?.closest?.("button");
+  if (b && /^\s*Next\b/.test(b.textContent || "")) chrome.runtime.sendMessage({ type: "made:next" }).catch(() => {});
+}, true);
+
 // A hand-off from WEBForms still under way when the agent clicks over to this tab — before
 // the side panel could open here — used to look like nothing at all (2026-10-15). A small
 // notice says what's happening; it goes once the side panel shows, or the draft opens.
