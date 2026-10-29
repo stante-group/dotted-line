@@ -2,7 +2,7 @@
 // last draft's step timings. Lives on the Settings page — it's for troubleshooting, and on the
 // panel it sat next to "Settings" and read like the same thing (Dan, 2026-10-15).
 import { askOpenTab as ask } from "./messaging.js";
-import { setupReport, samePerson } from "./lib/actor.js";
+import { setupReport, wfMatch } from "./lib/actor.js";
 
 const WF = "https://pr.transactiondesk.com/";
 const RS = "https://signature.therealbrokerage.com/";
@@ -13,7 +13,7 @@ export async function runSetupCheck() {
   const wfAsk = await ask(`${WF}*`, { type: "webforms:setup" });
   const rs = rsAsk.r, wf = wfAsk.r;
   if (wf && rs?.signedIn && wf.signedIn) {
-    wf.samePerson = samePerson({ wfEmail: wf.userEmail, rsEmail: rs.email }); // null → "unknown"
+    wf.match = wfMatch({ me: { fullName: rs.fullName, email: rs.email }, webformsUserName: wf.userName, webformsUserEmail: wf.userEmail });
   }
   let text = setupReport({ rs, wf });
   // Which build answered: test copies carry a version_name stamped when they're made

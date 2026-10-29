@@ -11,7 +11,7 @@ import { formKey } from "../src/lib/match.js";
 import { buildDraftBody, signeesFromDeal, countsFromDeal, signersWithoutEmail, signerCounts, sideFromFormNames, templateSlots, isEmail, agentRoleFor, agentPerson, agentPeople, chooseAgents, unfilledRoles, fitSubject, SUBJECT_MAX, cleanSubject, subjectTooLong } from "../src/lib/draft.js";
 import { stripTemplate, dropUnusedSlots } from "../src/lib/layout.js";
 import { summarizeDeal } from "../src/lib/deals.js";
-import { actingNotes, setupReport, senderFor, meFromYenta, meFromDeals, DELEGATION_VERIFIED, samePerson, isOwnCorporation } from "../src/lib/actor.js";
+import { actingNotes, setupReport, senderFor, meFromYenta, meFromDeals, DELEGATION_VERIFIED, samePerson, isOwnCorporation, wfMatch } from "../src/lib/actor.js";
 import { sampleTemplate } from "./fixtures.js";
 
 const enc = (s) => new TextEncoder().encode(s);
@@ -585,6 +585,17 @@ test("setup report has counts and yes/no only", () => {
   assert.match(r, /other agents' 30/);
   assert.match(r, /Same person in both: no/);
   for (const leak of ["Taylor", "Alex", "x@y"]) assert.ok(!r.includes(leak), `report leaked ${leak}`);
+});
+
+test("setup report: a WEBForms account in the agent's own corporation is the same person (issue #2)", () => {
+  const rs = { signedIn: true, fullName: "Jordan Sample", email: "jordan@example.com", deals: 0, ownDeals: 0 };
+  const match = (userName, userEmail) => wfMatch({ me: { fullName: rs.fullName, email: rs.email }, webformsUserName: userName, webformsUserEmail: userEmail });
+  const line = (m) => setupReport({ rs, wf: { signedIn: true, match: m } }).match(/Same person in both: (.*)/)[1];
+  assert.equal(line(match("Jordan Sample Personal Real Estate Corporation", "corp@example.com")), "yes (own corporation)");
+  assert.equal(line(match("Jordan Sample", "jordan@example.com")), "yes");
+  assert.equal(line(match("Riley Example", "riley@example.com")), "no");
+  assert.equal(line(match("Jordan Sample", null)), "unknown");
+  assert.ok(!setupReport({ rs, wf: { signedIn: true, match: "own-corp" } }).includes("Jordan"));
 });
 
 test("setup report says which Real Signature call failed when not signed in", () => {

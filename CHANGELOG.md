@@ -3,6 +3,11 @@
 What changed in each version, in plain words. The newest is at the top. Chrome updates
 Dotted Line by itself a few hours after a version is published.
 
+## Not released yet
+
+- **Fix:** Check my setup now says "yes (own corporation)" when WEBForms is signed in as
+  your personal real estate corporation, as the panel already did, instead of "no".
+
 ## 0.2.0 — 2026-10-29
 
 - **Auto place: blocks placed for you, with no template.** For a form you have no template
