@@ -5,15 +5,12 @@ Dotted Line by itself a few hours after a version is published.
 
 ## Not released yet
 
-## Not released yet
-
 - **Auto place: more BC forms.** The Contract of Purchase and Sale's and Subject Removal's
   page-foot "BUYER'S INITIALS" and "SELLER'S INITIALS" boxes, and the Disclosure of
   Multiple Offers Presented (sellers, the designated agent, and "Confirmed and signed
   this ___ Day of").
 - **Fix:** Check my setup now says "yes (own corporation)" when WEBForms is signed in as
   your personal real estate corporation, as the panel already did, instead of "no".
-
 
 ## 0.2.0 — 2026-10-29
 
