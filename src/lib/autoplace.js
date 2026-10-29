@@ -33,7 +33,14 @@ export function toLines(items) {
     for (const it of r.items.sort((a, b) => a.x - b.x)) {
       // A gap wider than a fifth of the type size is a space the PDF didn't spell out.
       if (end !== null && it.x - end > 0.2 * it.size && !text.endsWith(" ")) { xs.push(end); text += " "; }
-      it.str.split("").forEach((ch, i) => { xs.push(it.xs?.[i] ?? it.x + (it.w * i) / it.str.length); text += ch; });
+      it.str.split("").forEach((ch, i) => {
+        const x = it.xs?.[i] ?? it.x + (it.w * i) / it.str.length;
+        // The same letter again a hair to the right is fake bold, drawn twice (BCFSA's
+        // Disclosure of Remuneration read "Signatuure of Licensee"). A real double letter
+        // is a letter.s width along (an "l" about 0.22 of the type size; fake bold here is 0.02).
+        if (!" _.".includes(ch) && text.endsWith(ch) && Math.abs(x - xs[xs.length - 1]) < 0.08 * it.size) return; // runs of _ and . are lines
+        xs.push(x); text += ch;
+      });
       end = it.x + it.w;
       size = Math.max(size, it.size);
     }
@@ -91,6 +98,8 @@ function ruleRight(rules, xEnd, y) {
 
 const ROLE = (w) => {
   const s = w.toLowerCase();
+  if (/designated agent|licensee/.test(s)) return "AGENT"; // BC: "DESIGNATED AGENT'S SIGNATURE", "Signature of Licensee"
+  if (/to whom disclosure/.test(s)) return "CLIENT"; // BCFSA: the person the agent disclosed to
   if (/brokerage representative|brokerage’s representative|brokerage's representative/.test(s)) {
     if (/buyer/.test(s)) return "BUYERS_AGENT";
     if (/seller/.test(s)) return "SELLERS_AGENT";
@@ -109,11 +118,16 @@ const ROLE = (w) => {
 // Signature") isn't a line to sign on, and neither is Manitoba's deposit receipt ("Signature
 // of brokerage representative"), signed only when cash changes hands.
 // Ontario's "(Signature of Seller or Buyer)" confirms acceptance — whoever accepted last.
-const SIGNATURE_LABEL = /\bSignature of (?:the )?(Seller|Buyer|Brokerage Representative)\b(?! or\b)|\b(Buyer|Seller|Consumer) Signature\b/g;
+// BCFSA's Disclosure of Remuneration: "Signature of Licensee", and "Signature of
+// person/persons to whom disclosure has been made" (the client).
+const SIGNATURE_LABEL = /\bSignature of (?:the )?(Seller|Buyer|Brokerage Representative|Licensee|person\/persons to whom disclosure(?: has been made:?)?)\b(?! or\b)|\b(Buyer|Seller|Consumer) Signature\b/g;
 // Saskatchewan (SREC purchase contract) prints them in capitals, one with a stray
 // apostrophe: "BUYER' SIGNATURE_____", "SELLER'S SIGNATURE_____". Capitals are a heading
 // as often as a line, so these count only with a line to sign on.
-const SIGNATURE_CAPS = /\b(BUYER|SELLER)['’]?S?['’]? SIGNATURE(?![A-Z])/g; // its underscores follow with no space
+// BCREA's listing contract: "SELLER'S SIGNATURE" and "DESIGNATED AGENT'S SIGNATURE" under
+// their lines. Its "MANAGING BROKER'S SIGNATURE / AUTHORIZED SIGNATORY" is the brokerage's,
+// and at Real who signs it varies: left for the agent.
+const SIGNATURE_CAPS = /\b(BUYER|SELLER|DESIGNATED AGENT)['’]?S?['’]? SIGNATURE(?![A-Z])/g; // its underscores follow with no space
 // "Seller's Initials ____ ____ Buyer's Initials ____ ____" (AREA page footers and schedules).
 const INITIALS_RUNS = /\b(Seller|Buyer|Brokerage Representative)['’]?s? Initials\s*((?:_{4,}\s*)+)/gi;
 // "Initials (Buyer)" beside a drawn box (MREA offer, page 1).
@@ -129,6 +143,19 @@ const bareRole = (w) => (/^signature$/i.test(w) ? "CLIENT" : ROLE(w));
 // "Seller(s) Initials" under a line (Saskatchewan's Seller's MLS Brokerage Contract page
 // footers): both sellers' initials on that one line, side by side.
 const INITIALS_UNDER = /\b(Seller|Buyer)\(s\) Initials\b/gi;
+// BCREA page footers: "INITIALS" under a box split into a cell per signer, for whoever
+// signs the form (SIGNER, settled in autoLayout). Only at the foot of the page: the same
+// word under boxes higher up marks a choice — "RESIDENT OF CANADA" or "NON-RESIDENT",
+// "Opt Out" — that only some signers initial, and a required block would force it.
+const FOOTER_INITIALS = /^\s*INITIALS\s*$/;
+const FOOTER_Y = 100;
+// BCREA: "DATE   DATE   DATE" under lines, each signer's date under their signature.
+const DATE_ROW = /^(?:\s*DATE)+\s*$/i;
+// "(date)" under its blank (BCFSA forms: "____ (place) on ____ (date)"): the date of the
+// signature below it.
+const DATE_UNDER = /\(date\)/g; // lower case: Ontario's "(Date)" rows are PAREN_ROW's
+// BCREA's Unconditional Release: "SIGNATURE OF" on one line, "SELLER(S): ____" on the next.
+const ROLE_AFTER_SIGNATURE_OF = /^\s*(SELLER|BUYER)\(S\):\s*$/;
 // Ontario (OREA) signing rows: "(Witness) (Buyer) (Seal) (Date)" under a dotted line, and the
 // acknowledgement's "(Seller) (Date) (Buyer) (Date)". Only on a row with (Witness), (Seal)
 // or (Date) — "(Buyer)" in a sentence is just a word.
@@ -143,7 +170,8 @@ const INITIALS_OVAL = /\bINITIALS OF (BUYER|SELLER)\(S\):/g;
 // ____", "Date ____, 20__".
 // Saskatchewan: "SIGNED AND SEALED by the Buyer at ____ on the ____ day of ____, 20__" (the
 // "at" is a place, not a time) and "Signed at ____ (on) mm ____ dd ____ yyyy ____".
-const DATED = /\bsigned and dated\b.*?\bon(?![a-z])|\bsigned and sealed\b.*?\bday of\b|^\s*Signed at\b.*?\bmm(?![a-ce-z])|^\s*Signed on\b|^\s*Date\b/i;
+// BCREA: "SIGNED, SEALED, & DELIVERED THIS ____ DAY OF ____ YR. ____".
+const DATED = /\bsigned and dated\b.*?\bon(?![a-z])|\bsigned and sealed\b.*?\bday of\b|\bsigned, sealed,? (?:&|and) delivered\b.*?\bday of\b|^\s*Signed at\b.*?\bmm(?![a-ce-z])|^\s*Signed on\b|^\s*Date\b/i;
 
 /** The blocks one page's labels point to: [{type, role, x, y (bottom), w, h, order}]. */
 export function pageBlocks(page) {
@@ -242,6 +270,37 @@ export function pageBlocks(page) {
       const w = Math.min(INI.w, (r.x2 - r.x1 - 6) / 2);
       [0, 1].forEach((n) => add(INI, ROLE(m[1]), r.x1 + 2 + n * (w + 2), r.y - 1, { index: n, w, h: Math.min(INI.h, 16) }));
     }
+    if (FOOTER_INITIALS.test(line.text) && line.y < FOOTER_Y) {
+      const x = xAt(line, line.text.search(/\S/)), xEnd = line.x1;
+      const cells = boxes.filter((b) => b.y1 >= line.y && b.y1 - line.y <= 20 && b.x2 >= x - 60 && b.x1 <= xEnd + 60)
+        .sort((a, b) => a.x1 - b.x1);
+      cells.forEach((b, n) => add(INI, "SIGNER", b.x1 + 1, b.y1 + 1, { index: n, w: b.x2 - b.x1 - 2, h: b.y2 - b.y1 - 2 }));
+    }
+    for (const m of line.text.matchAll(DATE_UNDER)) {
+      const x = xAt(line, m.index), xEnd = xAt(line, m.index + m[0].length);
+      const r = ruleAbove(rules, x, xEnd, line.y, line.size);
+      if (r) add(DATE, null, r.x1 + 2, r.y - 1, { date: true });
+    }
+    const split = ROLE_AFTER_SIGNATURE_OF.exec(line.text);
+    const prev = split && lines.find((l) => l.y > line.y && l.y - line.y <= 2.2 * line.size && /SIGNATURE OF\s*$/.test(l.text));
+    if (prev) {
+      // Its line runs on to the right, a little under the baseline; one long line for all the
+      // sellers, so two side by side (one comes off with one seller, as with any spare slot).
+      const xEnd = line.x1;
+      const r = rules.find((q) => line.y - q.y >= -3 && line.y - q.y <= 8 && q.x1 >= xEnd - 4 && q.x1 <= xEnd + 40);
+      if (r) {
+        const n = r.x2 - r.x1 >= 2 * SIG.w + 6 ? 2 : 1;
+        for (let k = 0; k < n; k++) add(SIG, ROLE(split[1]), r.x1 + 2 + k * (SIG.w + 4), r.y + 1, { sig: true, index: k });
+      }
+    }
+    if (DATE_ROW.test(line.text)) {
+      for (const m of line.text.matchAll(/\bDATE\b/gi)) {
+        if (!standsAlone(line, m.index, m.index + m[0].length)) continue;
+        const x = xAt(line, m.index), xEnd = xAt(line, m.index + m[0].length);
+        const r = ruleAbove(rules, x, xEnd, line.y, line.size);
+        if (r) add(DATE, null, r.x1 + 2, r.y + 1, { date: true, under: true });
+      }
+    }
     // Initials in a drawn box to the label's left.
     for (const m of line.text.matchAll(INITIALS_BOX)) {
       const role = ROLE(m[1]);
@@ -296,9 +355,18 @@ export function assignSlots(blocks) {
   }
   for (const d of sorted.filter((b) => b.date)) {
     if (d.pair) { d.role = d.pair.role; d.index = d.pair.index; continue; }
+    if (d.under) {
+      // The signature in the same column just above (BCREA's DATE rows).
+      const sig = sorted.filter((s) => s.sig && s.y > d.y && s.y - d.y < 60).sort((a, b) => Math.abs(a.x - d.x) - Math.abs(b.x - d.x))[0];
+      if (sig && Math.abs(sig.x - d.x) < 40) { d.role = sig.role; d.index = sig.index; }
+      continue;
+    }
     // The nearest row of signature lines below; in it, the leftmost (Seller before Buyer on
     // a form both sign) — a row's lines can sit a point or two apart.
-    const below = sorted.filter((s) => s.sig && s.y < d.y && d.y - s.y < 90);
+    // Within 90pt; failing that 180 (BCREA's listing contract puts the residency boxes
+    // between its date and the sellers' lines).
+    let below = sorted.filter((s) => s.sig && s.y < d.y && d.y - s.y < 90);
+    if (!below.length) below = sorted.filter((s) => s.sig && s.y < d.y && d.y - s.y < 180);
     const top = Math.max(...below.map((s) => s.y));
     const sig = below.filter((s) => top - s.y < 6).sort((a, b) => a.x - b.x)[0];
     if (sig) { d.role = sig.role; d.index = sig.index; }
@@ -314,8 +382,13 @@ export function autoLayout(pages) {
   const documentFieldValidations = [];
   const most = {};
   const found = {};
+  const perPage = pages.map((page) => assignSlots(pageBlocks(page)));
+  // "SIGNER" (BCREA footer initials): whoever signs this form, when its signature lines all
+  // belong to one side (or the client); otherwise nobody can say, and they come off.
+  const signers = new Set(perPage.flat().filter((b) => b.sig && ["BUYER", "SELLER", "CLIENT"].includes(b.role)).map((b) => b.role));
+  const signer = signers.size === 1 ? [...signers][0] : null;
   pages.forEach((page, i) => {
-    for (const b of assignSlots(pageBlocks(page))) {
+    for (const b of perPage[i].map((x) => (x.role === "SIGNER" ? { ...x, role: signer } : x)).filter((x) => x.role)) {
       const w = b.w ?? b.spec.w, h = b.h ?? b.spec.h;
       if (b.y < 0 || b.y + h > page.height + 1 || b.x < 0 || b.x + w > page.width + 1) continue;
       const index = fieldDefinitions.length;
