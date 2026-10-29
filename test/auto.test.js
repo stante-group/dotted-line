@@ -210,3 +210,29 @@ test("labels chosen over a remembered template are remembered, and one click use
   assert.deepEqual(none.templateIds, ["auto"]);
   assert.deepEqual(none.labelsChosen, [false]);
 });
+
+test("deal picker: close matches first, then a sorted group per type, nothing twice", async () => {
+  const { dealGroups } = await import("../src/lib/auto.js");
+  const named = summarizeBuyerRecord(record("b1", "Jordan", "Sample"));
+  const other = summarizeBuyerRecord(record("b2", "Casey", "Example"));
+  const deals = [
+    deal({ id: "d9", address: "9 Other Road SW" }),
+    deal({ id: "d1" }), // 120 Example Street NW: the match
+    deal({ id: "d10", address: "10 Other Road SW" }),
+    deal({ id: "l1", kind: "listing", side: "SELLER", address: "44 Example Crescent NW" }),
+    named, other,
+  ];
+  const { ranked } = confidentDeal("120 Example St NW", deals, ["Jordan Sample"]);
+  const { top, groups } = dealGroups(ranked);
+  assert.deepEqual(top.map((d) => d.id).sort(), ["b1", "d1"]); // the address match and the named record
+  assert.deepEqual(groups.map((g) => g.label), ["Deals", "Listings", "Buyer Records"]);
+  assert.deepEqual(groups[0].deals.map((d) => d.id), ["d9", "d10"]); // numeric order: 9 before 10
+  assert.deepEqual(groups[1].deals.map((d) => d.id), ["l1"]);
+  assert.deepEqual(groups[2].deals.map((d) => d.id), ["b2"]);
+  const all = [...top, ...groups.flatMap((g) => g.deals)];
+  assert.equal(new Set(all.map((d) => d.id)).size, deals.length); // every deal once
+  // Nothing close: no top part, everything in its group.
+  const far = dealGroups(confidentDeal("77 Nowhere Lane", [deal({ id: "d9", address: "9 Other Road SW" })]).ranked);
+  assert.deepEqual(far.top, []);
+  assert.deepEqual(far.groups.map((g) => g.label), ["Deals"]);
+});

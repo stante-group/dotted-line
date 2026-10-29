@@ -3,7 +3,7 @@
 
 import { suggestTitle, matchAddress } from "../lib/title.js";
 import { wrongDealWarnings } from "../lib/deals.js";
-import { confidentDeal, usableTemplates } from "../lib/auto.js";
+import { confidentDeal, usableTemplates, dealGroups } from "../lib/auto.js";
 import { sendToTab } from "../messaging.js";
 import { suggestTemplate, rememberKey, normalizeName, rememberEntry, pruneRemembered, signingSide, sideMismatch, LABELS, LABELS_NAME } from "../lib/match.js";
 import { titleValues, titleFor, subjectFor, DEFAULT_SETTINGS } from "../lib/pattern.js";
@@ -526,14 +526,26 @@ async function showRealsig(tab, job) {
   const noneFits = by === "none";
   rsState.autoBy = by;
   rsState.noneFits = noneFits;
+  // Close matches first, then a group per type (auto.js dealGroups), gaps between as in
+  // the template list. Rows at the top say their type themselves; a group's header does.
   const sel = $("rs-deal");
+  const { top, groups } = dealGroups(ranked);
+  const who = (d) => (d.kind === "buyer" ? d.buyerNames.join(" & ") || "(no buyer)" : d.address || "(no address)");
+  const row = (d, tagged) => option(d.id, `${tagged && d.kind === "buyer" ? "Buyer Record: " : ""}${who(d)} · ${d.agentName || "?"}${tagged && d.kind === "listing" ? " · listing" : ""}`,
+    { selected: confident && d === ranked[0].deal });
+  const gap = () => document.createElement("hr"); // drawn as space: panel.html
   sel.replaceChildren(
     option("", "Choose a deal…", { selected: !confident && !noneFits, disabled: true }),
+    ...top.map((d) => row(d, true)),
+    ...(top.length ? [gap()] : []),
     option("none", "No deal (standalone)", { selected: noneFits }),
-    ...ranked.map(({ deal }, i) => option(deal.id, deal.kind === "buyer"
-      ? `Buyer Record: ${deal.buyerNames.join(" & ") || "(no buyer)"} · ${deal.agentName || "?"}`
-      : `${deal.address || "(no address)"} · ${deal.agentName || "?"}${deal.kind === "listing" ? " · listing" : ""}`,
-      { selected: confident && i === 0 })),
+    ...(groups.length ? [gap()] : []),
+    ...groups.map((g) => {
+      const og = document.createElement("optgroup");
+      og.label = g.label;
+      og.append(...g.deals.map((d) => row(d, false)));
+      return og;
+    }),
   );
 
   // A deal picked for the agent must be visible as such — one agent didn't notice the
