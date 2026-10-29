@@ -1047,6 +1047,12 @@ async function refresh() {
 
 $("open-settings").addEventListener("click", () => chrome.runtime.openOptionsPage());
 chrome.tabs.onActivated.addListener(() => refresh());
-chrome.tabs.onUpdated.addListener((_id, info) => info.status === "complete" && refresh());
+chrome.tabs.onUpdated.addListener((_id, info) => {
+  // Real Signature moves between its pages without a page load, so leaving a one-click
+  // draft for the Drafts list only changes the address — and the summary stayed up there
+  // (Dan's test, 2026-10-29). Only while the summary shows: elsewhere an address change
+  // would redraw choices the agent is in the middle of.
+  if (info.status === "complete" || (info.url && !$("made").hidden)) refresh();
+});
 syncTips();
 refresh();
