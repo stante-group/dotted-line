@@ -585,9 +585,9 @@ function renderTemplates(side) {
       const opts = [option("", "Choose a template…", { selected: !s.remembered && !pickAuto, disabled: true })];
       if (s.remembered) opts.push(option(s.remembered.id, `${s.remembered.name} (last used)`, { selected: true }));
       for (const t of s.suggestions) opts.push(option(t.id, `${t.name} (suggested)`));
-      // Separators that can't be picked, between the templates and the two choices that
-      // aren't templates.
-      const line = () => option("", "──────────", { disabled: true });
+      // A gap between the templates and the two choices that aren't templates (the <hr>
+      // is drawn as space: panel.html, .form select hr).
+      const line = () => document.createElement("hr");
       opts.push(line(), option("auto", s.labels ? `${auto} (last used)` : auto, { selected: pickAuto }), option("none", none), line());
       const shown = new Set(opts.map((o) => o.value));
       for (const t of usable.filter((t) => !shown.has(t.id)).sort((a, b) => a.name.localeCompare(b.name))) {
