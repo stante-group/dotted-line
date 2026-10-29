@@ -23,6 +23,11 @@ Dotted Line by itself a few hours after a version is published.
 - Check my setup shows two more timings: reading the forms from WEBForms, and reading
   their labels.
 - Using the Real Signature app? Finish the draft in the browser tab first (see the README).
+- **Error reports** (only if you said yes) now also say when a form placed from its labels
+  got no blocks, and which form type it was (WEBForms' code for the blank form, like
+  AREA0287), so we know which forms to add next. They also tell No deal picked for you from
+  No deal you chose, and count drafts that used label placement.
+  [What a report can hold](PRIVACY.md#error-reports-if-you-say-yes).
 
 ## 0.1.2 — 2026-10-28
 

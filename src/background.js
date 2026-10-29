@@ -14,8 +14,8 @@ import { unzip } from "./lib/unzip.js";
 import { isPdf, hasAcroForm, countPages, fromBase64, toBase64 } from "./lib/pdf.js";
 import { pairEntries, zipBatches } from "./lib/webforms-api.js";
 import { readPdfText } from "./lib/pdftext.js";
-import { autoLayout, placedSummary } from "./lib/autoplace.js";
-import { errorReport, okReport, sanitizeReport, tallyOk, tallyDue, contextFromDraft, draftContext, chromeMajor, REPORT_URL, REPORTS_ON, sameFailure } from "./lib/report.js";
+import { autoLayout, placedSummary, placeOutcome } from "./lib/autoplace.js";
+import { errorReport, labelsReport, okReport, sanitizeReport, tallyOk, tallyDue, contextFromDraft, draftContext, chromeMajor, REPORT_URL, REPORTS_ON, sameFailure } from "./lib/report.js";
 
 const DB = "wfrs";
 const STORE = "jobs";
@@ -206,12 +206,34 @@ function recordError({ error, step, ctx }) {
   });
 }
 
-function recordOk({ path, forms }) {
+function recordOk({ path, forms, labels = false }) {
   return serial(async () => {
     const { draftStats = {}, okTally = null, reporting } = await chrome.storage.local.get(["draftStats", "okTally", "reporting"]);
-    const { tally, due } = tallyOk(okTally, { day: today(), version: VERSION, path, forms });
+    const { tally, due } = tallyOk(okTally, { day: today(), version: VERSION, path, forms, labels });
     await chrome.storage.local.set({ draftStats: { made: (draftStats.made || 0) + 1, failed: draftStats.failed || 0 }, okTally: tally });
     if (due && reporting === "yes") post(okReport({ chrome: CHROME, ...due })); // not awaited: see recordError
+  });
+}
+
+// Forms placed from their labels that got no blocks (autoplace.js placeOutcome): the draft
+// was made, so nothing showed, and only a report says which printed forms to work on next.
+// Sent only with a yes, never offered as "Send this error" (the agent saw no error), and
+// once a day per form and reason, so an agent using the same form all day sends one.
+function recordLabels({ job, templateIds, path }) {
+  return serial(async () => {
+    const { reporting, labelsSent = {} } = await chrome.storage.local.get(["reporting", "labelsSent"]);
+    if (!REPORTS_ON || reporting !== "yes") return;
+    const day = today();
+    const sent = Object.fromEntries(Object.entries(labelsSent).filter(([, d]) => d === day));
+    for (const [i, f] of (job?.forms || []).entries()) {
+      const code = templateIds[i] === "auto" ? f.placed?.outcome : null;
+      if (!code) continue;
+      const key = `${VERSION}|${f.library || "?"}|${code}`;
+      if (sent[key]) continue;
+      sent[key] = day;
+      post(labelsReport({ code, form: f.library, path, version: VERSION, chrome: CHROME })); // not awaited: see recordError
+    }
+    await chrome.storage.local.set({ labelsSent: sent });
   });
 }
 
@@ -316,7 +338,9 @@ async function autoCreateOnce(id) {
     await showMade(job.tabId, { ...madeSummary({ plan, job: withoutPdfs(job), c }), draft: draftKey(r.url) });
     lap("oneClickTotal", t0);
     await keep();
-    recordOk({ path: "one-click", forms: job.forms.length }).catch(() => {});
+    const labels = plan.templateIds.includes("auto");
+    recordOk({ path: "one-click", forms: job.forms.length, labels }).catch(() => {});
+    if (labels) recordLabels({ job: withoutPdfs(job), templateIds: plan.templateIds, path: "one-click" }).catch(() => {});
     return { done: true, packet: !!r.packet };
   } catch (e) {
     // rs:create deletes its own half-made drafts before it throws.
@@ -374,9 +398,12 @@ async function startJob({ wfTabId, wfForms, meta, background, auto }) {
     // PDF is here: the panel and one click decide from it whether the agent signs (an agent
     // line on the form ticks "Add the agent as a signer", as a template's agent blocks do).
     const tPlace = Date.now();
+    // outcome: why it would get no blocks, for a report if it's placed this way (recordLabels).
     for (const f of forms) {
-      f.placed = await readPdfText(fromBase64(f.pdfBase64))
-        .then((pages) => placedSummary(autoLayout(pages).layout), () => null);
+      f.placed = await readPdfText(fromBase64(f.pdfBase64)).then((pages) => {
+        const s = placedSummary(autoLayout(pages).layout);
+        return { ...s, outcome: placeOutcome({ pages, blocks: s.blocks }) };
+      }, (error) => ({ blocks: 0, agent: false, outcome: placeOutcome({ error }) }));
     }
     timings.labels = Math.round((Date.now() - tPlace) / 100) / 10;
     await purgeOld();
@@ -418,6 +445,11 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
       return j && j.createdAt >= Date.now() - JOB_TTL_MS ? j : null;
     }
     if (msg.type === "job:done") {
+      // The panel's draft: its forms placed from their labels, reported before the job goes.
+      if (msg.templateIds?.includes("auto")) {
+        const j = await tx("readonly", (s) => s.get(msg.id));
+        if (j) recordLabels({ job: withoutPdfs(j), templateIds: msg.templateIds, path: "panel" }).catch(() => {});
+      }
       await tx("readwrite", (s) => s.delete(msg.id));
       return { ok: true };
     }
@@ -435,7 +467,7 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
       return made;
     }
     if (msg.type === "report:error") return recordError({ error: msg.error, step: msg.step, ctx: msg.ctx });
-    if (msg.type === "report:ok") return recordOk({ path: msg.path, forms: msg.forms }).then(() => ({ ok: true }));
+    if (msg.type === "report:ok") return recordOk({ path: msg.path, forms: msg.forms, labels: msg.labels === true }).then(() => ({ ok: true }));
     if (msg.type === "report:last") {
       if (!REPORTS_ON) return null; // nothing to offer: the panel shows no report box
       const { lastReport: l } = await chrome.storage.local.get("lastReport");

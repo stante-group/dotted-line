@@ -7,6 +7,7 @@ import { createHash } from "node:crypto";
 
 import { readPdfText, md5, rc4 } from "../src/lib/pdftext.js";
 import { pageBlocks, autoLayout, forAgent, forClients, withSigners, toLines } from "../src/lib/autoplace.js";
+import { placeOutcome } from "../src/lib/autoplace.js";
 
 const enc = (s) => new TextEncoder().encode(s);
 const latin = (u8) => new TextDecoder("latin1").decode(u8);
@@ -234,4 +235,15 @@ test("dates and times are required too: Real Signature only stamps one the signe
   assert.equal(layout.fieldDefinitions.length, 3);
   assert.deepEqual(layout.documentFieldValidations.map((v) => [v.validationType, v.fieldIndex]),
     [["REQUIRED", 0], ["REQUIRED", 1], ["REQUIRED", 2]]);
+});
+
+test("why a form got no blocks: locked, unreadable, no text, unmapped fonts, or labels we don't know", () => {
+  const page = (str) => [{ width: 612, height: 792, items: str ? [{ str, x: 0, y: 0, w: 10, size: 10, xs: [] }] : [], shapes: [] }];
+  assert.equal(placeOutcome({ error: new Error("this PDF has a password") }), "pdf-locked");
+  assert.equal(placeOutcome({ error: new Error("bad xref") }), "pdf-unreadable");
+  assert.equal(placeOutcome({ pages: page("Signature of Buyer"), blocks: 3 }), null);
+  assert.equal(placeOutcome({ pages: page(""), blocks: 0 }), "no-text");
+  assert.equal(placeOutcome({ pages: page("Xq#7 zzv Kp!r wq Mxx ql0 Zp vrr"), blocks: 0 }), "fonts");
+  assert.equal(placeOutcome({ pages: page("The buyer and the seller agree to the terms of the offer and the deposit."), blocks: 0 }), "no-labels");
+  assert.equal(placeOutcome({ pages: page("Le vendeur et l'acheteur de la propriété acceptent les conditions de la promesse."), blocks: 0 }), "no-labels");
 });

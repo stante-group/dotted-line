@@ -39,8 +39,12 @@ With your yes, it sends the Deal Dates team:
   draft, such as "the deal was matched by address", "2–3 forms", "a template on every
   form", "acting as an agent in Real Signature" or "WEBForms and Real Signature are signed
   in as the same person";
+- **when a form placed from its printed labels gets no blocks** (the draft is still made):
+  why, such as "no labels Dotted Line knows" or "the PDF's text can't be read", and which
+  printed form it was, by WEBForms' code for the form type (like `AREA0287`). That code
+  names the blank form, never anything typed on it. Once a day at most per form;
 - **once a day, a count of drafts that worked**, by how they were made (one click or the
-  side panel) and how many forms they had;
+  side panel), how many had a form placed from its labels, and how many forms they had;
 - with both, the Dotted Line and Chrome version numbers, and how many drafts this browser
   has made and how many failed.
 
@@ -53,7 +57,9 @@ the rule it broke (for example `defaults.emailSubject`, "at most 70 characters")
 half-made draft may be left; and, about the draft, one click or the side panel, acting as
 an agent or not, how the two sign-ins compare (same person, the agent's own corporation,
 different, or can't tell), how the deal was matched (address, buyer name, picked by hand,
-none), whether it is another agent's deal, templates on all, some or no forms, whether
+none, or none because nothing came close), whether it is another agent's deal, templates on
+all, some or no forms, forms placed from their labels on all, some or none, the form type's
+code (for a form placed from its labels that got no blocks), whether
 their page counts match, the number of forms (1, 2–3, 4+, or not known) and signers (0, 1, 2, 3+),
 whether a signer has no email, which step was slow (over 30 seconds), and whether a
 warning was showing.

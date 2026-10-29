@@ -351,3 +351,18 @@ export function placedSummary(layout) {
   const f = layout?.fieldDefinitions || [];
   return { blocks: f.length, agent: f.some((x) => AGENT_TYPES.includes(x.signeeType)) };
 }
+
+/** Why a form placed from its labels got no blocks, as a code for an error report (no text
+ *  leaves: report.js). Read failures come in as the error; otherwise the text itself says:
+ *  "no-text" (scanned pages, nothing to read), "fonts" (text that isn't words: fonts we
+ *  can't map to letters, as on one Manitoba form), or "no-labels" (readable, but no label
+ *  we know — usually a province or form not done yet). null: blocks were placed. */
+export function placeOutcome({ pages = null, error = null, blocks = 0 }) {
+  if (error) return /password/i.test(String(error?.message || error)) ? "pdf-locked" : "pdf-unreadable";
+  if (blocks > 0) return null;
+  const text = (pages || []).flatMap((p) => p.items.map((i) => i.str)).join(" ");
+  if (!text.trim()) return "no-text";
+  // Every form has these (English or French). Garbled fonts give letters, but not words.
+  const words = (text.match(/\b(the|and|of|to|le|la|les|de|et)\b/gi) || []).length;
+  return words < 5 ? "fonts" : "no-labels";
+}

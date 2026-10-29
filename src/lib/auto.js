@@ -109,7 +109,8 @@ export function planDraft({ job, c, remembered = {}, agentMode = "one" }) {
     ready: needs.length === 0,
     needs,
     dealId: deal?.id ?? null,
-    dealBy: deal ? by : null, // "address" or "name", for error reports (report.js)
+    // "address" or "name", or "none" when No deal was the default; for error reports (report.js).
+    dealBy: deal || by === "none" ? by : null,
     templateIds,
     counts,
     agentChoice: agentOn ? (agentMode === "all" ? "all" : "best") : null,

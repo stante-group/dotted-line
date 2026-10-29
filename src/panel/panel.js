@@ -889,8 +889,8 @@ $("rs-go").addEventListener("click", async () => {
       next[rememberKey(f, side)] = rememberEntry(f, c.templates.find((t) => t.id === tid) || { id: tid });
     });
     await chrome.storage.local.set({ templateFor: next });
-    await chrome.runtime.sendMessage({ type: "job:done", id: job.id });
-    chrome.runtime.sendMessage({ type: "report:ok", path: "panel", forms: job.forms.length }).catch(() => {});
+    await chrome.runtime.sendMessage({ type: "job:done", id: job.id, templateIds });
+    chrome.runtime.sendMessage({ type: "report:ok", path: "panel", forms: job.forms.length, labels: templateIds.includes("auto") }).catch(() => {});
     await chrome.tabs.update(tab.id, { url: new URL(r.url, RS).toString() });
     say(r.packet && r.drafts === 1 ? `Draft ready. Add the ${roleWords(r.unfilled)} in Add Signees.`
       : r.packet ? `Packet ready (${r.drafts} forms).` : "Draft ready.", "ok");
@@ -907,7 +907,8 @@ $("rs-go").addEventListener("click", async () => {
     say(String(e.message || e), "err");
     $("rs-go").disabled = !canFinish();
     await reportError(e, "create", { c, job, dealId: dealId === "none" ? null : dealId,
-      dealBy: dealId === rsState?.autoPicked ? rsState.autoBy : null,
+      // "none": No deal was the default because nothing came close (report deal "none-default").
+      dealBy: dealId === rsState?.autoPicked || (dealId === "none" && rsState?.noneFits) ? rsState.autoBy : null,
       templateIds: templateIds.map((t) => (t === "none" ? null : t)), counts,
       warned: !!$("rs-warn").querySelector(".warn") });
   }
