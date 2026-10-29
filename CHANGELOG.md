@@ -15,6 +15,8 @@ Dotted Line by itself a few hours after a version is published.
   Every placed block is required, so a signer can't skip a date or time.
 - "Add the agent as a signer" is ticked when a form placed this way has an agent line.
 - A small gap in the template list separates your templates from the two other choices.
+- The reZEN deal list shows the close matches first, then No deal, then your deals,
+  listings and Buyer Records in groups of their own, each in address or name order.
 - When no reZEN deal or Buyer Record comes anywhere near the form's address or buyers
   (usually a form signed before there's a deal), No deal is picked for you, and one click
   goes ahead. When several deals could match, you still choose.

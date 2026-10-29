@@ -40,6 +40,23 @@ export function confidentDeal(address, deals, buyerNames = []) {
   return { ranked: all, deal: null, by: none ? "none" : null };
 }
 
+/** The deal picker's layout (Dan, 2026-10-29): close matches first, best first and with
+ *  no header — the picked deal among them — then each type in its own group, sorted, so
+ *  a long list is scannable. Nothing appears twice. ranked: confidentDeal's. Close = above
+ *  0.5: the civic number and a street word in common, or a Buyer Record with the buyers'
+ *  names (scored 1). → {top: [deal], groups: [{kind, label, deals}]} (empty groups left out). */
+export const DEAL_GROUPS = [["deal", "Deals"], ["listing", "Listings"], ["buyer", "Buyer Records"]];
+export function dealGroups(ranked) {
+  const top = ranked.filter((x) => x.score > 0.5).map((x) => x.deal);
+  const rest = ranked.filter((x) => x.score <= 0.5).map((x) => x.deal);
+  const key = (d) => (d.kind === "buyer" ? (d.buyerNames || []).join(" & ") : d.address || "").toLowerCase();
+  const groups = DEAL_GROUPS.map(([kind, label]) => ({ kind, label,
+    deals: rest.filter((d) => (d.kind || "deal") === kind)
+      .sort((a, b) => key(a).localeCompare(key(b), undefined, { numeric: true })) }))
+    .filter((g) => g.deals.length);
+  return { top, groups };
+}
+
 /** Templates that can help a form: same page count AND at least one signature, initial or
  *  date block. Agents who rarely use Real Signature have many text-only templates.
  *  Page count unknown (WEBForms didn't say, and its PDFs hide the count in compressed object
