@@ -56,7 +56,7 @@ export function rememberedId(entry) {
 /** A remembered choice that isn't a template: blocks from the form's labels (autoplace.js).
  *  The same value as the panel's option and planDraft's template id. */
 export const LABELS = "auto";
-export const LABELS_NAME = "Place blocks from the form's labels";
+export const LABELS_NAME = "Auto place blocks";
 
 export function rememberEntry(form, template, now = Date.now()) {
   return { id: template.id, template: template.name || "", form: String(form.name || "").replace(/\.pdf$/i, ""), at: now };
