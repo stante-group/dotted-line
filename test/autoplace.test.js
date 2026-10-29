@@ -365,3 +365,27 @@ test("BCFSA disclosure of representation: each consumer initials and dates their
   assert.deepEqual(f.map((d) => `${d.type} ${d.signeeType} ${d.signeeIndex} x${d.fieldLocations[0].position[0]}`),
     ["INITIALS CLIENT 0 x63", "SIGNED_DATE CLIENT 0 x180", "INITIALS CLIENT 1 x312", "SIGNED_DATE CLIENT 1 x429"]);
 });
+
+test("BC purchase contract footer: BUYER'S and SELLER'S INITIALS, each under its own cells (or a picture of them)", () => {
+  const cells = (x) => [box(x, 83, x + 39, 110), box(x + 39, 83, x + 78, 110), box(x + 78, 83, x + 118, 110)];
+  const label = [word("BUYER’S INITIALS", 45, 72, 10), word("SELLER’S INITIALS", 484, 72, 10)];
+  const f = autoLayout([page(label, [...cells(27), ...cells(467)])]).layout.fieldDefinitions;
+  assert.deepEqual(f.map((d) => `${d.signeeType} ${d.signeeIndex} x${d.fieldLocations[0].position[0]}`),
+    ["BUYER 0 x28", "BUYER 1 x67", "BUYER 2 x106", "SELLER 0 x468", "SELLER 1 x507", "SELLER 2 x546"]);
+  // Subject Removal draws each row of boxes as one picture: three cells centred on the label.
+  const pic = { image: true, x1: 31, y1: 84, x2: 149, y2: 135 };
+  const g = autoLayout([page([word("BUYER’S INITIALS", 47, 75, 11)], [pic])]).layout.fieldDefinitions;
+  assert.equal(g.length, 3);
+  const xs = g.map((d) => d.fieldLocations[0].position);
+  assert.ok(xs.every((p) => p[0] >= 31 && p[2] <= 149 && p[1] >= 84 && p[3] <= 135), JSON.stringify(xs));
+});
+
+test("BC multiple offers: (Seller's signature) and (Designated Agent's signature) under lines; signed this___Day of", () => {
+  const p = page([
+    word("Confirmed and signed this___Day of ___________________ Year ________.", 72, 212, 11),
+    word("(Seller's signature)", 72, 159), word("(Listing Brokerage Name)", 329, 159),
+    word("(Seller's signature)", 72, 111), word("(Designated Agent's signature)", 329, 111),
+  ], [rule(71, 281, 176), rule(319, 541, 176), rule(71, 281, 128), rule(319, 541, 128)]);
+  const f = autoLayout([p]).layout.fieldDefinitions.map((d) => `${d.type} ${d.signeeType} ${d.signeeIndex}`);
+  assert.deepEqual(f, ["SIGNED_DATE SELLER 0", "SIGNATURE SELLER 0", "SIGNATURE SELLER 1", "SIGNATURE AGENT 0"]);
+});

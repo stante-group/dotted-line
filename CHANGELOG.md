@@ -3,6 +3,13 @@
 What changed in each version, in plain words. The newest is at the top. Chrome updates
 Dotted Line by itself a few hours after a version is published.
 
+## Not released yet
+
+- **Auto place: more BC forms.** The Contract of Purchase and Sale's and Subject Removal's
+  page-foot "BUYER'S INITIALS" and "SELLER'S INITIALS" boxes, and the Disclosure of
+  Multiple Offers Presented (sellers, the designated agent, and "Confirmed and signed
+  this ___ Day of").
+
 ## 0.2.0 — 2026-10-29
 
 - **Auto place: blocks placed for you, with no template.** For a form you have no template
