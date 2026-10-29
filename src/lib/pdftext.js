@@ -490,6 +490,19 @@ const mul = (a, b) => [
 ];
 const apply = (m, x, y) => [m[0] * x + m[2] * y + m[4], m[1] * x + m[3] * y + m[5]];
 
+/** Past an inline image: its dictionary up to ID, one whitespace byte, then raw bytes up to
+ *  an EI with whitespace before it and whitespace (or the end) after — the spec gives no
+ *  length for filtered data, so this is how readers find the end. */
+function skipInlineImage(lx) {
+  for (let t = lx.next(); t && !(t.t === "kw" && t.v === "ID"); t = lx.next()) { /* the image's dictionary */ }
+  const b = lx.b;
+  let p = lx.p + 1;
+  for (; p + 1 < b.length; p++) {
+    if (b[p] === 69 && b[p + 1] === 73 && WS.has(b[p - 1]) && (p + 2 >= b.length || WS.has(b[p + 2]))) { p += 2; break; }
+  }
+  lx.p = Math.min(p, b.length);
+}
+
 async function runContent(doc, data, resources, ctm0, out, depth = 0) {
   if (depth > 8 || !data) return;
   const fonts = doc.get(resources?.get?.("Font"));
@@ -531,6 +544,10 @@ async function runContent(doc, data, resources, ctm0, out, depth = 0) {
 
   for (let tok = lx.next(); tok; tok = lx.next()) {
     if (tok.t !== "kw") { ops.push(parseValue(lx, tok)); continue; }
+    // An inline image (BI … ID <bytes> EI): its bytes aren't operators. Read as if they
+    // were, they derailed the rest of the page, and Saskatchewan's Agency Disclosure lost
+    // its signature lines, drawn after a small logo (2026-10-29).
+    if (tok.v === "BI") { skipInlineImage(lx); ops.length = 0; continue; }
     const op = tok.v, a = ops;
     switch (op) {
       case "q": stack.push(gs); gs = { ...gs }; break;
