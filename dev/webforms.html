@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Test WEBForms</title>
+<style>
+  :root { color-scheme: light dark; --line: #8884; --muted: #777; --warn: #b26b00; }
+  body { font: 14px system-ui, sans-serif; max-width: 860px; margin: 24px auto; padding: 0 16px; }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  h2 { font-size: 15px; margin: 24px 0 8px; }
+  .note { color: var(--muted); }
+  .banner { border: 1px solid var(--warn); color: var(--warn); border-radius: 6px; padding: 8px 12px; margin: 12px 0; }
+  .grid { display: grid; grid-template-columns: 170px 1fr; gap: 6px 12px; align-items: center; }
+  .grid textarea { min-height: 52px; }
+  input[type=text], input[type=email], select, textarea { font: inherit; padding: 4px 6px; width: 100%; box-sizing: border-box; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { text-align: left; padding: 6px 4px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+  td.code input { width: 120px; font-family: ui-monospace, monospace; }
+  td.pages { width: 50px; color: var(--muted); }
+  input.bad { outline: 2px solid #c33; }
+  button { font: inherit; }
+  #empty { color: var(--muted); padding: 12px 0; }
+</style>
+</head>
+<body>
+<h1>Test WEBForms</h1>
+<div class="note">For trying Dotted Line on any PDF. Only in test copies of the extension; the store version doesn't have this page.</div>
+<div class="banner">Tick the forms, then click the Dotted Line icon on this tab, as on a WEBForms deal. The draft is made in your real Real Signature account: pick <b>No deal</b> for test files, and delete the draft when you're done.</div>
+
+<h2>The deal</h2>
+<div class="grid">
+  <label for="address">Property address</label><input id="address" type="text">
+  <label for="city">City</label><input id="city" type="text">
+  <label for="mls">MLS number</label><input id="mls" type="text">
+  <label for="name">Deal name</label><input id="name" type="text" placeholder="The address, if blank">
+  <label for="side">You're the agent for</label>
+  <select id="side">
+    <option value="BUYER">the buyer</option>
+    <option value="SELLER">the seller</option>
+    <option value="DUAL">both sides</option>
+    <option value="">not set</option>
+  </select>
+  <label for="buyers">Buyers<br><span class="note">one per line: name, email</span></label><textarea id="buyers"></textarea>
+  <label for="sellers">Sellers<br><span class="note">one per line: name, email</span></label><textarea id="sellers"></textarea>
+  <label for="userName">WEBForms user<br><span class="note">optional: name, email</span></label>
+  <div style="display:flex; gap:8px"><input id="userName" type="text" placeholder="Name"><input id="userEmail" type="email" placeholder="Email"></div>
+</div>
+
+<h2>Forms</h2>
+<p class="note">The form code is WEBForms' form type (like AREA0287); leave it blank if you don't know it. The name is what WEBForms would call the form; Dotted Line reads "Seller's …" and template names from it.</p>
+<input id="add" type="file" accept=".pdf,application/pdf" multiple>
+<div id="msg" class="banner" hidden></div>
+<table>
+  <thead><tr><th>Send</th><th>Name</th><th>Form code</th><th>Pages</th><th></th></tr></thead>
+  <tbody id="forms"></tbody>
+</table>
+<div id="empty">No forms yet. Add PDFs above.</div>
+<p><button id="clear" type="button">Remove all forms</button></p>
+
+<script type="module" src="webforms.js"></script>
+</body>
+</html>
