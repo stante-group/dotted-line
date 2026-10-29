@@ -14,9 +14,6 @@ Dotted Line by itself a few hours after a version is published.
 - **Fix:** error reports (only if you said yes) now cover Import templates in Settings:
   when Real Signature refuses a template, its answer is reported, never your file or its
   name.
-- **Fix:** error reports (only if you said yes) now cover Import templates in Settings:
-  when Real Signature refuses a template, its answer is reported, never your file or its
-  name.
 
 ## 0.2.0 — 2026-10-29
 
