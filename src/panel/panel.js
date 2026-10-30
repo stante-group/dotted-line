@@ -1063,6 +1063,12 @@ function showMade(made) {
 // Real's one-time document steps (Transaction → Edit details → Prepare → Review) all live at
 // this address. Packets aren't handled yet: their signers are set once for every document.
 const DRAFT_URL = /^https:\/\/signature\.therealbrokerage\.com\/one-time-documents\/document\/([0-9a-f-]{36})(?:[/?#]|$)/i;
+// Clicking a draft on the Drafts list opens its preview first, with Next to the steps
+// (Dan's test, 2026-10-30) — the place to set it up. Only a one-time draft's preview: the
+// same /view/ pages show sent documents, which are never touched.
+const VIEW_URL = /^https:\/\/signature\.therealbrokerage\.com\/view\/document\/([0-9a-f-]{36})\?(?:[^#]*&)?oneTimeUse=true(?:[&#]|$)/i;
+const PACKET_VIEW_URL = /^https:\/\/signature\.therealbrokerage\.com\/(?:view\/packet|one-time-documents\/packet)\/[0-9a-f-]{36}/i;
+const draftIdOf = (url) => DRAFT_URL.exec(url)?.[1] || VIEW_URL.exec(url)?.[1] || null;
 let drBusy = false;
 
 /** "1 seller and the seller's agent" from the draft's signer counts. */
@@ -1226,9 +1232,17 @@ async function refresh() {
         }
         const made = await chrome.runtime.sendMessage({ type: "made:forTab", tabId: tab.id, url: tab.url });
         if (made && !made.error) { showMade(made); return; }
-        const draftId = DRAFT_URL.exec(tab.url)?.[1];
+        const draftId = draftIdOf(tab.url);
         if (draftId) { await openDraft(tab, draftId); return; }
         if (HOME_URL.test(tab.url)) { await showUploads(tab); return; }
+        if (PACKET_VIEW_URL.test(tab.url)) {
+          // Not yet: a packet's documents each have their own signers and blocks.
+          show("dr");
+          $("dr-form").hidden = true;
+          $("dr-status").className = "note";
+          $("dr-status").textContent = "This is a packet. Dotted Line sets up single uploaded documents for now: set each one up from the Drafts list before you group them.";
+          return;
+        }
       }
       if (!$("msg").querySelector(".ok")) say("");
       show("idle");
@@ -1253,7 +1267,7 @@ chrome.tabs.onUpdated.addListener((_id, info) => {
   // would redraw choices the agent is in the middle of.
   // Dropping a PDF in moves Real from Sent to its Drafts list the same way, and opening a
   // draft too: those address changes redraw, so the new upload or the draft shows.
-  if (info.status === "complete" || (info.url && (!$("made").hidden || HOME_URL.test(info.url) || DRAFT_URL.test(info.url)))) refresh();
+  if (info.status === "complete" || (info.url && (!$("made").hidden || HOME_URL.test(info.url) || draftIdOf(info.url) || PACKET_VIEW_URL.test(info.url)))) refresh();
 });
 syncTips();
 refresh();
