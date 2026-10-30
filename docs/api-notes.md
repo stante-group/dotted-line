@@ -237,6 +237,11 @@ extension reads the PDF back and places blocks on that draft.
   `/documents/{id}/document-template/file-url` and `/documents/{id}/sent-file-urls` (sent
   documents), and `/packets/{id}/download-urls` (sent packets). All are read-only, but sent
   documents are out of scope.
+- A one-time document's steps (Transaction → Edit details → Prepare → Review) all stay at
+  `/one-time-documents/document/{id}`. **Edit details' Next saves** `defaults.signees`
+  (name, email, signeeType, signeeIndex, signOrder), `defaults.sender` and `signeeConfigs`
+  (one per role named) to the draft; `fieldDefinitions` stay empty and `pagesCount` stays
+  null until blocks are placed (Skip on Transaction leaves `transactionId: null`).
 - `report.js` keeps only known route words and blanks the rest, so add `file-url` to
   `ROUTE_WORDS` with the call, or error reports show that route as `{id}`.
 

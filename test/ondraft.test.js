@@ -3,6 +3,9 @@ import assert from "node:assert/strict";
 
 import { draftSigners, placeOnDraft, sameSpot } from "../src/lib/ondraft.js";
 import { RealSignature } from "../src/lib/realsig-api.js";
+import { addressInText } from "../src/lib/deals.js";
+import { confidentDeal, scoresFromText } from "../src/lib/auto.js";
+import { sanitizeReport } from "../src/lib/report.js";
 
 // A draft as Real Signature has it after Edit details' Next (2026-10-30): signers and
 // signeeConfigs saved, no blocks, pagesCount still null. Invented people only.
@@ -116,4 +119,55 @@ test("a file link that isn't Real's S3 storage is refused, not fetched", async (
     await assert.rejects(new RealSignature({ getToken: () => "t", fetchImpl }).draftPdf("d1"), /changed shape/);
     assert.equal(seen.length, 1);
   }
+});
+
+// ---- the deal, from the uploaded PDF's text ----
+
+const offerLines = [
+  "RESIDENTIAL PURCHASE CONTRACT",
+  "Buyer: Jordan Sample   Seller: Casey Example",
+  "Municipal address: 120 Example Street N.W., Calgary, Alberta",
+  "Purchase price $500,000. Deposit of $120 paid on 2026-10-30.",
+];
+const deal = (id, address, kind = "deal") => ({ id, kind, address, side: kind === "listing" ? "SELLER" : "BUYER", participants: [] });
+
+test("a deal's street address is found in the form's text, spelled as the form spells it", () => {
+  const text = offerLines.join("\n");
+  assert.equal(addressInText("120 Example Street NW, Calgary, AB T2T 2T2", text), 1);
+  assert.equal(addressInText("120 Example St NW", text), 1);
+  // Same digits elsewhere (the $120 deposit), different street: no match.
+  assert.ok(addressInText("120 Other Road SW, Calgary", text) <= 0.5);
+  // Same street, different house: not this deal.
+  assert.equal(addressInText("122 Example Street NW", text), 0);
+  assert.equal(addressInText("", text), 0);
+  // A unit written 204-1234 on the form.
+  assert.equal(addressInText("204 1234 Sample Avenue SW", "Unit 204-1234 Sample Ave. S.W."), 1);
+});
+
+test("the deal is picked from the text by the same rules as a WEBForms address", () => {
+  const deals = [deal("a", "120 Example Street NW, Calgary"), deal("b", "44 Sample Crescent SE, Calgary", "listing"),
+    { id: "r", kind: "buyer", address: "", buyerNames: ["Riley Nobody"], participants: [] }];
+  const picked = confidentDeal(null, deals, [], scoresFromText(offerLines, deals));
+  assert.equal(picked.deal.id, "a");
+  assert.equal(picked.by, "address");
+  // Nothing on the form matches: No deal by default, said so.
+  const none = confidentDeal(null, deals, [], scoresFromText(["A FORM WITH NO ADDRESS ON IT AT ALL"], deals));
+  assert.equal(none.deal, null);
+  assert.equal(none.by, "none");
+  // The same address twice (a listing and the deal it became): the agent picks.
+  const tie = confidentDeal(null, [...deals, deal("c", "120 Example Street NW", "listing")], [], scoresFromText(offerLines, [...deals, deal("c", "120 Example Street NW", "listing")]));
+  assert.equal(tie.deal, null);
+  // A Buyer Record by the buyer's whole name on one line.
+  const rec = { id: "r2", kind: "buyer", address: "", buyerNames: ["Jordan Sample"], participants: [] };
+  const byName = confidentDeal(null, [rec], [], scoresFromText(offerLines, [rec]));
+  assert.equal(byName.deal.id, "r2");
+  assert.equal(byName.by, "name");
+});
+
+test("its reports: the new step, path and route word survive; nothing else changes", () => {
+  const r = sanitizeReport({ kind: "error", step: "on-draft", cls: "changed-shape", code: "changed-shape", version: "0.3.0", chrome: "141",
+    route: "GET /document-templates/{id}/file-url", ctx: { path: "draft", forms: "1" } });
+  assert.equal(r.step, "on-draft");
+  assert.equal(r.route, "GET /document-templates/{id}/file-url");
+  assert.equal(r.ctx.path, "draft");
 });

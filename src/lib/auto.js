@@ -8,7 +8,7 @@
 // template that still fits (or there are no templates to choose from), and none of the
 // notes the panel shows as warnings applies. Anything else goes to the panel, with why.
 
-import { rankDeals, matchesBuyerNames } from "./deals.js";
+import { rankDeals, matchesBuyerNames, addressInText } from "./deals.js";
 import { suggestTemplate, signingSide } from "./match.js";
 import { signerCounts, signersWithoutEmail } from "./draft.js";
 import { actingNotes } from "./actor.js";
@@ -19,11 +19,15 @@ export const CONFIDENT = 0.75;
 /** Every deal, best match first, and the one to pre-select (or null), with how it was
  *  matched: "address", or "name" for a Buyer Record (no property yet, so only the buyers'
  *  names typed in WEBForms can find it — and only when exactly one record matches). */
-export function confidentDeal(address, deals, buyerNames = []) {
-  const ranked = address ? rankDeals(address, deals.filter((d) => d.kind !== "buyer")) : deals.filter((d) => d.kind !== "buyer").map((deal) => ({ deal, score: 0 }));
+export function confidentDeal(address, deals, buyerNames = [], scores = null) {
+  // scores: {dealId: 0..1} worked out elsewhere (scoresFromText, a PDF uploaded in Real
+  // Signature) in place of the WEBForms address and buyer names; the same rules decide.
+  const ranked = scores ? deals.filter((d) => d.kind !== "buyer").map((deal) => ({ deal, score: scores[deal.id] || 0 })).sort((x, y) => y.score - x.score)
+    : address ? rankDeals(address, deals.filter((d) => d.kind !== "buyer")) : deals.filter((d) => d.kind !== "buyer").map((deal) => ({ deal, score: 0 }));
   const [a, b] = ranked;
   const records = deals.filter((d) => d.kind === "buyer");
-  const named = buyerNames.length ? records.filter((d) => matchesBuyerNames(buyerNames, d)) : [];
+  const named = scores ? records.filter((d) => scores[d.id] === 1)
+    : buyerNames.length ? records.filter((d) => matchesBuyerNames(buyerNames, d)) : [];
   // Buyer Records go first when the names match, then the rest of them at the end.
   const all = [...named.map((deal) => ({ deal, score: 1 })), ...ranked,
     ...records.filter((d) => !named.includes(d)).map((deal) => ({ deal, score: 0 }))];
@@ -36,8 +40,17 @@ export function confidentDeal(address, deals, buyerNames = []) {
   // before any deal exists (a representation agreement, the Consumer Relationships Guide).
   // Then No deal is the default rather than a click (Dan, 2026-10-29). Only when there was
   // something to match on: no address and no names says nothing either way.
-  const none = !!(address || buyerNames.length) && !named.length && !ranked.some((x) => x.score > 0.5);
+  const none = !!(address || buyerNames.length || scores) && !named.length && !ranked.some((x) => x.score > 0.5);
   return { ranked: all, deal: null, by: none ? "none" : null };
+}
+
+/** confidentDeal's scores for a PDF uploaded in Real Signature, from its text lines: each
+ *  deal's or listing's address found in the text (addressInText), and a Buyer Record whose
+ *  buyer's whole name is on one line (1) or not (0). A scanned PDF has no lines: all 0. */
+export function scoresFromText(lines, deals) {
+  const text = (lines || []).join("\n");
+  return Object.fromEntries(deals.map((d) => [d.id, d.kind === "buyer"
+    ? (matchesBuyerNames(lines, d) ? 1 : 0) : addressInText(d.address, text)]));
 }
 
 /** The deal picker's layout (Dan, 2026-10-29): close matches first, best first and with

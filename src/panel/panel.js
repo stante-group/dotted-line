@@ -3,7 +3,7 @@
 
 import { suggestTitle, matchAddress } from "../lib/title.js";
 import { wrongDealWarnings } from "../lib/deals.js";
-import { confidentDeal, usableTemplates, dealGroups } from "../lib/auto.js";
+import { confidentDeal, usableTemplates, dealGroups, scoresFromText } from "../lib/auto.js";
 import { sendToTab } from "../messaging.js";
 import { suggestTemplate, rememberKey, normalizeName, rememberEntry, pruneRemembered, signingSide, sideMismatch, LABELS, LABELS_NAME } from "../lib/match.js";
 import { titleValues, titleFor, subjectFor, DEFAULT_SETTINGS } from "../lib/pattern.js";
@@ -484,7 +484,7 @@ async function showRealsig(tab, job) {
   try {
     c = await send(tab.id, { type: "rs:context" });
   } catch (e) {
-    await reportError(e, "context", { job });
+    await reportError(e, "context", { job, ...(job.draftId ? { path: "draft" } : {}) });
     throw e;
   } finally {
     $("rs-status").className = "note";
@@ -518,12 +518,14 @@ async function showRealsig(tab, job) {
   // belongs to (the deal hint, each form's template), not repeated up here.
   $("rs-needs").replaceChildren(...(job.autoError ? [el("div", job.autoError, "err")] : []));
   if (job.autoError) showReport().catch(() => {});
-  $("rs-deal-first").textContent = job.address || job.buyerNames?.length
+  $("rs-deal-first").textContent = job.address || job.buyerNames?.length || job.textLines
     ? "No deal clearly matches — choose one, or No deal."
     : "Choose the deal, or No deal.";
 
   // Deals: everything, best address match first — a bad match never hides the right deal.
-  const { ranked, deal: best, by } = confidentDeal(job.address, c.deals, job.buyerNames);
+  // A draft uploaded in Real Signature: each deal's address looked for in the PDF's text.
+  const { ranked, deal: best, by } = confidentDeal(job.address, c.deals, job.buyerNames,
+    job.textLines ? scoresFromText(job.textLines, c.deals) : null);
   const confident = !!best;
   // Nothing came close to the address or the buyers: No deal, picked and said so. Several
   // possible deals still wait for the agent's choice.
@@ -693,11 +695,13 @@ function updateDeal() {
     if (why) notes.push(`${form.name}: "${t.name}" would place no blocks — ${why}.`);
   });
   if (id === "none" && rsState.noneFits) {
-    notes.push({ level: "info", text: "No reZEN deal matches this address or buyer, so it's made without one. Choose a deal if there is one." });
+    notes.push({ level: "info", text: job.draftId ? "No reZEN deal's address is on this form, so it's made without one. Choose a deal if there is one."
+      : "No reZEN deal matches this address or buyer, so it's made without one. Choose a deal if there is one." });
   }
   if (deal && deal.id === rsState.autoPicked) {
     notes.push(rsState.autoBy === "name"
       ? "Picked for you because the buyer's name matches this Buyer Record. Check it's the right one, or choose another (or No deal)."
+      : job.draftId ? "Picked for you because its address is on this form. Check it's the right deal, or choose another (or No deal)."
       : "Picked for you because the address matches. Check it's the right deal, or choose another (or No deal).");
   }
   if (deal?.kind === "buyer") {
@@ -739,7 +743,8 @@ function updateDeal() {
       // Real's own Transaction step attaches a deal but doesn't fill in its clients on a draft
       // whose signer roles are already set up (tried 2026-10-12) — only picking it here does.
       // Short (Dan, 2026-10-15: too much text): the why is in the deal ⓘ.
-      notes.push({ level: "info", text: "No client emails in WEBForms — you'll add the signers in Real Signature." });
+      notes.push({ level: "info", text: job.draftId ? "No deal, so you'll add the signers in Real Signature."
+        : "No client emails in WEBForms — you'll add the signers in Real Signature." });
     }
     notes.push(...actingNotes({ me: c.me, deal: null, webformsUserName: job.webformsUserName, webformsUserEmail: job.webformsUserEmail }));
   }
@@ -895,6 +900,7 @@ $("rs-go").addEventListener("click", async () => {
   const counts = { BUYER: Number($("rs-buyers").value) || 0, SELLER: Number($("rs-sellers").value) || 0 };
   if (subjectHeld()) { say("Shorten the signers' email subject to 70 characters.", "warn"); return; }
   $("rs-go").disabled = true;
+  if (job.draftId) { await finishDraft(templateIds[0], counts); return; }
   say(job.forms.length > 1 ? `Creating ${job.forms.length} drafts and grouping them as a packet…` : "Creating your draft…", "busy");
   try {
     const t1 = Date.now();
@@ -954,6 +960,42 @@ $("rs-go").addEventListener("click", async () => {
       warned: !!$("rs-warn").querySelector(".warn") });
   }
 });
+
+/** Finish for a draft uploaded in Real Signature (openDraft): the same choices, saved onto
+ *  that draft (rs:setup-draft) instead of a new upload. Templates aren't remembered: an
+ *  upload's file name isn't a form type. */
+async function finishDraft(templateId, counts) {
+  const { tab, job, c } = rsState;
+  const dealId = $("rs-deal").value;
+  say("Setting up your draft…", "busy");
+  try {
+    const r = await send(tab.id, {
+      type: "rs:setup-draft", id: job.draftId, title: $("rs-title").value.trim() || job.title,
+      dealId: dealId === "none" ? null : dealId,
+      templateId: templateId === "none" ? null : templateId, counts, agentChoice: agentChoice(),
+      emailSubject: $("rs-subject-wrap").hidden ? null : cleanSubject($("rs-subject").value) || null,
+    });
+    if (r?.error) throw new Error(r.error);
+    // The day's count, and — Auto place having found nothing — why, as Prepare's does.
+    const auto = templateId === "auto";
+    chrome.runtime.sendMessage({ type: "report:ok", path: "panel", forms: 1, labels: auto }).catch(() => {});
+    if (auto && job.forms[0].placed?.outcome) {
+      chrome.runtime.sendMessage({ type: "report:placed", outcome: job.forms[0].placed.outcome, added: 0 }).catch(() => {});
+    }
+    rsState = null;
+    // The same address reloads: Real's steps show the deal, signers and blocks just saved.
+    await chrome.tabs.update(tab.id, { url: new URL(r.url, RS).toString() });
+    say(r.packet ? `Draft ready. Add the ${roleWords(r.unfilled)} in Add Signees.` : "Draft ready. Check it in Real Signature before you send.", "ok");
+    $("rs-form").hidden = true;
+  } catch (e) {
+    say(String(e.message || e), "err");
+    $("rs-go").disabled = !canFinish();
+    await reportError(e, "on-draft", { path: "draft", c, job, dealId: dealId === "none" ? null : dealId,
+      dealBy: dealId === rsState?.autoPicked || (dealId === "none" && rsState?.noneFits) ? rsState.autoBy : null,
+      templateIds: [templateId === "none" ? null : templateId], counts,
+      warned: !!$("rs-warn").querySelector(".warn") });
+  }
+}
 
 // ---------- a hand-off still under way (job:start) ----------
 
@@ -1026,13 +1068,17 @@ const NO_BLOCKS = {
   "pdf-unreadable": "Dotted Line couldn't read this PDF. Place the blocks in Real Signature.",
 };
 
-async function showDraft(tab, id) {
-  if (drBusy) return;
+/** A one-time draft uploaded in Real Signature. Nobody set up yet: the whole draft from the
+ *  PDF, as from WEBForms (showRealsig with the draft standing in for a hand-off). Signers
+ *  already named in Edit details: blocks only, for them (the "dr" screen). */
+async function openDraft(tab, id) {
+  if (drBusy || wfBusy) return;
+  if (rsState?.job?.draftId === id) { show("rs"); return; } // the same draft, choices as left
   show("dr");
   $("dr-form").hidden = true;
   $("dr-status").className = "busy";
   $("dr-status").textContent = "Reading this draft…";
-  const info = await send(tab.id, { type: "rs:draft-info", id }).catch((e) => ({ error: String(e?.message || e) }));
+  const info = await send(tab.id, { type: "rs:draft-read", id }).catch((e) => ({ error: String(e?.message || e) }));
   if (info?.error) {
     $("dr-status").className = "err";
     $("dr-status").textContent = `Couldn't read this draft: ${info.error}`;
@@ -1040,6 +1086,20 @@ async function showDraft(tab, id) {
     return;
   }
   if (info.template) { show("idle"); return; }
+  if (!info.signers && !info.blocks) {
+    const name = String(info.name || "Draft").replace(/\.pdf$/i, "");
+    await showRealsig(tab, {
+      id: `draft:${id}`, draftId: id, title: name,
+      forms: [{ name, pageCount: info.pageCount, placed: info.placed, library: null }],
+      // A scan has no text: nothing to match, so the agent picks (not "nothing matched").
+      textLines: info.lines?.length ? info.lines : null,
+    });
+    return;
+  }
+  showDraft(tab, id, info);
+}
+
+function showDraft(tab, id, info) {
   $("dr-status").className = "note";
   if (!info.signers) {
     $("dr-status").textContent = "To place blocks on this draft, first add who signs in Real Signature (Edit details) and press Next. Then come back here on the Prepare step.";
@@ -1121,7 +1181,7 @@ async function refresh() {
         const made = await chrome.runtime.sendMessage({ type: "made:forTab", tabId: tab.id, url: tab.url });
         if (made && !made.error) { showMade(made); return; }
         const draftId = DRAFT_URL.exec(tab.url)?.[1];
-        if (draftId) { await showDraft(tab, draftId); return; }
+        if (draftId) { await openDraft(tab, draftId); return; }
       }
       if (!$("msg").querySelector(".ok")) say("");
       show("idle");
