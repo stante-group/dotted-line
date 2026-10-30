@@ -144,6 +144,12 @@ export class RealSignature {
       json: { name, oneTimeUse: true, documentTemplates: draftIds.map((documentTemplateId) => ({ documentTemplateId })) },
     });
   }
+  /** The Drafts tab's list: one-time drafts and packets, newest first. Rows carry type
+   *  ("DOCUMENT" / packet), id, name, createdAt and defaults (null until Edit details is
+   *  saved) — observed 2026-10-30. */
+  listOneTimeDrafts({ page = 0, size = 20 } = {}) {
+    return this.request("GET", "/one-time-templates", { query: { page, size, "sort.dir": "desc", "sort.property": "createdAt" } });
+  }
   deletePacketDraft(id) { return this.request("DELETE", `/packet-templates/${encodeURIComponent(id)}`); }
 
   /** Every page of my templates or shared-with-me, up to `max`. Each item already carries

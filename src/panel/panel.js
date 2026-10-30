@@ -50,7 +50,7 @@ function syncTips() {
 }
 
 function show(section) {
-  for (const s of ["idle", "made", "dr", "wf", "rs"]) $(s).hidden = s !== section;
+  for (const s of ["idle", "made", "dr", "up", "wf", "rs"]) $(s).hidden = s !== section;
   // No Settings link beside a draft waiting for its choices: it opens a new tab, and Chrome
   // then dropped this tab's panel — the agent came back to an empty Drafts list and no
   // panel (2026-10-15). Settings is in the WEBForms popup, and the icon's right-click menu.
@@ -1113,6 +1113,38 @@ async function openDraft(tab, id) {
   showDraft(tab, id, info);
 }
 
+// Real Signature's home pages (Sent, Draft, Voided — where a dropped PDF lands). Before the
+// draft's own steps there was nothing in the panel (Dan's test, 2026-10-30).
+const HOME_URL = /^https:\/\/signature\.therealbrokerage\.com\/home(?:[/?#]|$)/i;
+
+/** Recent uploads nobody has set up yet, each opening its draft — the panel then sets it up. */
+async function showUploads(tab) {
+  show("up");
+  $("up-status").className = "busy";
+  $("up-status").textContent = "Looking for new uploads…";
+  $("up-list").replaceChildren();
+  const r = await send(tab.id, { type: "rs:recent-uploads" }).catch((e) => ({ error: String(e?.message || e) }));
+  if (r?.error) {
+    $("up-status").className = "err";
+    $("up-status").textContent = `Couldn't read your Drafts: ${r.error}`;
+    await reportError(new Error(r.error), "on-draft", { path: "draft" });
+    return;
+  }
+  $("up-status").className = "note";
+  $("up-status").textContent = r.length ? "New uploads, not set up yet:" : "";
+  $("up-list").replaceChildren(...r.map((d) => {
+    const div = el("div", null, "form");
+    div.append(el("b", d.name));
+    const b = el("button", "Set up with Dotted Line");
+    b.type = "button";
+    b.onclick = () => chrome.tabs.update(tab.id, { url: new URL(`/one-time-documents/document/${d.id}`, RS).toString() });
+    div.append(b);
+    return div;
+  }));
+}
+
+$("up-refresh").addEventListener("click", () => refresh());
+
 function showDraft(tab, id, info) {
   $("dr-status").className = "note";
   if (!info.signers) {
@@ -1196,6 +1228,7 @@ async function refresh() {
         if (made && !made.error) { showMade(made); return; }
         const draftId = DRAFT_URL.exec(tab.url)?.[1];
         if (draftId) { await openDraft(tab, draftId); return; }
+        if (HOME_URL.test(tab.url)) { await showUploads(tab); return; }
       }
       if (!$("msg").querySelector(".ok")) say("");
       show("idle");
@@ -1218,7 +1251,9 @@ chrome.tabs.onUpdated.addListener((_id, info) => {
   // draft for the Drafts list only changes the address — and the summary stayed up there
   // (Dan's test, 2026-10-29). Only while the summary shows: elsewhere an address change
   // would redraw choices the agent is in the middle of.
-  if (info.status === "complete" || (info.url && !$("made").hidden)) refresh();
+  // Dropping a PDF in moves Real from Sent to its Drafts list the same way, and opening a
+  // draft too: those address changes redraw, so the new upload or the draft shows.
+  if (info.status === "complete" || (info.url && (!$("made").hidden || HOME_URL.test(info.url) || DRAFT_URL.test(info.url)))) refresh();
 });
 syncTips();
 refresh();

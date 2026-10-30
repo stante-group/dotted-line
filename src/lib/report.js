@@ -104,7 +104,7 @@ const ROUTE_WORDS = new Set([
   "participant", "listing-transactions", "OPEN", "buyer-record", "api", "systems",
   "GetPopulatedGlobalJson", "Basic", "transactioncontacts", "index", "forms", "single",
   "formeditor", "formfields", "Transfer", "CreateDownloadRequest", "downloadmany",
-  "file-url",
+  "file-url", "one-time-templates",
 ]);
 
 /** "/document-templates/ec2d…" → "/document-templates/{id}". */
