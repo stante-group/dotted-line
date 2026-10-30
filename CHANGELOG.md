@@ -5,6 +5,10 @@ Dotted Line by itself a few hours after a version is published.
 
 ## Not released yet
 
+- **Auto place: Manitoba's Listing Contract.** Its text used to come out as nonsense (its
+  font numbers letters in Apple's order), so it got no blocks. Now the sellers' signatures,
+  your signature on the Listing Brokerage's line and the date are placed. Text printed off
+  the edge of a page is no longer read.
 - **Auto place: more BC forms.** The Contract of Purchase and Sale's and Subject Removal's
   page-foot "BUYER'S INITIALS" and "SELLER'S INITIALS" boxes, Subject Removal's three buyer
   and three seller signature lines (printed as a picture, so found by where they sit), and the Disclosure of

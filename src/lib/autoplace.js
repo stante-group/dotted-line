@@ -131,6 +131,10 @@ const SIGNATURE_LABEL = /\bSignature of (?:the )?(Seller|Buyer|Brokerage Represe
 // their lines. Its "MANAGING BROKER'S SIGNATURE / AUTHORIZED SIGNATORY" is the brokerage's,
 // and at Real who signs it varies: left for the agent.
 const SIGNATURE_CAPS = /\b(BUYER|SELLER|DESIGNATED AGENT)['’]?S?['’]? SIGNATURE(?![A-Z])/g; // its underscores follow with no space
+// MREA's Listing Contract: "Seller's signature" (twice) and "Listing Brokerage's
+// representative" each alone under a line, small type. Lower case, so only as the whole
+// line and with a line to sign on: in a sentence it's just words.
+const SIGNATURE_UNDER = /^\s*(?:(Seller|Buyer)['’]s signature|Listing (Brokerage['’]s representative))\s*$/;
 // "Seller's Initials ____ ____ Buyer's Initials ____ ____" (AREA page footers and schedules).
 const INITIALS_RUNS = /\b(Seller|Buyer|Brokerage Representative)['’]?s? Initials\s*((?:_{4,}\s*)+)/gi;
 // "Initials (Buyer)" beside a drawn box (MREA offer, page 1).
@@ -230,6 +234,13 @@ export function pageBlocks(page) {
       // Consumer Relationships Guide).
       const r = ruleRight(rules, xEnd, line.y) || ruleAbove(rules, x, xEnd, line.y, line.size);
       add(SIG, role, r ? r.x1 + 2 : x, r ? r.y + 1 : line.y + line.size + 2, { sig: true });
+    }
+    const under = SIGNATURE_UNDER.exec(line.text);
+    if (under) {
+      const i = line.text.search(/\S/);
+      const x = xAt(line, i), xEnd = line.x1;
+      const r = ruleAbove(rules, x, xEnd, line.y, line.size);
+      if (r) add(SIG, ROLE(under[1] || under[2]), r.x1 + 2, r.y + 1, { sig: true });
     }
     for (const m of line.text.matchAll(SIGNATURE_CAPS)) {
       const x = xAt(line, m.index), xEnd = xAt(line, m.index + m[0].length);
@@ -570,7 +581,9 @@ export function placedSummary(layout) {
 export function placeOutcome({ pages = null, error = null, blocks = 0 }) {
   if (error) return /password/i.test(String(error?.message || error)) ? "pdf-locked" : "pdf-unreadable";
   if (blocks > 0) return null;
-  const text = (pages || []).flatMap((p) => p.items.map((i) => i.str)).join(" ");
+  // By line, not by piece: some PDFs draw every letter on its own (the MREA Listing Contract),
+  // and pieces joined with spaces are never words.
+  const text = (pages || []).flatMap((p) => toLines(p.items || []).map((l) => l.text)).join(" ");
   if (!text.trim()) return "no-text";
   // Every form has these (English or French). Garbled fonts give letters, but not words.
   const words = (text.match(/\b(the|and|of|to|le|la|les|de|et)\b/gi) || []).length;
