@@ -7,7 +7,7 @@ import { createHash } from "node:crypto";
 
 import { readPdfText, md5, rc4 } from "../src/lib/pdftext.js";
 import { pageBlocks, autoLayout, forAgent, forClients, withSigners, toLines } from "../src/lib/autoplace.js";
-import { placeOutcome } from "../src/lib/autoplace.js";
+import { placeOutcome, assignSlots } from "../src/lib/autoplace.js";
 
 const enc = (s) => new TextEncoder().encode(s);
 const latin = (u8) => new TextDecoder("latin1").decode(u8);
@@ -452,6 +452,17 @@ test("MREA Listing Contract: lower-case labels alone under their lines, and noth
   assert.ok(page.items.every((i) => i.x < 612) && page.shapes.every((s) => s.x1 < 612), "off-page text and lines are dropped");
   const sigs = pageBlocks(page).filter((b) => b.spec.type === "SIGNATURE").map((b) => [b.role, b.x, b.y]);
   assert.deepEqual(sigs, [["SELLER", 35, 155], ["SELLER", 35, 123], ["AGENT", 35, 59]]);
+});
+
+test("MREA Listing Contract: the date beside Seller 1's line is Seller 1's", async () => {
+  const [page] = await readPdfText(makePdf([
+    "0 0 0 RG 33 154 m 273 154 l S 33 122 m 273 122 l S",
+    "BT /F1 6 Tf 33 147 Td (Seller's signature) Tj ET",
+    "BT /F1 6 Tf 33 115 Td (Seller's signature) Tj ET",
+    "BT /F1 7 Tf 320 152 Td (SIGNED THIS ______________DAY OF _____________, 20____) Tj ET",
+  ].join("\n")));
+  const date = assignSlots(pageBlocks(page)).find((b) => b.date);
+  assert.deepEqual([date.role, date.index], ["SELLER", 0]);
 });
 
 test("a form drawn a letter at a time still reads as words for its report", () => {

@@ -445,8 +445,11 @@ export function assignSlots(blocks) {
     // a form both sign) — a row's lines can sit a point or two apart.
     // Within 90pt; failing that 180 (BCREA's listing contract puts the residency boxes
     // between its date and the sellers' lines).
-    let below = sorted.filter((s) => s.sig && s.y < d.y && d.y - s.y < 90);
-    if (!below.length) below = sorted.filter((s) => s.sig && s.y < d.y && d.y - s.y < 180);
+    // A line on the date's own row counts as below it: MREA's Listing Contract has "SIGNED
+    // THIS ___ DAY OF" beside Seller 1's line, and skipping that row gave the date to
+    // Seller 2, who isn't always there.
+    let below = sorted.filter((s) => s.sig && s.y < d.y + 6 && d.y - s.y < 90);
+    if (!below.length) below = sorted.filter((s) => s.sig && s.y < d.y + 6 && d.y - s.y < 180);
     const top = Math.max(...below.map((s) => s.y));
     const sig = below.filter((s) => top - s.y < 6).sort((a, b) => a.x - b.x)[0];
     if (sig) { d.role = sig.role; d.index = sig.index; }
