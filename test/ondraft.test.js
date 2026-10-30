@@ -198,3 +198,16 @@ test("the Drafts list in the panel: new single uploads with nobody named, newest
   assert.deepEqual(newUploads(rows, now).map((d) => d.id), ["a", "named-none", "b", "c", "d"]);
   assert.deepEqual(newUploads(null, now), []);
 });
+
+test("a subject pattern whose words are all empty on an upload gets the title, not a bare \"Please sign\"", async () => {
+  const { draftTitleValues, draftSubject, DEFAULT_SETTINGS } = await import("../src/lib/pattern.js");
+  const v = draftTitleValues({ fileName: "BCFSA - Disclosure of Remuneration.pdf", now: new Date(2026, 9, 30) });
+  const own = { ...DEFAULT_SETTINGS, subjectMode: "pattern", subjectPattern: "Please sign: {deal} – {address}" };
+  assert.equal(draftSubject(own, v, "BCFSA - Disclosure of Remuneration"), "Please sign: BCFSA - Disclosure of Remuneration");
+  // A pattern that filled in something is the agent's, untouched.
+  assert.equal(draftSubject({ ...own, subjectPattern: "Please sign: {forms}" }, v, "x"), "Please sign: BCFSA - Disclosure of Remuneration");
+  assert.equal(draftSubject({ ...own, subjectPattern: "Sign {forms} by {date}" }, v, "x"), "Sign BCFSA - Disclosure of Remuneration by Oct 30, 2026");
+  // The title as subject, and Real Signature's own, as before.
+  assert.equal(draftSubject({ ...DEFAULT_SETTINGS }, v, "T"), "T");
+  assert.equal(draftSubject({ ...DEFAULT_SETTINGS, subjectMode: "real" }, v, "T"), null);
+});

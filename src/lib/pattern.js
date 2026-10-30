@@ -108,6 +108,17 @@ export function draftTitleValues({ fileName, deal = null, now = new Date() }) {
   };
 }
 
+/** An uploaded draft's subject: the agent's own, but never the pattern's fixed words alone.
+ *  "Please sign: {deal} – {address}" with no WEBForms deal and no reZEN deal came out as a
+ *  bare "Please sign" (Dan's test, 2026-10-30): then the title goes after it, "Please sign:
+ *  BCFSA - Disclosure of Remuneration". */
+export function draftSubject(settings, values, title) {
+  const s = { ...DEFAULT_SETTINGS, ...settings };
+  const subject = subjectFor(s, values, title);
+  if (s.subjectMode !== "pattern" || !subject || !title || subject !== fillPattern(s.subjectPattern, {})) return subject;
+  return `${subject}: ${title}`;
+}
+
 /** The suggested title for an uploaded draft: "120 Example Street NW – Residential Purchase
  *  Contract", or the form alone with no deal (the shape WEBForms' suggestion has). */
 export function draftTitle(values) {
