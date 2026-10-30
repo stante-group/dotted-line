@@ -380,6 +380,23 @@ test("BC purchase contract footer: BUYER'S and SELLER'S INITIALS, each under its
   assert.ok(xs.every((p) => p[0] >= 31 && p[2] <= 149 && p[1] >= 84 && p[3] <= 135), JSON.stringify(xs));
 });
 
+test("BC Subject Removal: three buyer and three seller lines drawn as one picture above B. APPOINTMENT OF CONVEYANCER", () => {
+  const pic = { image: true, x1: 35, y1: 198, x2: 574, y2: 358 };
+  const f = autoLayout([page([word("B. APPOINTMENT OF CONVEYANCER", 44, 156, 11.5)], [pic])]).layout.fieldDefinitions;
+  assert.deepEqual(f.map((d) => `${d.type} ${d.signeeType} ${d.signeeIndex}`), [
+    "SIGNATURE BUYER 0", "SIGNATURE BUYER 1", "SIGNATURE BUYER 2", "SIGNATURE SELLER 0", "SIGNATURE SELLER 1", "SIGNATURE SELLER 2"]);
+  // Each on its own line, in its own third, left of the SEAL badge. The buyers' boxes reach
+  // a little above the picture, into the blank under "Continued on Page 2".
+  for (const [n, d] of f.entries()) {
+    const [x1, y1, x2, y2] = d.fieldLocations[0].position;
+    const third = 35 + (n % 3) * 539 / 3;
+    assert.ok(x1 >= third && x2 <= third + 539 * 0.3 && y1 >= 198 && y2 <= 358 + 5, JSON.stringify(d.fieldLocations[0].position));
+  }
+  // The heading with no picture above it, or a small one: nothing.
+  assert.equal(autoLayout([page([word("B. APPOINTMENT OF CONVEYANCER", 44, 156, 11.5)], [])]).layout, null);
+  assert.equal(autoLayout([page([word("B. APPOINTMENT OF CONVEYANCER", 44, 156, 11.5)], [{ ...pic, x2: 200 }])]).layout, null);
+});
+
 test("BC multiple offers: (Seller's signature) and (Designated Agent's signature) under lines; signed this___Day of", () => {
   const p = page([
     word("Confirmed and signed this___Day of ___________________ Year ________.", 72, 212, 11),

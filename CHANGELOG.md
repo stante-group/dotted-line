@@ -6,7 +6,8 @@ Dotted Line by itself a few hours after a version is published.
 ## Not released yet
 
 - **Auto place: more BC forms.** The Contract of Purchase and Sale's and Subject Removal's
-  page-foot "BUYER'S INITIALS" and "SELLER'S INITIALS" boxes, and the Disclosure of
+  page-foot "BUYER'S INITIALS" and "SELLER'S INITIALS" boxes, Subject Removal's three buyer
+  and three seller signature lines (printed as a picture, so found by where they sit), and the Disclosure of
   Multiple Offers Presented (sellers, the designated agent, and "Confirmed and signed
   this ___ Day of").
 - **Fix:** Check my setup now says "yes (own corporation)" when WEBForms is signed in as
