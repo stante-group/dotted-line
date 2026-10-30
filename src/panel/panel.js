@@ -6,7 +6,7 @@ import { wrongDealWarnings } from "../lib/deals.js";
 import { confidentDeal, usableTemplates, dealGroups, scoresFromText } from "../lib/auto.js";
 import { sendToTab } from "../messaging.js";
 import { suggestTemplate, rememberKey, normalizeName, rememberEntry, pruneRemembered, signingSide, sideMismatch, LABELS, LABELS_NAME } from "../lib/match.js";
-import { titleValues, titleFor, subjectFor, draftTitleValues, draftTitle, formNameFromFile, DEFAULT_SETTINGS } from "../lib/pattern.js";
+import { titleValues, titleFor, subjectFor, draftTitleValues, draftTitle, draftSubject, formNameFromFile, DEFAULT_SETTINGS } from "../lib/pattern.js";
 import { signerCounts, signersWithoutEmail, signeesFromDeal, agentRoleFor, agentPeople, cleanSubject, subjectTooLong, SUBJECT_MAX } from "../lib/draft.js";
 import { actingNotes } from "../lib/actor.js";
 import { contextFromDraft, REPORTS_ON } from "../lib/report.js";
@@ -705,7 +705,7 @@ function updateDeal() {
     job.titleValues = draftTitleValues({ fileName: job.fileName, deal });
     if (!rsState.titleEdited) $("rs-title").value = titleFor(rsState.settings, job.titleValues, draftTitle(job.titleValues)) || job.title;
     if (!rsState.subjectEdited) {
-      $("rs-subject").value = subjectFor(rsState.settings, job.titleValues, $("rs-title").value.trim() || job.title) || "";
+      $("rs-subject").value = draftSubject(rsState.settings, job.titleValues, $("rs-title").value.trim() || job.title) || "";
       updateSubject();
     }
   }
@@ -911,7 +911,7 @@ $("rs-title").addEventListener("input", () => {
   if (rsState) rsState.titleEdited = true;
   if (!rsState || rsState.subjectEdited) return;
   const { job, settings: s } = rsState;
-  $("rs-subject").value = subjectFor(s, job.titleValues || {}, $("rs-title").value.trim() || job.title) || "";
+  $("rs-subject").value = (job.draftId ? draftSubject : subjectFor)(s, job.titleValues || {}, $("rs-title").value.trim() || job.title) || "";
   updateSubject();
 });
 $("rs-subject").addEventListener("input", () => { if (rsState) { rsState.subjectEdited = true; updateSubject(); } });
