@@ -6,7 +6,7 @@ import { wrongDealWarnings } from "../lib/deals.js";
 import { confidentDeal, usableTemplates, dealGroups, scoresFromText } from "../lib/auto.js";
 import { sendToTab } from "../messaging.js";
 import { suggestTemplate, rememberKey, normalizeName, rememberEntry, pruneRemembered, signingSide, sideMismatch, LABELS, LABELS_NAME } from "../lib/match.js";
-import { titleValues, titleFor, subjectFor, DEFAULT_SETTINGS } from "../lib/pattern.js";
+import { titleValues, titleFor, subjectFor, draftTitleValues, draftTitle, formNameFromFile, DEFAULT_SETTINGS } from "../lib/pattern.js";
 import { signerCounts, signersWithoutEmail, signeesFromDeal, agentRoleFor, agentPeople, cleanSubject, subjectTooLong, SUBJECT_MAX } from "../lib/draft.js";
 import { actingNotes } from "../lib/actor.js";
 import { contextFromDraft, REPORTS_ON } from "../lib/report.js";
@@ -509,6 +509,7 @@ async function showRealsig(tab, job) {
   // than being cut on the way (Dan, 2026-10-26). "Leave it to Real Signature" hides it.
   rsState.settings = await settings();
   rsState.subjectEdited = false;
+  rsState.titleEdited = false;
   const subject = subjectFor(rsState.settings, job.titleValues || {}, job.title);
   $("rs-subject-wrap").hidden = rsState.settings.subjectMode === "real";
   $("rs-subject").value = subject || "";
@@ -687,6 +688,18 @@ function updateDeal() {
   const side = signingSide({ deal, agentSide: job.agentSide });
   if (side !== rsState.tplSide) renderTemplates(side);
   $("rs-go").disabled = !canFinish(); // after the templates are drawn: it reads the picks
+  // An uploaded draft has no WEBForms words for the title and subject patterns: the form
+  // from the file name and the place from the deal picked here, redone when the deal
+  // changes, until the agent edits them. Without this the subject was just "Please sign"
+  // (Dan's test, 2026-10-30).
+  if (job.draftId) {
+    job.titleValues = draftTitleValues({ fileName: job.fileName, deal });
+    if (!rsState.titleEdited) $("rs-title").value = titleFor(rsState.settings, job.titleValues, draftTitle(job.titleValues)) || job.title;
+    if (!rsState.subjectEdited) {
+      $("rs-subject").value = subjectFor(rsState.settings, job.titleValues, $("rs-title").value.trim() || job.title) || "";
+      updateSubject();
+    }
+  }
   const notes = [];
   // A template picked by hand that has blocks only for the side that isn't signing.
   job.forms.forEach((form, i) => {
@@ -884,6 +897,7 @@ $("rs-agent-pick").addEventListener("change", () => {
 });
 for (const id of ["rs-buyers", "rs-sellers"]) $(id).addEventListener("input", () => rsState && updateAgent());
 $("rs-title").addEventListener("input", () => {
+  if (rsState) rsState.titleEdited = true;
   if (!rsState || rsState.subjectEdited) return;
   const { job, settings: s } = rsState;
   $("rs-subject").value = subjectFor(s, job.titleValues || {}, $("rs-title").value.trim() || job.title) || "";
@@ -1087,9 +1101,9 @@ async function openDraft(tab, id) {
   }
   if (info.template) { show("idle"); return; }
   if (!info.signers && !info.blocks) {
-    const name = String(info.name || "Draft").replace(/\.pdf$/i, "");
+    const name = formNameFromFile(info.name || "Draft");
     await showRealsig(tab, {
-      id: `draft:${id}`, draftId: id, title: name,
+      id: `draft:${id}`, draftId: id, title: name, fileName: info.name || "",
       forms: [{ name, pageCount: info.pageCount, placed: info.placed, library: null }],
       // A scan has no text: nothing to match, so the agent picks (not "nothing matched").
       textLines: info.lines?.length ? info.lines : null,

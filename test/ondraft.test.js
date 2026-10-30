@@ -171,3 +171,21 @@ test("its reports: the new step, path and route word survive; nothing else chang
   assert.equal(r.route, "GET /document-templates/{id}/file-url");
   assert.equal(r.ctx.path, "draft");
 });
+
+test("an uploaded draft's title and subject: the form from the file name, the place from the deal", async () => {
+  const { formNameFromFile, draftTitleValues, draftTitle, subjectFor, DEFAULT_SETTINGS } = await import("../src/lib/pattern.js");
+  assert.equal(formNameFromFile("3. Signed-Residential_Purchase_Contract (2).pdf"), "Residential Purchase Contract");
+  assert.equal(formNameFromFile("CPS - Residential Contract.pdf"), "CPS - Residential Contract");
+  assert.equal(formNameFromFile(".pdf"), "Form");
+  const now = new Date(2026, 9, 30);
+  const d = { address: "120 Example Street NW, Calgary, AB T2T 2T2", mlsNum: "A0000000" };
+  const v = draftTitleValues({ fileName: "Residential Purchase Contract.pdf", deal: d, now });
+  assert.equal(v.address, "120 Example Street NW, Calgary");
+  assert.equal(draftTitle(v), "120 Example Street NW – Residential Purchase Contract");
+  const pattern = { ...DEFAULT_SETTINGS, subjectMode: "pattern" };
+  assert.equal(subjectFor(pattern, v, draftTitle(v)), "Please sign: Residential Purchase Contract – 120 Example Street NW, Calgary");
+  // No deal: the form still says what to sign — not a bare "Please sign".
+  const none = draftTitleValues({ fileName: "Residential Purchase Contract.pdf", now });
+  assert.equal(subjectFor(pattern, none, draftTitle(none)), "Please sign: Residential Purchase Contract");
+  assert.equal(draftTitle(none), "Residential Purchase Contract");
+});
