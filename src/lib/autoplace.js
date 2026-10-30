@@ -152,6 +152,8 @@ const FOOTER_INITIALS = /^\s*INITIALS\s*$/;
 // and "SELLER'S INITIALS" at the foot, each under its own three cells.
 const FOOTER_SIDE_INITIALS = /\b(BUYER|SELLER)['’]S INITIALS\b/g;
 const FOOTER_Y = 100;
+// Subject Removal's second section; its signing rows are a picture just above it.
+const CONVEYANCER_HEADING = /^\s*B\.\s*APPOINTMENT OF CONVEYANCER\s*$/;
 // BCREA: "DATE   DATE   DATE" under lines, each signer's date under their signature.
 const DATE_ROW = /^(?:\s*DATE)+\s*$/i;
 // BCFSA's Disclosure of Representation in Trading Services: "Initials (optional)   Date",
@@ -299,6 +301,23 @@ export function pageBlocks(page) {
           }
         }
         cells.forEach((b, n) => add(INI, ROLE(m[1]), b.x1 + 1, b.y1 + 1, { index: n, w: b.x2 - b.x1 - 2, h: b.y2 - b.y1 - 2 }));
+      }
+    }
+    if (CONVEYANCER_HEADING.test(line.text)) {
+      // Subject Removal's signing rows (BC, Greater Vancouver's form) are one picture just
+      // above this heading: three BUYER lines over three SELLER lines, each with a SEAL
+      // badge at its end, and WITNESS lines left alone. No words to read, so the lines are
+      // found by where they sit in the picture (measured on the August 2024 form; Dan,
+      // 2026-10-29). A picture of another size or place is left alone.
+      const pic = (page.shapes || []).find((s) => s.image && s.y1 > line.y && s.y1 - line.y <= 80
+        && s.x2 - s.x1 >= 400 && s.y2 - s.y1 >= 100 && s.y2 - s.y1 <= 220);
+      if (pic) {
+        const W = pic.x2 - pic.x1, H = pic.y2 - pic.y1;
+        for (const [role, fy] of [["BUYER", 0.869], ["SELLER", 0.379]]) {
+          for (const fx of [0.025, 0.355, 0.684]) {
+            add(SIG, role, pic.x1 + fx * W + 2, pic.y1 + fy * H + 1, { sig: true, w: Math.min(SIG.w, 0.25 * W), h: Math.min(SIG.h, 0.14 * H) });
+          }
+        }
       }
     }
     for (const m of line.text.matchAll(PAREN_SIGNATURE)) {
