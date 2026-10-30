@@ -10,6 +10,8 @@ Dotted Line by itself a few hours after a version is published.
   and three seller signature lines (printed as a picture, so found by where they sit), and the Disclosure of
   Multiple Offers Presented (sellers, the designated agent, and "Confirmed and signed
   this ___ Day of").
+- **Fix:** Auto place put Alberta's Notice (waiver or satisfaction of conditions) on the
+  sellers; its "Buyer/Seller Signature" lines now go to your own clients, whichever side.
 - **Fix:** Check my setup now says "yes (own corporation)" when WEBForms is signed in as
   your personal real estate corporation, as the panel already did, instead of "no".
 - **Fix:** error reports (only if you said yes) now cover Import templates in Settings:
