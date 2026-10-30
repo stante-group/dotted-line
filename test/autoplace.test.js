@@ -14,7 +14,7 @@ const latin = (u8) => new TextDecoder("latin1").decode(u8);
 
 /** A one-page Helvetica PDF from a content stream; optionally Flate and RC4-locked the way
  *  WEBForms locks its PDFs (Standard handler, R3, 128-bit, empty user password). */
-function makePdf(content, { flate = false, lock = false } = {}) {
+function makePdf(content, { flate = false, lock = false, font = null } = {}) {
   let data = enc(content);
   if (flate) data = new Uint8Array(deflateSync(data));
   const id = enc("0123456789abcdef");
@@ -37,7 +37,7 @@ function makePdf(content, { flate = false, lock = false } = {}) {
     "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
     "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>",
     null, // the content stream
-    "<< /Type /Font /Subtype /Type1 /BaseFont /Courier /Encoding /WinAnsiEncoding >>",
+    ...(font || ["<< /Type /Font /Subtype /Type1 /BaseFont /Courier /Encoding /WinAnsiEncoding >>"]),
   ];
   if (lock) objs.push(`<< /Filter /Standard /V 2 /R 3 /Length 128 /P ${P} /O <${Buffer.from(O).toString("hex")}> /U <${"00".repeat(32)}> >>`);
   const parts = [enc("%PDF-1.4\n")];
@@ -82,6 +82,27 @@ test("reads words and their positions from a plain, a compressed and a locked PD
     assert.equal(sig.w, 19 * 6); // 19 characters × 600/1000 × 10pt
     assert.deepEqual(page.shapes[0], { x1: 72, y1: 120, x2: 300, y2: 120 });
   }
+});
+
+// A Type0 font with no ToUnicode and no cmap, so its codes are glyph numbers: object 6 is
+// the CID font, 1000 units a glyph.
+const glyphFont = (base) => [
+  `<< /Type /Font /Subtype /Type0 /BaseFont /${base} /Encoding /Identity-H /DescendantFonts [6 0 R] >>`,
+  `<< /Type /Font /Subtype /CIDFontType2 /BaseFont /${base} /CIDToGIDMap /Identity /DW 1000
+     /CIDSystemInfo << /Registry (Adobe) /Ordering (Identity) /Supplement 0 >> >>`,
+];
+const glyphHex = (s, shift, quote) => [...s].map((ch) => (ch === " " ? 3 : ch === "\u2019" ? quote : ch.charCodeAt(0) - shift)
+  .toString(16).padStart(4, "0")).join("");
+
+test("glyph-number fonts: the Macintosh order, and Apple's Helvetica Neue four places along", async () => {
+  const label = "Seller\u2019s Signature, 2026/10";
+  for (const [base, shift, quote] of [["ABCDEF+ArialMT", 29, 198], ["OITECW+HelveticaNeue", 25, 187], ["HelveticaNeue-Bold", 25, 187]]) {
+    const [page] = await readPdfText(makePdf(`BT /F1 10 Tf 72 110 Td <${glyphHex(label, shift, quote)}> Tj ET`, { font: glyphFont(base) }));
+    assert.equal(page.items[0]?.str, "Seller's Signature, 2026/10", base);
+  }
+  // Helvetica Neue LT Std is Linotype's, not Apple's: left in the Macintosh order.
+  const [lt] = await readPdfText(makePdf(`BT /F1 10 Tf 72 110 Td <${glyphHex("Signature", 29, 198)}> Tj ET`, { font: glyphFont("HelveticaNeueLTStd-Md") }));
+  assert.equal(lt.items[0]?.str, "Signature");
 });
 
 test("a PDF with a real password is refused, not misread", async () => {
@@ -414,4 +435,27 @@ test("BC multiple offers: (Seller's signature) and (Designated Agent's signature
   ], [rule(71, 281, 176), rule(319, 541, 176), rule(71, 281, 128), rule(319, 541, 128)]);
   const f = autoLayout([p]).layout.fieldDefinitions.map((d) => `${d.type} ${d.signeeType} ${d.signeeIndex}`);
   assert.deepEqual(f, ["SIGNED_DATE SELLER 0", "SIGNATURE SELLER 0", "SIGNATURE SELLER 1", "SIGNATURE AGENT 0"]);
+});
+
+test("MREA Listing Contract: lower-case labels alone under their lines, and nothing from off the page", async () => {
+  const [page] = await readPdfText(makePdf([
+    "0 0 0 RG 33 154 m 273 154 l S 33 122 m 273 122 l S 33 90 m 273 90 l S 33 58 m 273 58 l S",
+    "BT /F1 6 Tf 33 147 Td (Seller's signature) Tj ET",
+    "BT /F1 6 Tf 33 115 Td (Seller's signature) Tj ET",
+    "BT /F1 6 Tf 33 83 Td (Witness to Seller's signature) Tj ET",
+    "BT /F1 6 Tf 33 51 Td (Listing Brokerage's representative) Tj ET",
+    // In a sentence, under a line, it's only words.
+    "300 220 m 560 220 l S BT /F1 6 Tf 300 213 Td (signed by the Seller's signature date) Tj ET",
+    // The other half of a two-page spread, drawn 600pt to the right of the page.
+    "656 154 m 896 154 l S BT /F1 6 Tf 656 147 Td (Seller's signature) Tj ET",
+  ].join("\n")));
+  assert.ok(page.items.every((i) => i.x < 612) && page.shapes.every((s) => s.x1 < 612), "off-page text and lines are dropped");
+  const sigs = pageBlocks(page).filter((b) => b.spec.type === "SIGNATURE").map((b) => [b.role, b.x, b.y]);
+  assert.deepEqual(sigs, [["SELLER", 35, 155], ["SELLER", 35, 123], ["AGENT", 35, 59]]);
+});
+
+test("a form drawn a letter at a time still reads as words for its report", () => {
+  const letters = (s, y) => [...s].map((ch, i) => ({ str: ch, x: 72 + i * 6, y, w: 6, size: 10, xs: [72 + i * 6] }));
+  const pages = [{ items: [...letters("the price and the date of the sale to the buyer", 700), ...letters("Something unlabelled", 680)], shapes: [] }];
+  assert.equal(placeOutcome({ pages, blocks: 0 }), "no-labels");
 });
