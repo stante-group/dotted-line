@@ -452,7 +452,15 @@ export function assignSlots(blocks) {
     if (!below.length) below = sorted.filter((s) => s.sig && s.y < d.y + 6 && d.y - s.y < 180);
     const top = Math.max(...below.map((s) => s.y));
     const sig = below.filter((s) => top - s.y < 6).sort((a, b) => a.x - b.x)[0];
-    if (sig) { d.role = sig.role; d.index = sig.index; }
+    if (sig) { d.role = sig.role; d.index = sig.index; d.shared = true; }
+  }
+  // One date blank for a side with several signers is Signer 1's (Dan, 2026-10-30): Buyer 1
+  // and Seller 1 are always there, Buyer 2 and Seller 2 not. A side with a date per signer
+  // (one above each signing row) keeps them as they are.
+  const shared = sorted.filter((b) => b.shared);
+  for (const role of new Set(shared.map((b) => b.role))) {
+    const dates = shared.filter((b) => b.role === role);
+    if (dates.length === 1) dates[0].index = 0;
   }
   return sorted.filter((b) => b.role && b.index !== undefined);
 }
