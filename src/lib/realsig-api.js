@@ -151,6 +151,9 @@ export class RealSignature {
     return this.request("GET", "/one-time-templates", { query: { page, size, "sort.dir": "desc", "sort.property": "createdAt" } });
   }
   deletePacketDraft(id) { return this.request("DELETE", `/packet-templates/${encodeURIComponent(id)}`); }
+  /** A packet draft: {id, name, oneTimeUse, documentTemplates[]}, each a full document
+   *  draft carrying the signers the packet's Edit details saved (observed 2026-10-30). */
+  getPacketDraft(id) { return this.request("GET", `/packet-templates/${encodeURIComponent(id)}`); }
 
   /** Every page of my templates or shared-with-me, up to `max`. Each item already carries
    *  its full fieldDefinitions. */
