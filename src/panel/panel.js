@@ -514,6 +514,8 @@ async function showRealsig(tab, job) {
   $("rs-subject-wrap").hidden = rsState.settings.subjectMode === "real";
   $("rs-subject").value = subject || "";
   updateSubject();
+  if (job.presetTitle) { $("rs-title").value = job.presetTitle; rsState.titleEdited = true; }
+  if (job.presetSubject) { $("rs-subject").value = job.presetSubject; rsState.subjectEdited = true; updateSubject(); }
 
   // A failed one-click attempt goes on top. What's left to choose is said in the section it
   // belongs to (the deal hint, each form's template), not repeated up here.
@@ -1125,6 +1127,10 @@ async function openDraft(tab, id) {
     const name = formNameFromFile(info.name || "Draft");
     await showRealsig(tab, {
       id: `draft:${id}`, draftId: id, title: name, fileName: info.name || "", presetDealId: info.transactionId,
+      // Never over the agent's own choices (Dan, 2026-10-30): an upload is named after its
+      // file, so a name without ".pdf" was given in Real Signature, and a saved subject was
+      // typed there. Both stay as they are.
+      presetTitle: /\.pdf$/i.test(String(info.name || "")) ? null : info.name, presetSubject: info.emailSubject,
       forms: [{ name, pageCount: info.pageCount, placed: info.placed, library: null }],
       // A scan has no text: nothing to match, so the agent picks (not "nothing matched").
       textLines: info.lines?.length ? info.lines : null,
