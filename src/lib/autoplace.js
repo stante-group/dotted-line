@@ -105,6 +105,7 @@ const ROLE = (w) => {
     if (/seller/.test(s)) return "SELLERS_AGENT";
     return "AGENT";
   }
+  if (/buyer\/seller/.test(s)) return "CLIENT"; // AREA's Notice: whichever side gives it
   if (/buyer/.test(s)) return "BUYER";
   if (/seller/.test(s)) return "SELLER";
   if (/consumer/.test(s)) return "CLIENT"; // the agent's own clients, whichever side (forClients)
@@ -119,8 +120,10 @@ const ROLE = (w) => {
 // of brokerage representative"), signed only when cash changes hands.
 // Ontario's "(Signature of Seller or Buyer)" confirms acceptance — whoever accepted last.
 // BCFSA's Disclosure of Remuneration: "Signature of Licensee", and "Signature of
-// person/persons to whom disclosure has been made" (the client).
-const SIGNATURE_LABEL = /\bSignature of (?:the )?(Seller|Buyer|Brokerage Representative|Licensee|person\/persons to whom disclosure(?: has been made:?)?)\b(?! or\b)|\b(Buyer|Seller|Consumer) Signature\b/g;
+// person/persons to whom disclosure has been made" (the client). AREA's Notice (waiver or
+// satisfaction of conditions): "Buyer/Seller Signature", whichever side gives notice — the
+// agent's own client, as on the Consumer Relationships Guide (it read as Seller before).
+const SIGNATURE_LABEL = /\bSignature of (?:the )?(Seller|Buyer|Brokerage Representative|Licensee|person\/persons to whom disclosure(?: has been made:?)?)\b(?! or\b)|\b(Buyer\/Seller|Buyer|Seller|Consumer) Signature\b/g;
 // Saskatchewan (SREC purchase contract) prints them in capitals, one with a stray
 // apostrophe: "BUYER' SIGNATURE_____", "SELLER'S SIGNATURE_____". Capitals are a heading
 // as often as a line, so these count only with a line to sign on.

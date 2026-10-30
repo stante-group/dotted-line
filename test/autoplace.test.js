@@ -380,6 +380,15 @@ test("BC purchase contract footer: BUYER'S and SELLER'S INITIALS, each under its
   assert.ok(xs.every((p) => p[0] >= 31 && p[2] <= 149 && p[1] >= 84 && p[3] <= 135), JSON.stringify(xs));
 });
 
+test("AREA Notice: Buyer/Seller Signature is the agent's own client, not the seller", () => {
+  const p = page([word("Signed and dated at ________. m. on __________________________________, 20_______.", 40, 323, 9),
+    word("Buyer/Seller Signature", 40, 289, 8), word("Witness Signature", 230, 289, 8)], [rule(38, 210, 300), rule(228, 390, 300)]);
+  const { layout } = autoLayout([p]);
+  assert.deepEqual(layout.fieldDefinitions.filter((d) => d.type === "SIGNATURE").map((d) => `${d.signeeType} ${d.signeeIndex}`), ["CLIENT 0"]);
+  // A buyer's agent: the buyer signs it.
+  assert.deepEqual(forClients(layout, { BUYER: 1 }).fieldDefinitions.filter((d) => d.type === "SIGNATURE").map((d) => d.signeeType), ["BUYER"]);
+});
+
 test("BC Subject Removal: three buyer and three seller lines drawn as one picture above B. APPOINTMENT OF CONVEYANCER", () => {
   const pic = { image: true, x1: 35, y1: 198, x2: 574, y2: 358 };
   const f = autoLayout([page([word("B. APPOINTMENT OF CONVEYANCER", 44, 156, 11.5)], [pic])]).layout.fieldDefinitions;
