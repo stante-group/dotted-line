@@ -1078,14 +1078,22 @@ function showMade(made) {
 // ---------- a draft uploaded in Real Signature: Auto place (src/lib/ondraft.js) ----------
 
 // Real's one-time document steps (Transaction → Edit details → Prepare → Review) all live at
-// this address. Packets aren't handled yet: their signers are set once for every document.
+// this address. A packet's are at PACKET_URL below.
 const DRAFT_URL = /^https:\/\/signature\.therealbrokerage\.com\/one-time-documents\/document\/([0-9a-f-]{36})(?:[/?#]|$)/i;
 // Clicking a draft on the Drafts list opens its preview first, with Next to the steps
 // (Dan's test, 2026-10-30) — the place to set it up. Only a one-time draft's preview: the
 // same /view/ pages show sent documents, which are never touched.
 const VIEW_URL = /^https:\/\/signature\.therealbrokerage\.com\/view\/document\/([0-9a-f-]{36})\?(?:[^#]*&)?oneTimeUse=true(?:[&#]|$)/i;
-const PACKET_VIEW_URL = /^https:\/\/signature\.therealbrokerage\.com\/view\/packet\/[0-9a-f-]{36}\?(?:[^#]*&)?oneTimeUse=true(?:[&#]|$)/i;
+// A packet's own steps (its Edit, where the signers are set once for every document) and
+// its one-time preview. Clicking the packet's name opens the preview, which has no actions;
+// its Edit opens the steps (Dan's test, 2026-10-30).
+const PACKET_URL = /^https:\/\/signature\.therealbrokerage\.com\/one-time-documents\/packet\/([0-9a-f-]{36})(?:[/?#]|$)/i;
+const PACKET_VIEW_URL = /^https:\/\/signature\.therealbrokerage\.com\/view\/packet\/([0-9a-f-]{36})\?(?:[^#]*&)?oneTimeUse=true(?:[&#]|$)/i;
 const draftIdOf = (url) => DRAFT_URL.exec(url)?.[1] || VIEW_URL.exec(url)?.[1] || null;
+const packetIdOf = (url) => PACKET_URL.exec(url)?.[1] || PACKET_VIEW_URL.exec(url)?.[1] || null;
+// Real sends a packet's document only with its packet ("associated with a packet. Please
+// send the packet instead"), so the agent goes back to the packet's own steps.
+const IN_PACKET = "This document is in a packet: send it from the packet (Drafts list → the packet's Edit), not from here.";
 let drBusy = false;
 
 /** "1 seller and the seller's agent" from the draft's signer counts. */
@@ -1123,6 +1131,13 @@ async function openDraft(tab, id) {
     return;
   }
   if (info.template) { show("idle"); return; }
+  if (info.inPacket) {
+    // Blocks only: the deal, subject and signers are set on the packet's own steps.
+    showDraft(tab, id, info);
+    if (!info.signers) $("dr-status").textContent = `${IN_PACKET} Add who signs there (Edit details) and press Next, then use Dotted Line on the packet.`;
+    else $("dr-who").textContent += ` ${IN_PACKET}`;
+    return;
+  }
   if (!info.signers && !info.blocks) {
     const name = formNameFromFile(info.name || "Draft");
     await showRealsig(tab, {
@@ -1219,6 +1234,81 @@ async function placeDraft(tab, id) {
   }
 }
 
+/** A packet draft on its own steps: Auto place on each of its documents whose signers are
+ *  set (the packet's Edit details saves them on every document). Blocks only, as on a
+ *  single draft's Prepare; the packet's deal, subject and signers are Real's. */
+async function openPacket(tab, id) {
+  if (drBusy || wfBusy) return;
+  show("dr");
+  $("dr-form").hidden = true;
+  $("dr-status").className = "busy";
+  $("dr-status").textContent = "Reading this packet…";
+  const info = await send(tab.id, { type: "rs:packet-read", id }).catch((e) => ({ error: String(e?.message || e) }));
+  if (info?.error) {
+    $("dr-status").className = "err";
+    $("dr-status").textContent = `Couldn't read this packet: ${info.error}`;
+    await reportError(new Error(info.error), "on-draft", { path: "draft" });
+    return;
+  }
+  if (info.template) { show("idle"); return; }
+  $("dr-status").className = "note";
+  const ready = info.docs.filter((d) => d.signers);
+  if (!ready.length) {
+    $("dr-status").textContent = "To place blocks on this packet, first add who signs (Edit details) and press Next. Then come back here on the Prepare step.";
+    return;
+  }
+  const many = info.docs.length > 1;
+  $("dr-status").textContent = ready.length < info.docs.length
+    ? `${info.docs.length - ready.length} of its documents ${info.docs.length - ready.length > 1 ? "have" : "has"} no signers yet and ${info.docs.length - ready.length > 1 ? "are" : "is"} left as ${info.docs.length - ready.length > 1 ? "they are" : "it is"}.` : "";
+  $("dr-who").textContent = many
+    ? ready.map((d) => `${d.name}: ${signerWords(d.signers)}${d.blocks ? `, ${d.blocks} block${d.blocks > 1 ? "s" : ""} already on it stay` : ""}.`).join(" ")
+    : `Signers: ${signerWords(ready[0].signers)}.${ready[0].blocks ? ` ${ready[0].blocks} block${ready[0].blocks > 1 ? "s" : ""} already on it stay.` : ""}`;
+  $("dr-form").hidden = false;
+  $("dr-go").disabled = false;
+  $("dr-go").onclick = () => placePacket(tab, ready.map((d) => d.id));
+}
+
+async function placePacket(tab, ids) {
+  drBusy = true;
+  $("dr-go").disabled = true;
+  $("dr-status").className = "busy";
+  $("dr-status").textContent = "Placing blocks…";
+  say("");
+  let added = 0, skipped = 0, outcome = null;
+  try {
+    // One document at a time: each is its own read and save, like a single draft's.
+    for (const id of ids) {
+      const r = await send(tab.id, { type: "rs:place-draft", id });
+      if (r?.error) throw new Error(r.error);
+      added += r.added;
+      skipped += r.skipped;
+      if (!r.added) outcome ||= r.outcome;
+    }
+    $("dr-status").className = "note";
+    $("dr-status").textContent = "";
+    chrome.runtime.sendMessage({ type: "report:placed", outcome: added ? null : outcome, added }).catch(() => {});
+    if (added) {
+      say(`Placed ${added} block${added > 1 ? "s" : ""}. Real Signature reloads to show them: check every block on Prepare before you send.`, "ok");
+      await chrome.tabs.reload(tab.id);
+    } else {
+      say(NO_BLOCKS[outcome] || (skipped
+        ? "Every block Dotted Line would place is already on this packet."
+        : "This packet's signature lines are all for signers who aren't on it. Check Edit details."), "warn");
+      $("dr-go").disabled = false;
+    }
+  } catch (e) {
+    $("dr-status").className = "note";
+    $("dr-status").textContent = "";
+    // Documents already done keep their blocks: say so, rather than a bare failure.
+    say(`Couldn't place blocks${added ? ` on every document (${added} placed before it stopped)` : ""}: ${String(e?.message || e)}`, "err");
+    await reportError(e, "on-draft", { path: "draft" });
+    $("dr-go").disabled = false;
+    if (added) await chrome.tabs.reload(tab.id);
+  } finally {
+    drBusy = false;
+  }
+}
+
 // ---------- which screen ----------
 
 let refreshing = null;
@@ -1256,14 +1346,8 @@ async function refresh() {
         const draftId = draftIdOf(tab.url);
         if (draftId) { await openDraft(tab, draftId); return; }
         if (HOME_URL.test(tab.url)) { await showUploads(tab); return; }
-        if (PACKET_VIEW_URL.test(tab.url)) {
-          // Not yet: a packet's documents each have their own signers and blocks.
-          show("dr");
-          $("dr-form").hidden = true;
-          $("dr-status").className = "note";
-          $("dr-status").textContent = "This is a packet. Dotted Line sets up single uploaded documents for now: set each one up from the Drafts list before you group them.";
-          return;
-        }
+        const packetId = packetIdOf(tab.url);
+        if (packetId) { await openPacket(tab, packetId); return; }
       }
       if (!$("msg").querySelector(".ok")) say("");
       show("idle");
@@ -1288,7 +1372,7 @@ chrome.tabs.onUpdated.addListener((_id, info) => {
   // would redraw choices the agent is in the middle of.
   // Dropping a PDF in moves Real from Sent to its Drafts list the same way, and opening a
   // draft too: those address changes redraw, so the new upload or the draft shows.
-  if (info.status === "complete" || (info.url && (!$("made").hidden || HOME_URL.test(info.url) || draftIdOf(info.url) || PACKET_VIEW_URL.test(info.url)))) refresh();
+  if (info.status === "complete" || (info.url && (!$("made").hidden || HOME_URL.test(info.url) || draftIdOf(info.url) || packetIdOf(info.url)))) refresh();
 });
 syncTips();
 refresh();

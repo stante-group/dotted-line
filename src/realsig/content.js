@@ -286,8 +286,11 @@ async function draftRead({ id }) {
   const who = lib.draftSigners(d);
   // A deal already picked on Real's own Transaction step (it saves transactionId on Next)
   // comes first in the panel, so the panel never quietly swaps it for another.
-  const out = { name: d.name, transactionId: d.defaults?.transactionId || null, emailSubject: d.defaults?.emailSubject || null, signers: who ? { counts: who.counts, agentRole: who.agentRole } : null, blocks: blockCount(d) };
-  if (who || out.blocks) return out;
+  // inPacket: a packet's document. Its deal, subject and signers are the packet's (its own
+  // steps), and Real sends it only with the packet: "associated with a packet. Please send
+  // the packet instead" (Dan's test, 2026-10-30). So blocks only, never the whole setup.
+  const out = { name: d.name, transactionId: d.defaults?.transactionId || null, emailSubject: d.defaults?.emailSubject || null, signers: who ? { counts: who.counts, agentRole: who.agentRole } : null, blocks: blockCount(d), inPacket: d.oneTimeUsePacket === true };
+  if (who || out.blocks || out.inPacket) return out;
   const bytes = await rs.draftPdf(id);
   if (!lib.isPdf(bytes)) throw new Error("the draft's file isn't a PDF");
   let pages = null, error = null;
@@ -298,6 +301,22 @@ async function draftRead({ id }) {
     pageCount: pages?.length ?? lib.countPages(bytes) ?? null,
     lines: (pages || []).flatMap((p) => lib.toLines(p.items).map((l) => l.text)),
     placed: { ...lib.placedSummary(found), outcome: lib.placeOutcome({ pages, error, blocks: found?.fieldDefinitions?.length || 0 }) },
+  };
+}
+
+/** A packet draft's documents, for the panel on the packet's own steps
+ *  (/one-time-documents/packet/{id}): each with its signers and blocks, as draftRead. */
+async function packetRead({ id }) {
+  const lib = await load();
+  const p = await client(lib).getPacketDraft(id);
+  if (!p || !Array.isArray(p.documentTemplates)) throw new Error("Real Signature's packet changed shape");
+  if (p.oneTimeUse === false) return { template: true }; // a reusable packet, not a draft
+  return {
+    name: p.name,
+    docs: p.documentTemplates.map((d) => {
+      const who = lib.draftSigners(d);
+      return { id: d.id, name: String(d.name || "Document"), signers: who ? { counts: who.counts, agentRole: who.agentRole } : null, blocks: blockCount(d) };
+    }),
   };
 }
 
@@ -441,6 +460,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, reply) => {
     "rs:create": () => create(msg),
     "rs:draft-read": () => draftRead(msg),
     "rs:recent-uploads": recentUploads,
+    "rs:packet-read": () => packetRead(msg),
     "rs:setup-draft": () => setupDraft(msg),
     "rs:place-draft": () => placeDraft(msg),
   }[msg.type];
