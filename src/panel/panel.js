@@ -525,8 +525,15 @@ async function showRealsig(tab, job) {
 
   // Deals: everything, best address match first — a bad match never hides the right deal.
   // A draft uploaded in Real Signature: each deal's address looked for in the PDF's text.
-  const { ranked, deal: best, by } = confidentDeal(job.address, c.deals, job.buyerNames,
+  let { ranked, deal: best, by } = confidentDeal(job.address, c.deals, job.buyerNames,
     job.textLines ? scoresFromText(job.textLines, c.deals) : null);
+  // An uploaded draft whose deal was already picked in Real Signature: that one, first.
+  const preset = job.presetDealId ? c.deals.find((d) => d.id === job.presetDealId) : null;
+  if (preset) {
+    best = preset;
+    by = "real";
+    ranked = [{ deal: preset, score: 1 }, ...ranked.filter((x) => x.deal !== preset)];
+  }
   const confident = !!best;
   // Nothing came close to the address or the buyers: No deal, picked and said so. Several
   // possible deals still wait for the agent's choice.
@@ -712,7 +719,9 @@ function updateDeal() {
       : "No reZEN deal matches this address or buyer, so it's made without one. Choose a deal if there is one." });
   }
   if (deal && deal.id === rsState.autoPicked) {
-    notes.push(rsState.autoBy === "name"
+    notes.push(rsState.autoBy === "real"
+      ? { level: "info", text: "The deal already chosen for this draft in Real Signature." }
+      : rsState.autoBy === "name"
       ? "Picked for you because the buyer's name matches this Buyer Record. Check it's the right one, or choose another (or No deal)."
       : job.draftId ? "Picked for you because its address is on this form. Check it's the right deal, or choose another (or No deal)."
       : "Picked for you because the address matches. Check it's the right deal, or choose another (or No deal).");
@@ -1001,6 +1010,12 @@ async function finishDraft(templateId, counts) {
     await chrome.tabs.update(tab.id, { url: new URL(r.url, RS).toString() });
     say(r.packet ? `Draft ready. Add the ${roleWords(r.unfilled)} in Add Signees.` : "Draft ready. Check it in Real Signature before you send.", "ok");
     $("rs-form").hidden = true;
+    // Done, as after a WEBForms draft: the panel would only cover the steps. (The packet of
+    // one this can make would also have shown "packets aren't set up yet" under it.)
+    setTimeout(() => {
+      Promise.resolve(chrome.sidePanel?.close?.({ tabId: tab.id }))
+        .catch(() => {}).finally(() => window.close());
+    }, 1500);
   } catch (e) {
     say(String(e.message || e), "err");
     $("rs-go").disabled = !canFinish();
@@ -1067,7 +1082,7 @@ const DRAFT_URL = /^https:\/\/signature\.therealbrokerage\.com\/one-time-documen
 // (Dan's test, 2026-10-30) — the place to set it up. Only a one-time draft's preview: the
 // same /view/ pages show sent documents, which are never touched.
 const VIEW_URL = /^https:\/\/signature\.therealbrokerage\.com\/view\/document\/([0-9a-f-]{36})\?(?:[^#]*&)?oneTimeUse=true(?:[&#]|$)/i;
-const PACKET_VIEW_URL = /^https:\/\/signature\.therealbrokerage\.com\/(?:view\/packet|one-time-documents\/packet)\/[0-9a-f-]{36}/i;
+const PACKET_VIEW_URL = /^https:\/\/signature\.therealbrokerage\.com\/view\/packet\/[0-9a-f-]{36}\?(?:[^#]*&)?oneTimeUse=true(?:[&#]|$)/i;
 const draftIdOf = (url) => DRAFT_URL.exec(url)?.[1] || VIEW_URL.exec(url)?.[1] || null;
 let drBusy = false;
 
@@ -1109,7 +1124,7 @@ async function openDraft(tab, id) {
   if (!info.signers && !info.blocks) {
     const name = formNameFromFile(info.name || "Draft");
     await showRealsig(tab, {
-      id: `draft:${id}`, draftId: id, title: name, fileName: info.name || "",
+      id: `draft:${id}`, draftId: id, title: name, fileName: info.name || "", presetDealId: info.transactionId,
       forms: [{ name, pageCount: info.pageCount, placed: info.placed, library: null }],
       // A scan has no text: nothing to match, so the agent picks (not "nothing matched").
       textLines: info.lines?.length ? info.lines : null,

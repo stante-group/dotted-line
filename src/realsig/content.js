@@ -284,7 +284,9 @@ async function draftRead({ id }) {
   if (!d || !Array.isArray(d.fieldDefinitions)) throw new Error("Real Signature's draft changed shape");
   if (d.oneTimeUse === false) return { template: true }; // a reusable template, not a draft
   const who = lib.draftSigners(d);
-  const out = { name: d.name, signers: who ? { counts: who.counts, agentRole: who.agentRole } : null, blocks: blockCount(d) };
+  // A deal already picked on Real's own Transaction step (it saves transactionId on Next)
+  // comes first in the panel, so the panel never quietly swaps it for another.
+  const out = { name: d.name, transactionId: d.defaults?.transactionId || null, signers: who ? { counts: who.counts, agentRole: who.agentRole } : null, blocks: blockCount(d) };
   if (who || out.blocks) return out;
   const bytes = await rs.draftPdf(id);
   if (!lib.isPdf(bytes)) throw new Error("the draft's file isn't a PDF");
