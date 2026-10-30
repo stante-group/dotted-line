@@ -220,6 +220,26 @@ Next greyed out until all are filled, and **Add Signees** has a row per role —
 stay. The packet box's name quirk (above) shows here too: the agent's name lands in the
 Buyer row.
 
+### Reading a draft's PDF back (observed 2026-10-30, on an invented test draft)
+
+For "Auto place this draft": the agent uploads in Real Signature as usual, then the
+extension reads the PDF back and places blocks on that draft.
+
+- `GET /document-templates/{id}` carries **no** link to the file: `renderMode: IMAGES`,
+  `hasImages`, `pagesCount: null`, `defaults: null` straight after upload.
+- `GET /document-templates/{id}/file-url` → `200 {url, attachmentUrl}`. `url` is a presigned
+  S3 GET on `prod-signature-files.s3.amazonaws.com`, `X-Amz-Expires=3600`.
+- Fetched from the Real Signature page, that URL returned the **uploaded PDF byte for byte**
+  (1,696 of 1,696 bytes, `%PDF-1.4`, text intact). S3's CORS allowed the page's origin, so
+  the content script (which already runs on the page's origin) can read it with no new host
+  permission. Not yet tried: a fetch from the service worker, which would need one.
+- Found in the app's client, not yet called: `/documents/{id}/download-url`,
+  `/documents/{id}/document-template/file-url` and `/documents/{id}/sent-file-urls` (sent
+  documents), and `/packets/{id}/download-urls` (sent packets). All are read-only, but sent
+  documents are out of scope.
+- `report.js` keeps only known route words and blanks the rest, so add `file-url` to
+  `ROUTE_WORDS` with the call, or error reports show that route as `{id}`.
+
 ### Other routes the app's client has (not yet observed)
 
 `GET /document-templates` (`sharedWithMe`, `oneTimeUse`, `page`, `size`),
