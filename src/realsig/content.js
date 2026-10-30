@@ -299,6 +299,15 @@ async function draftRead({ id }) {
   };
 }
 
+/** Uploads not set up yet, for the panel on the Drafts list: single documents, newest
+ *  first, with nobody named (defaults null or no signers) and made in the last week. */
+async function recentUploads() {
+  const lib = await load();
+  const r = await client(lib).listOneTimeDrafts({ size: 20 });
+  if (!r || !Array.isArray(r.data)) throw new Error("Real Signature's draft list changed shape");
+  return lib.newUploads(r.data);
+}
+
 /** The whole draft from the panel's choices — deal, signers, agent, blocks, subject — in
  *  one save, as rs:create does for a WEBForms form. Only on a draft nobody has set up yet:
  *  signers or blocks already there are the agent's work, and a full replace would lose
@@ -429,6 +438,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, reply) => {
     "rs:import-template": () => importTemplate(msg),
     "rs:create": () => create(msg),
     "rs:draft-read": () => draftRead(msg),
+    "rs:recent-uploads": recentUploads,
     "rs:setup-draft": () => setupDraft(msg),
     "rs:place-draft": () => placeDraft(msg),
   }[msg.type];

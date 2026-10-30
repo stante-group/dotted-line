@@ -26,6 +26,16 @@ export function draftSigners(draft) {
   return { counts, agentRole: agents.length === 2 ? "both" : agents[0] || null, total: signees.length };
 }
 
+/** The Drafts list's rows → uploads nobody has set up yet: single documents (not packets)
+ *  with nobody named, made in the last week, newest five. */
+export function newUploads(rows, now = Date.now()) {
+  const week = now - 7 * 24 * 3600 * 1000;
+  return (rows || [])
+    .filter((d) => d?.type === "DOCUMENT" && typeof d.id === "string" && !d.defaults?.signees?.length && (d.createdAt ?? 0) >= week)
+    .slice(0, 5)
+    .map((d) => ({ id: d.id, name: String(d.name || "Draft"), createdAt: d.createdAt }));
+}
+
 const area = (p) => Math.max(0, p[2] - p[0]) * Math.max(0, p[3] - p[1]);
 
 /** Two blocks on the same spot: same page, and they share over half the smaller one. */

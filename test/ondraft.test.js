@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { draftSigners, placeOnDraft, sameSpot } from "../src/lib/ondraft.js";
+import { draftSigners, placeOnDraft, sameSpot, newUploads } from "../src/lib/ondraft.js";
 import { RealSignature } from "../src/lib/realsig-api.js";
 import { addressInText } from "../src/lib/deals.js";
 import { confidentDeal, scoresFromText } from "../src/lib/auto.js";
@@ -188,4 +188,13 @@ test("an uploaded draft's title and subject: the form from the file name, the pl
   const none = draftTitleValues({ fileName: "Residential Purchase Contract.pdf", now });
   assert.equal(subjectFor(pattern, none, draftTitle(none)), "Please sign: Residential Purchase Contract");
   assert.equal(draftTitle(none), "Residential Purchase Contract");
+});
+
+test("the Drafts list in the panel: new single uploads with nobody named, newest five", () => {
+  const now = Date.UTC(2026, 9, 30);
+  const row = (id, extra = {}) => ({ type: "DOCUMENT", id, name: `${id}.pdf`, createdAt: now - 3600e3, defaults: null, ...extra });
+  const rows = [row("a"), row("set-up", { defaults: { signees: [casey] } }), row("named-none", { defaults: { signees: [] } }),
+    row("packet", { type: "PACKET" }), row("old", { createdAt: now - 8 * 24 * 3600e3 }), row("b"), row("c"), row("d"), row("e")];
+  assert.deepEqual(newUploads(rows, now).map((d) => d.id), ["a", "named-none", "b", "c", "d"]);
+  assert.deepEqual(newUploads(null, now), []);
 });
