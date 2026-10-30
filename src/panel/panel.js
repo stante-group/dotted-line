@@ -50,7 +50,7 @@ function syncTips() {
 }
 
 function show(section) {
-  for (const s of ["idle", "made", "wf", "rs"]) $(s).hidden = s !== section;
+  for (const s of ["idle", "made", "dr", "wf", "rs"]) $(s).hidden = s !== section;
   // No Settings link beside a draft waiting for its choices: it opens a new tab, and Chrome
   // then dropped this tab's panel — the agent came back to an empty Drafts list and no
   // panel (2026-10-15). Settings is in the WEBForms popup, and the icon's right-click menu.
@@ -1002,6 +1002,90 @@ function showMade(made) {
   show("made");
 }
 
+// ---------- a draft uploaded in Real Signature: Auto place (src/lib/ondraft.js) ----------
+
+// Real's one-time document steps (Transaction → Edit details → Prepare → Review) all live at
+// this address. Packets aren't handled yet: their signers are set once for every document.
+const DRAFT_URL = /^https:\/\/signature\.therealbrokerage\.com\/one-time-documents\/document\/([0-9a-f-]{36})(?:[/?#]|$)/i;
+let drBusy = false;
+
+/** "1 seller and the seller's agent" from the draft's signer counts. */
+function signerWords({ counts, agentRole }) {
+  const n = (t) => counts[t] || 0;
+  const parts = ["BUYER", "SELLER"].filter(n).map((t) => `${n(t)} ${ROLE_WORD[t]}${n(t) > 1 ? "s" : ""}`);
+  if (agentRole === "both") parts.push("the buyer's and seller's agents");
+  else if (agentRole) parts.push(`the ${ROLE_WORD[agentRole]}`);
+  return parts.length > 1 ? `${parts.slice(0, -1).join(", ")} and ${parts.at(-1)}` : parts[0] || "other signers only";
+}
+
+const NO_BLOCKS = {
+  "no-text": "This PDF is a scan: it has no text to read, so no blocks were placed. Place them in Real Signature.",
+  fonts: "This PDF's text can't be read as words, so no blocks were placed. Place them in Real Signature.",
+  "no-labels": "No signature lines Dotted Line knows were found on this form. Place the blocks in Real Signature.",
+  "pdf-locked": "This PDF is locked, so Dotted Line can't read it. Place the blocks in Real Signature.",
+  "pdf-unreadable": "Dotted Line couldn't read this PDF. Place the blocks in Real Signature.",
+};
+
+async function showDraft(tab, id) {
+  if (drBusy) return;
+  show("dr");
+  $("dr-form").hidden = true;
+  $("dr-status").className = "busy";
+  $("dr-status").textContent = "Reading this draft…";
+  const info = await send(tab.id, { type: "rs:draft-info", id }).catch((e) => ({ error: String(e?.message || e) }));
+  if (info?.error) {
+    $("dr-status").className = "err";
+    $("dr-status").textContent = `Couldn't read this draft: ${info.error}`;
+    await reportError(new Error(info.error), "on-draft", { path: "draft" });
+    return;
+  }
+  if (info.template) { show("idle"); return; }
+  $("dr-status").className = "note";
+  if (!info.signers) {
+    $("dr-status").textContent = "To place blocks on this draft, first add who signs in Real Signature (Edit details) and press Next. Then come back here on the Prepare step.";
+    return;
+  }
+  $("dr-status").textContent = "";
+  $("dr-who").textContent = `Signers: ${signerWords(info.signers)}.${info.blocks ? ` ${info.blocks} block${info.blocks > 1 ? "s" : ""} already on it stay.` : ""}`;
+  $("dr-form").hidden = false;
+  $("dr-go").disabled = false;
+  $("dr-go").onclick = () => placeDraft(tab, id);
+}
+
+async function placeDraft(tab, id) {
+  drBusy = true;
+  $("dr-go").disabled = true;
+  $("dr-status").className = "busy";
+  $("dr-status").textContent = "Placing blocks…";
+  say("");
+  try {
+    const r = await send(tab.id, { type: "rs:place-draft", id });
+    if (r?.error) throw new Error(r.error);
+    $("dr-status").className = "note";
+    $("dr-status").textContent = "";
+    chrome.runtime.sendMessage({ type: "report:placed", outcome: r.added ? null : r.outcome, added: r.added }).catch(() => {});
+    if (r.added) {
+      say(`Placed ${r.added} block${r.added > 1 ? "s" : ""}. Real Signature reloads to show them: check every block on Prepare before you send.`, "ok");
+      // Real's editor holds the draft as it loaded it; a reload shows the new blocks, and
+      // stops its next save from writing back the draft without them.
+      await chrome.tabs.reload(tab.id);
+    } else {
+      say(NO_BLOCKS[r.outcome] || (r.skipped
+        ? "Every block Dotted Line would place is already on this draft."
+        : "This form's signature lines are all for signers who aren't on this draft. Check Edit details."), "warn");
+      $("dr-go").disabled = false;
+    }
+  } catch (e) {
+    $("dr-status").className = "note";
+    $("dr-status").textContent = "";
+    say(`Couldn't place blocks: ${String(e?.message || e)}`, "err");
+    await reportError(e, "on-draft", { path: "draft" });
+    $("dr-go").disabled = false;
+  } finally {
+    drBusy = false;
+  }
+}
+
 // ---------- which screen ----------
 
 let refreshing = null;
@@ -1036,6 +1120,8 @@ async function refresh() {
         }
         const made = await chrome.runtime.sendMessage({ type: "made:forTab", tabId: tab.id, url: tab.url });
         if (made && !made.error) { showMade(made); return; }
+        const draftId = DRAFT_URL.exec(tab.url)?.[1];
+        if (draftId) { await showDraft(tab, draftId); return; }
       }
       if (!$("msg").querySelector(".ok")) say("");
       show("idle");

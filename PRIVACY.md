@@ -1,6 +1,6 @@
 # Dotted Line — privacy policy
 
-Last updated: October 26, 2026
+Last updated: October 30, 2026
 
 Dotted Line is a free, open-source browser extension made by the Deal Dates team. It
 turns forms you filled in CREA WEBForms into a draft in Real Signature.
@@ -15,11 +15,15 @@ When you press Finish draft, Dotted Line works with:
   the deal and place the signature blocks;
 - your name and email from Real Signature, to set you as the sender.
 
+When you press Auto place on a draft you uploaded in Real Signature yourself, it reads that
+draft's PDF and its signers back from your Real Signature account (the PDF from Real
+Signature's own file storage), and saves the blocks to the same draft.
+
 ## Where it goes
 
 Only between WEBForms and Real Signature, inside your own browser, using your own
 sign-ins. The forms go from WEBForms to a draft in your Real Signature account, and
-nowhere else.
+nowhere else. A PDF read back from a Real Signature draft stays in your browser.
 
 Your forms, your clients' details and your deals never go to the Deal Dates team or
 anyone else. Dotted Line has no tracking or advertising, and never reads or stores your
@@ -34,7 +38,8 @@ Dotted Line's Settings.
 With your yes, it sends the Deal Dates team:
 
 - **a report when a draft fails:** which step failed (bringing the forms over, loading
-  your deals, or making the draft); the kind of error and its code, such as "Real
+  your deals, making the draft, or placing blocks on a draft you uploaded in Real
+  Signature); the kind of error and its code, such as "Real
   Signature refused the email subject: longer than 70 characters"; and choices about the
   draft, such as "the deal was matched by address", "2–3 forms", "a template on every
   form", "acting as an agent in Real Signature" or "WEBForms and Real Signature are signed
@@ -42,7 +47,8 @@ With your yes, it sends the Deal Dates team:
 - **when a form placed from its printed labels gets no blocks** (the draft is still made):
   why, such as "no labels Dotted Line knows" or "the PDF's text can't be read", and which
   printed form it was, by WEBForms' code for the form type (like `AREA0287`). That code
-  names the blank form, never anything typed on it. Once a day at most per form;
+  names the blank form, never anything typed on it. A draft you uploaded in Real Signature
+  has no such code, so its report says only why. Once a day at most per form;
 - **once a day, a count of drafts that worked**, by how they were made (one click or the
   side panel), how many had a form placed from its labels, and how many forms they had;
 - with both, the Dotted Line and Chrome version numbers, and how many drafts this browser
@@ -54,7 +60,7 @@ response, interrupted, or a fault in Dotted Line); a code for Dotted Line's own 
 which site answered; the HTTP status; the address it called with every ID removed (for
 example `PUT /document-templates/{id}`); the name of the field Real Signature refused and
 the rule it broke (for example `defaults.emailSubject`, "at most 70 characters"); whether a
-half-made draft may be left; and, about the draft, one click or the side panel, acting as
+half-made draft may be left; and, about the draft, one click, the side panel, or a draft uploaded in Real Signature, acting as
 an agent or not, how the two sign-ins compare (same person, the agent's own corporation,
 different, or can't tell), how the deal was matched (address, buyer name, picked by hand,
 none, or none because nothing came close), whether it is another agent's deal, templates on

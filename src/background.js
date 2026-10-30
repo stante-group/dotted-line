@@ -492,6 +492,15 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
       return made;
     }
     if (msg.type === "report:error") return recordError({ error: msg.error, step: msg.step, ctx: msg.ctx });
+    // Auto place on a draft uploaded in Real Signature (panel.js placeDraft). Blocks placed:
+    // counted as a panel draft with labels — the daily count has no column for it, and the
+    // receiver must stay compatible with every released version. None: why, as a labels
+    // report, with no form code (Real Signature's upload has no library code to give).
+    if (msg.type === "report:placed") {
+      if (msg.added > 0) await recordOk({ path: "panel", forms: 1, labels: true });
+      else if (msg.outcome) await recordLabels({ job: { forms: [{ library: null, placed: { outcome: msg.outcome } }] }, templateIds: ["auto"], path: "draft" });
+      return { ok: true };
+    }
     if (msg.type === "report:ok") return recordOk({ path: msg.path, forms: msg.forms, labels: msg.labels === true }).then(() => ({ ok: true }));
     if (msg.type === "report:last") {
       if (!REPORTS_ON) return null; // nothing to offer: the panel shows no report box

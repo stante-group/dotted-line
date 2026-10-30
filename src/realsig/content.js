@@ -14,7 +14,7 @@ let ctx = null; // { rs, lib, me, templates: Map, deals: Map } — this tab's li
 
 async function load() {
   const lib = {};
-  for (const p of ["realsig-api.js", "layout.js", "deals.js", "draft.js", "actor.js", "pdf.js", "pdftext.js", "autoplace.js"]) {
+  for (const p of ["realsig-api.js", "layout.js", "deals.js", "draft.js", "actor.js", "pdf.js", "pdftext.js", "autoplace.js", "ondraft.js"]) {
     Object.assign(lib, await import(chrome.runtime.getURL(`src/lib/${p}`)));
   }
   return lib;
@@ -256,6 +256,36 @@ async function importTemplate({ pdfBase64, template }) {
   return { id: up.id, url: `/prepare/${up.id}` };
 }
 
+// Auto place on a draft the agent uploaded in Real Signature (src/lib/ondraft.js). Only
+// the one draft this tab is on, read and saved; nothing else is touched.
+const client = (lib) => new lib.RealSignature({ getToken: () => lib.readToken(document.cookie), getActingAs: () => lib.readActingAs(document.cookie) });
+
+/** What the panel shows before the click: counts only, no names. */
+async function draftInfo({ id }) {
+  const lib = await load();
+  const d = await client(lib).getTemplate(id);
+  if (!d || !Array.isArray(d.fieldDefinitions)) throw new Error("Real Signature's draft changed shape");
+  if (d.oneTimeUse === false) return { template: true }; // a reusable template, not a draft
+  const who = lib.draftSigners(d);
+  return { signers: who ? { counts: who.counts, agentRole: who.agentRole } : null, blocks: blockCount(d) };
+}
+
+async function placeDraft({ id }) {
+  const lib = await load();
+  const rs = client(lib);
+  const draft = await rs.getTemplate(id);
+  if (!lib.draftSigners(draft)) throw new Error("Add who signs in Real Signature first (Edit details), then try again on the Prepare step.");
+  const bytes = await rs.draftPdf(id);
+  if (!lib.isPdf(bytes)) throw new Error("the draft's file isn't a PDF");
+  let pages = null, error = null;
+  try { pages = await lib.readPdfText(bytes); } catch (e) { error = e; }
+  const found = pages ? lib.autoLayout(pages).layout : null;
+  const { body, added, skipped } = lib.placeOnDraft(draft, found, pages?.length ?? lib.countPages(bytes));
+  // Nothing new: no save, so a draft that can't be placed is left exactly as it was.
+  if (added) await rs.putDraft(id, body);
+  return { added, skipped, outcome: lib.placeOutcome({ pages, error, blocks: found?.fieldDefinitions?.length || 0 }) };
+}
+
 /** Open Real's own "Acting as" menu (bottom left), so the TC can pick another agent. Opens
  *  it only — the pick is hers. Found by its label; Real's markup may change, so a miss just
  *  says so and the panel tells her where it is. */
@@ -336,6 +366,8 @@ chrome.runtime.onMessage.addListener((msg, _sender, reply) => {
     "rs:setup": setup,
     "rs:import-template": () => importTemplate(msg),
     "rs:create": () => create(msg),
+    "rs:draft-info": () => draftInfo(msg),
+    "rs:place-draft": () => placeDraft(msg),
   }[msg.type];
   if (!run) return false;
   run().then(reply, (e) => reply({ error: String(e?.message || e) }));
