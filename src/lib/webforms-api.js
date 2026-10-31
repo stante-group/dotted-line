@@ -166,10 +166,16 @@ const COMPANY = /\b(ltd|limited|inc|incorporated|corp|corporation|company|co|llp
 // under a company's name is that company, not a second signer (Dan, 2026-10-31: a tenant
 // company and its trade name on the lease's two Name lines made 2 tenants). The same in a
 // Contacts entry.
-const CONTINUES = /^\s*(?:\(|o\/a\b|operating as\b|doing business as\b|d\/b\/a\b|dba\b|c\/o\b|carrying on business as\b)/i;
+// Also another name for the same signer: "aka", "trading as", "formerly", "now known as".
+const CONTINUES = new RegExp("^\\s*(?:\\(|" + [
+  "o\\/a", "operating as", "doing business as", "d\\/b\\/a", "dba", "carrying on business as", "c\\/o",
+  "aka", "a\\.k\\.a\\.?", "also known as", "trading as", "t\\/a",
+  "formerly", "fka", "f\\/k\\/a", "now known as", "nka", "n\\/k\\/a",
+].map((w) => w + "(?![a-z])").join("|") + ")", "i");
 
 function peopleOnLine(s) {
-  const t = String(s ?? "").trim();
+  // "& Riley Sample" on the second line joins it to the first: Riley is one more, not two.
+  const t = String(s ?? "").trim().replace(/^(?:&|\+|and\b)\s*/i, "");
   if (!t) return 0;
   if (CONTINUES.test(t)) return 0; // partiesFromFormValues keeps at least 1 for a side with text
   if (COMPANY.test(t)) return 1;

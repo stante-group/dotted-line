@@ -73,7 +73,7 @@ blocks by hand. So the fallback is 2, but only once nothing better is known
 
 ```mermaid
 flowchart TD
-  A(["For the buyers, then for the sellers"]) --> F{"Are names read in WEBForms?<br/>Contacts, or the buyer and seller<br/>lines on Alberta forms<br/>(a run-on line like '(operating as ...)'<br/>is the name above it, not another person)"}
+  A(["For the buyers, then for the sellers"]) --> F{"Are names read in WEBForms?<br/>Contacts, or the buyer and seller<br/>lines on Alberta forms<br/>(a run-on line: '(operating as ...)', o/a,<br/>aka, trading as, formerly ... is the<br/>name above it, not another person)"}
   F -- yes --> F1["That many"]
   F -- no --> DL{"Does the picked deal list<br/>people on this side?"}
   DL -- yes --> D1["The deal's own count"]
