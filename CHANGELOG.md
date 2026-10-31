@@ -3,12 +3,8 @@
 What changed in each version, in plain words. The newest is at the top. Chrome updates
 Dotted Line by itself a few hours after a version is published.
 
-## Not released yet
+## 0.3.0 — 2026-10-31
 
-- **Auto place: Manitoba's Listing Contract.** Its text used to come out as nonsense (its
-  font numbers letters in Apple's order), so it got no blocks. Now the sellers' signatures,
-  your signature on the Listing Brokerage's line and the date are placed. Text printed off
-  the edge of a page is no longer read.
 - **Auto place on a document you uploaded in Real Signature.** Upload a PDF to Send
   One-time Document, open it from your Draft tab, and the panel places its signature,
   initials and date blocks from its printed labels, as it does for WEBForms forms.
@@ -21,47 +17,53 @@ Dotted Line by itself a few hours after a version is published.
   - When a form has a client signature line and the document has both buyers and
     sellers, the panel asks whose line it is.
   - The Disclosure of Remuneration's one client line gets both clients side by side.
+- **Auto place: Alberta's commercial lease forms.** On a lease, the tenant signs where a
+  buyer would and the landlord where a seller would: the Commercial Offer to Lease (each
+  side's signing officers and its date and time), its Addendum (with its own time and
+  date blocks), the Commercial Exclusive Tenant Representation Agreement, and the
+  commercial Agency Relationships guide. A form is read as a lease only when it says
+  tenant and landlord more than buyer and seller, so a purchase contract that mentions
+  tenants is unchanged.
+- **Auto place: Manitoba's Listing Contract.** Its text used to come out as nonsense
+  (its font numbers letters in Apple's order), so it got no blocks. Now the sellers'
+  signatures, your signature on the Listing Brokerage's line and the date are placed.
+  Text printed off the edge of a page is no longer read. A date printed beside a
+  signature line goes to that signer, and one date blank shared by everyone goes to
+  Buyer 1 or Seller 1.
+- **Auto place: more BC forms.** The Contract of Purchase and Sale's and Subject
+  Removal's page-foot "BUYER'S INITIALS" and "SELLER'S INITIALS" boxes, Subject
+  Removal's three buyer and three seller signature lines (printed as a picture, so found
+  by where they sit), and the Disclosure of Multiple Offers Presented (sellers, the
+  designated agent, and "Confirmed and signed this ___ Day of").
 - **A clearer panel.** Each screen has a heading for its one job and the choices in the
   order you make them; forms and documents are listed as rows; the pressed button shows
   what it's doing; results and errors appear under it. The panel uses each site's own
   words: forms and the Basket for WEBForms, a document or packet for Real Signature.
-- Error reports (only if you said yes) cover Auto place on an uploaded document too.
-- **Auto place: more BC forms.** The Contract of Purchase and Sale's and Subject Removal's
-  page-foot "BUYER'S INITIALS" and "SELLER'S INITIALS" boxes, Subject Removal's three buyer
-  and three seller signature lines (printed as a picture, so found by where they sit), and the Disclosure of
-  Multiple Offers Presented (sellers, the designated agent, and "Confirmed and signed
-  this ___ Day of").
-- **Auto place: Alberta's commercial lease forms.** On a lease, the tenant signs where a
-  buyer would and the landlord where a seller would: the Commercial Offer to Lease (each
-  side's signing officers and its date and time), its Addendum (with its own time and date blocks), the Commercial Exclusive
-  Tenant Representation Agreement, and the commercial Agency Relationships guide. A form
-  is read as a lease only when it says tenant and landlord more than buyer and seller, so
-  a purchase contract that mentions tenants is unchanged.
 - **When the forms and the deal disagree** on how many buyers or sellers, the panel says
   so under the numbers, with one click to use the deal's number instead (or back). A
   number you type is kept when you change a template.
 - **No more "Reload this tab once".** A WEBForms or Real Signature tab opened before
   Dotted Line was installed or updated now gets Dotted Line added to it on the spot. This
   was the error reported most often.
-- **Fix:** a name run on to a second line ("(operating as …)", "o/a", "aka", "trading as",
-  "formerly …" under the name, on the form or in the Contacts) counted as a second buyer
-  or seller, and a second line starting "& …" counted as two.
-- **Fix:** with a deal picked, the number of buyers or sellers is the deal's own when the
-  WEBForms forms don't name them (commercial forms, for one), not always at least 2.
-- **Fix:** on a numbered street ("120 9 Ave SE") the street's number counted as a house
-  number, so another deal on the same street tied with the right one and no deal was
-  picked. "9th Ave" and "9 Ave" now match too.
 - **Fix:** a client entered in reZEN as a company (a company name, no first or last name)
   made Real Signature refuse the whole document ("name must not be blank"). The company's
   name is now the signer's name; a client with no name at all is left off and named in
   the panel, like one with no email.
+- **Fix:** on a numbered street ("120 9 Ave SE") the street's number counted as a house
+  number, so another deal on the same street tied with the right one and no deal was
+  picked. "9th Ave" and "9 Ave" now match too.
+- **Fix:** with a deal picked, the number of buyers or sellers is the deal's own when the
+  WEBForms forms don't name them (commercial forms, for one), not always at least 2.
+- **Fix:** a name run on to a second line ("(operating as …)", "o/a", "aka", "trading as",
+  "formerly …" under the name, on the form or in the Contacts) counted as a second buyer
+  or seller, and a second line starting "& …" counted as two.
 - **Fix:** Auto place put Alberta's Notice (waiver or satisfaction of conditions) on the
   sellers; its "Buyer/Seller Signature" lines now go to your own clients, whichever side.
 - **Fix:** Check my setup now says "yes (own corporation)" when WEBForms is signed in as
   your personal real estate corporation, as the panel already did, instead of "no".
-- **Fix:** error reports (only if you said yes) now cover Import templates in Settings:
-  when Real Signature refuses a template, its answer is reported, never your file or its
-  name.
+- **Error reports** (only if you said yes) now cover Import templates in Settings and Auto
+  place on an uploaded document: Real Signature's answer is reported, never your file, its
+  name or anyone's details.
 
 ## 0.2.0 — 2026-10-29
 
