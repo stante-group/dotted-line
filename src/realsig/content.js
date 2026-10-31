@@ -291,32 +291,42 @@ async function draftRead({ id }) {
   // the packet instead" (Dan's test, 2026-10-30). So blocks only, never the whole setup.
   const out = { name: d.name, transactionId: d.defaults?.transactionId || null, emailSubject: d.defaults?.emailSubject || null, signers: who ? { counts: who.counts, agentRole: who.agentRole } : null, blocks: blockCount(d), inPacket: d.oneTimeUsePacket === true };
   if (who || out.blocks || out.inPacket) return out;
+  return { ...out, ...(await readUpload(lib, rs, id)) };
+}
+
+/** A packet draft's documents, for the panel on the packet's own steps
+ *  (/one-time-documents/packet/{id}): each with its signers and blocks, as draftRead.
+ *  fresh: nothing on any document yet (uploads combined into a packet, then Edit; Dan,
+ *  2026-10-31): each PDF is read too, so the panel can set the whole packet up as it does
+ *  a single upload. */
+async function packetRead({ id }) {
+  const lib = await load();
+  const rs = client(lib);
+  const p = await rs.getPacketDraft(id);
+  if (!p || !Array.isArray(p.documentTemplates)) throw new Error("Real Signature's packet changed shape");
+  if (p.oneTimeUse === false) return { template: true }; // a reusable packet, not a draft
+  const docs = p.documentTemplates.map((d) => {
+    const who = lib.draftSigners(d);
+    return { id: d.id, name: String(d.name || "Document"), signers: who ? { counts: who.counts, agentRole: who.agentRole } : null, blocks: blockCount(d),
+      transactionId: d.defaults?.transactionId || null, emailSubject: d.defaults?.emailSubject || null };
+  });
+  const fresh = docs.length > 0 && docs.every((d) => !d.signers && !d.blocks);
+  if (!fresh) return { name: p.name, docs };
+  for (const d of docs) Object.assign(d, await readUpload(lib, rs, d.id));
+  return { name: p.name, docs, fresh: true };
+}
+
+/** An upload's PDF read for setting it up: pages, text lines and what Auto place would find. */
+async function readUpload(lib, rs, id) {
   const bytes = await rs.draftPdf(id);
   if (!lib.isPdf(bytes)) throw new Error("the draft's file isn't a PDF");
   let pages = null, error = null;
   try { pages = await lib.readPdfText(bytes); } catch (e) { error = e; }
   const found = pages ? lib.autoLayout(pages).layout : null;
   return {
-    ...out,
     pageCount: pages?.length ?? lib.countPages(bytes) ?? null,
-    lines: (pages || []).flatMap((p) => lib.toLines(p.items).map((l) => l.text)),
+    lines: (pages || []).flatMap((pg) => lib.toLines(pg.items).map((l) => l.text)),
     placed: { ...lib.placedSummary(found), outcome: lib.placeOutcome({ pages, error, blocks: found?.fieldDefinitions?.length || 0 }) },
-  };
-}
-
-/** A packet draft's documents, for the panel on the packet's own steps
- *  (/one-time-documents/packet/{id}): each with its signers and blocks, as draftRead. */
-async function packetRead({ id }) {
-  const lib = await load();
-  const p = await client(lib).getPacketDraft(id);
-  if (!p || !Array.isArray(p.documentTemplates)) throw new Error("Real Signature's packet changed shape");
-  if (p.oneTimeUse === false) return { template: true }; // a reusable packet, not a draft
-  return {
-    name: p.name,
-    docs: p.documentTemplates.map((d) => {
-      const who = lib.draftSigners(d);
-      return { id: d.id, name: String(d.name || "Document"), signers: who ? { counts: who.counts, agentRole: who.agentRole } : null, blocks: blockCount(d) };
-    }),
   };
 }
 
@@ -334,24 +344,58 @@ async function recentUploads() {
  *  signers or blocks already there are the agent's work, and a full replace would lose
  *  them (Prepare's Auto place adds to them instead). Never deletes the agent's draft, even
  *  on failure: it was theirs before Dotted Line touched it. */
-async function setupDraft({ id, title, dealId, templateId, counts, agentChoice = null, emailSubject = null }) {
-  const c = await context();
+/** One uploaded document saved whole: deal, signers, agent, blocks, subject. title: its
+ *  name, or null to keep the one it has (a packet's documents keep theirs). → the body's
+ *  unfilled roles. */
+async function setUpDocument(c, deal, { id, title = null, templateId, counts, agentChoice = null, emailSubject = null }) {
   const { rs, lib } = c;
-  const deal = dealId ? c.deals.get(dealId) : null;
-  if (dealId && !deal) throw new Error("That deal is no longer in your open deals.");
   const draft = await rs.getTemplate(id);
   if (lib.draftSigners(draft) || blockCount(draft)) {
-    throw new Error("This draft already has signers or blocks. Use Auto place on the Prepare step to add blocks to it.");
+    throw new Error(`${draft.name || "A document"} already has signers or blocks. Use Auto place on the Prepare step to add blocks to it.`);
   }
   const bytes = await rs.draftPdf(id);
   if (!lib.isPdf(bytes)) throw new Error("the draft's file isn't a PDF");
   const body = await formBody(c, {
-    draft, bytes, templateId, counts, agentChoice, deal, name: title,
+    draft, bytes, templateId, counts, agentChoice, deal, name: title || draft.name,
     pageCount: draft.pagesCount ?? lib.countPages(bytes) ?? null,
     signees: lib.signeesFromDeal(deal || { participants: [] }, counts), sender: lib.senderFor(c.me, deal), emailSubject,
   });
   const unfilled = lib.unfilledRoles(body);
   await rs.putDraft(id, body);
+  return unfilled;
+}
+
+async function dealFor(c, dealId) {
+  const deal = dealId ? c.deals.get(dealId) : null;
+  if (dealId && !deal) throw new Error("That deal is no longer in your open deals.");
+  return deal;
+}
+
+/** Uploads combined into a packet, set up from the panel: each document saved as
+ *  setupDraft saves one, with the same deal, signers and subject. Real reads the packet's
+ *  deal and subject from its documents (as Dotted Line's own packets from WEBForms have
+ *  them); the packet itself, and its name, are left as they are. A role nobody fills is
+ *  added in the packet's own Add Signees. Stops at the first document that fails and says
+ *  which ones are done: those keep what was saved, as Real's own Next would. */
+async function setupPacket({ id, dealId, docs, counts, agentChoice = null, emailSubject = null }) {
+  const c = await context();
+  const deal = await dealFor(c, dealId);
+  const unfilled = new Set();
+  for (const [i, d] of docs.entries()) {
+    try {
+      for (const r of await setUpDocument(c, deal, { id: d.id, templateId: d.templateId, counts, agentChoice, emailSubject })) unfilled.add(r);
+    } catch (e) {
+      throw new Error(i ? `${i} of ${docs.length} documents are set up; the next one failed: ${e.message}` : e.message);
+    }
+  }
+  return { url: `/one-time-documents/packet/${id}`, drafts: docs.length, packet: true, unfilled: [...unfilled] };
+}
+
+async function setupDraft({ id, title, dealId, templateId, counts, agentChoice = null, emailSubject = null }) {
+  const c = await context();
+  const deal = await dealFor(c, dealId);
+  const unfilled = await setUpDocument(c, deal, { id, title, templateId, counts, agentChoice, emailSubject });
+  const { rs } = c;
   // A role nobody fills: a packet of one, as rs:create does — a single document's Edit
   // details would delete that role's blocks (see create()).
   if (unfilled.length) {
@@ -464,6 +508,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, reply) => {
     "rs:recent-uploads": recentUploads,
     "rs:packet-read": () => packetRead(msg),
     "rs:setup-draft": () => setupDraft(msg),
+    "rs:setup-packet": () => setupPacket(msg),
     "rs:place-draft": () => placeDraft(msg),
   }[msg.type];
   if (!run) return false;

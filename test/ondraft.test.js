@@ -205,6 +205,16 @@ test("an uploaded draft's title and subject: the form from the file name, the pl
   assert.equal(draftTitle(none), "Residential Purchase Contract");
 });
 
+test("a packet of uploads: its subject names every document's form", async () => {
+  const { draftTitleValues, subjectFor, draftTitle, DEFAULT_SETTINGS } = await import("../src/lib/pattern.js");
+  const now = new Date(2026, 9, 31);
+  const d = { address: "120 Example Street NW, Calgary, AB T2T 2T2" };
+  const v = draftTitleValues({ fileName: "Sample packet", fileNames: ["Land Title.pdf", "Commercial Purchase Contract Addendum 1 0.pdf"], deal: d, now });
+  assert.match(v.forms, /Land Title/);
+  assert.match(v.forms, /Commercial Purchase Contract Addendum/);
+  assert.match(subjectFor({ ...DEFAULT_SETTINGS, subjectMode: "pattern" }, v, draftTitle(v)), /^Please sign: .*Land Title.* – 120 Example Street NW, Calgary$/);
+});
+
 test("the Drafts list in the panel: new single uploads with nobody named, newest five", () => {
   const now = Date.UTC(2026, 9, 30);
   const row = (id, extra = {}) => ({ type: "DOCUMENT", id, name: `${id}.pdf`, createdAt: now - 3600e3, defaults: null, ...extra });

@@ -93,14 +93,15 @@ export function formNameFromFile(fileName) {
  *  the place from the reZEN deal picked in the panel (its one-line address: street, city,
  *  province, postal code). No deal: the form and the date only, so "Please sign: {forms} –
  *  {address}" still says what to sign. {deal} and {agent} are WEBForms' and stay empty. */
-export function draftTitleValues({ fileName, deal = null, now = new Date() }) {
+export function draftTitleValues({ fileName, fileNames = null, deal = null, now = new Date() }) {
   const [street = "", city = ""] = String(deal?.address ?? "").split(",").map(clean);
   return {
     address: [street, city].filter(Boolean).join(", "),
     street,
     unit: "",
     city,
-    forms: listForms([{ name: formNameFromFile(fileName) }]),
+    // A packet of uploads: every document's form, as a WEBForms packet lists its forms.
+    forms: listForms((fileNames || [fileName]).map((f) => ({ name: formNameFromFile(f) }))),
     deal: "",
     mls: clean(deal?.mlsNum),
     agent: "",
