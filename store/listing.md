@@ -49,7 +49,7 @@ If an agent has given you Real Signature access in reZEN, pick them under "Actin
 
 Free and open source (MIT): https://github.com/stante-group/dotted-line
 
-What's new in 0.2.0: Auto place puts signature, initials and date blocks on forms you have no template for, from the form's own labels (Alberta, BC, Manitoba, Ontario and Saskatchewan forms so far). No deal is picked for you when nothing comes close. After a one-click draft, click the icon to see what it chose. Tidier deal and template lists, and a new icon. Every version's changes: https://github.com/stante-group/dotted-line/blob/main/CHANGELOG.md
+What's new in 0.3.0: Auto place now works on PDFs you upload to Real Signature, and on packets. Alberta's commercial lease forms, Manitoba's Listing Contract and more BC forms get their blocks. A clearer panel that says when the forms and the reZEN deal count the signers differently. No more "reload this tab" after an update. Fixes for company clients, numbered streets and names that run on to a second line. Every version's changes: https://github.com/stante-group/dotted-line/blob/main/CHANGELOG.md
 
 Made by the Deal Dates team — your deal deadlines in your inbox at 6am (dealdates.app).
 Dotted Line is an independent tool. It is not made, endorsed or supported by Lone Wolf Technologies, CREA or Real Broker. WEBForms, reZEN and Real Signature are their owners' trademarks.
