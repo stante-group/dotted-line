@@ -14,25 +14,27 @@
        lookup never looks like a frozen panel. */
     .busy { display: flex; align-items: center; gap: 8px; color: #5b6475; font-size: 13px; margin: 8px 0; }
     .busy::before { content: ""; flex: none; width: 14px; height: 14px; border-radius: 50%;
-      border: 2px solid #d5d9e0; border-top-color: #2f6fed; animation: spin 0.8s linear infinite; }
+      border: 2px solid #d5d9e0; border-top-color: #1d4ed8; animation: spin 0.8s linear infinite; }
     @keyframes spin { to { transform: rotate(360deg); } }
     @media (prefers-reduced-motion: reduce) { .busy::before { animation-duration: 2.4s; } }
-    .warn { background: #fff7e6; border: 1px solid #f0c36d; border-radius: 6px; padding: 8px 10px; font-size: 13px; margin: 8px 0; }
+    .warn { background: #fff7e6; border: 1px solid #f0c36d; border-radius: 8px; padding: 10px 12px; font-size: 13px; margin: 8px 0; }
     /* Context, not a warning: "working as a teammate in WEBForms" and the like. */
     .info { display: flex; gap: 6px; align-items: baseline; font-size: 13px; color: #3b4456; margin: 6px 0; }
     .info::before { content: "i"; flex: none; display: inline-flex; align-items: center; justify-content: center;
-      width: 15px; height: 15px; border-radius: 50%; background: #e3eafb; color: #2f6fed;
+      width: 15px; height: 15px; border-radius: 50%; background: #e3eafb; color: #1d4ed8;
       font: italic 600 10px/1 Georgia, serif; transform: translateY(2px); }
     .count { color: #5b6475; font-weight: normal; }
     .count.over { color: #b3261e; font-weight: 600; }
-    .err { background: #fdecec; border: 1px solid #e59a9a; border-radius: 6px; padding: 8px 10px; font-size: 13px; margin: 8px 0; }
-    .ok { background: #eaf6ee; border: 1px solid #8cc9a0; border-radius: 6px; padding: 8px 10px; font-size: 13px; margin: 8px 0; }
+    .err { background: #fdecec; border: 1px solid #e59a9a; border-radius: 8px; padding: 10px 12px; font-size: 13px; margin: 8px 0; }
+    .ok { background: #eaf6ee; border: 1px solid #8cc9a0; border-radius: 8px; padding: 10px 12px; font-size: 13px; margin: 8px 0; }
     ul.forms { padding-left: 18px; margin: 6px 0; }
     label { display: block; font-size: 13px; margin: 8px 0 3px; }
     input[type=text], select { width: 100%; box-sizing: border-box; font: inherit; padding: 6px 8px; border: 1px solid #c9cfdb; border-radius: 6px; }
-    input[type=number] { width: 56px; font: inherit; padding: 4px 6px; }
+    input[type=number] { width: 56px; font: inherit; padding: 4px 6px; border: 1px solid #c9cfdb; border-radius: 6px; }
+    input:focus-visible, select:focus-visible { outline: 2px solid #1d4ed8; outline-offset: 0; border-color: #1d4ed8; }
     .row { display: flex; gap: 16px; align-items: center; }
-    .form { border: 1px solid #e3e6ec; border-radius: 6px; padding: 8px 10px; margin: 8px 0; }
+    .form { border: 1px solid #e3e6ec; border-radius: 8px; padding: 10px 12px; margin: 8px 0; }
+    .form button { margin-top: 8px; padding: 6px 12px; font-size: 13px; }
     .form b { display: block; font-size: 13px; }
     /* Template lists: a gap, not a line, between the templates and the two choices that
        aren't templates (Dan, 2026-10-29: disabled "──────" rows, then lines, were both
@@ -59,6 +61,9 @@
     }
     button { font: inherit; padding: 8px 14px; border-radius: 6px; border: 1px solid #1d4ed8; background: #1d4ed8; color: #fff; cursor: pointer; margin-top: 12px; }
     button.link { background: none; border: none; color: #1d4ed8; padding: 0; margin: 0; text-decoration: underline; font-size: 13px; }
+    button:hover:not(:disabled) { background: #1e40af; border-color: #1e40af; }
+    button:focus-visible { outline: 2px solid #1d4ed8; outline-offset: 2px; }
+    button.primary { display: block; width: 100%; }
     button:disabled { background: #c9cfdb; border-color: #c9cfdb; cursor: default; }
     pre { white-space: pre-wrap; background: #f5f6f8; padding: 8px; border-radius: 6px; font-size: 12px; }
     footer { margin-top: 32px; border-top: 1px solid #e3e6ec; padding-top: 12px; font-size: 12px; color: #5b6475; }
@@ -71,8 +76,8 @@
       margin: 0 0 0 6px; padding: 0; border-radius: 50%; border: 1px solid #9aa3b2; background: none;
       color: #5b6475; font: italic 600 11px/1 Georgia, serif; text-transform: none; letter-spacing: 0;
       vertical-align: middle; cursor: pointer; }
-    button.i:hover, button.i[aria-expanded="true"] { border-color: #2f6fed; color: #2f6fed; background: #eef3fe; }
-    button.i:focus-visible { outline: 2px solid #2f6fed; outline-offset: 1px; }
+    button.i:hover, button.i[aria-expanded="true"] { border-color: #1d4ed8; color: #1d4ed8; background: #eef3fe; }
+    button.i:focus-visible { outline: 2px solid #1d4ed8; outline-offset: 1px; }
     .tip { background: #f5f6f8; border-radius: 6px; padding: 6px 8px; margin: 4px 0 8px; font-size: 12.5px; color: #3b4456; }
     .with-i { display: flex; align-items: center; }
     .with-i label { margin-right: 0; }
@@ -86,13 +91,14 @@
     .consent summary, #report summary { cursor: pointer; color: #1d4ed8; }
     .consent .row button { margin-top: 6px; }
     button.secondary { background: #fff; color: #1d2433; border-color: #c9cfdb; }
+    button.secondary:hover:not(:disabled) { background: #eef3fe; border-color: #1d4ed8; }
+    button.link:hover:not(:disabled) { background: none; }
     /* A question the panel can't answer for the agent: the consent box's look, and the
        answers as two equal buttons rather than buttons run into a sentence (Dan, 2026-10-30). */
     .ask { border: 1px solid #c9d6f5; background: #f4f7fe; border-radius: 8px; padding: 10px 12px; margin: 8px 0 12px; font-size: 13px; }
     .ask p { margin: 0 0 4px; }
     .ask .choices { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; margin-top: 10px; }
     .ask .choices button { margin: 0; display: flex; flex-direction: column; align-items: center; gap: 1px; }
-    .ask .choices button:hover { border-color: #1d4ed8; background: #eef3fe; }
     .ask .choices small { color: #5b6475; font-size: 12px; }
     #report { font-size: 13px; margin: 4px 0 8px; }
     #report pre { margin: 6px 0; }
@@ -149,7 +155,7 @@
     </div>
     <div id="dr-form" hidden>
       <p id="dr-who"></p>
-      <button id="dr-go" type="button">Auto place this draft</button>
+      <button id="dr-go" class="primary" type="button">Auto place this draft</button>
       <p class="note">Adds signature, initial and date blocks from the form's printed labels, for the signers you set in Edit details. Blocks already on the draft stay. Nothing is sent.</p>
     </div>
   </section>
@@ -166,13 +172,13 @@
   <section id="wf" hidden>
     <p id="wf-where" class="note"></p>
     <ul id="wf-forms" class="forms"></ul>
+    <button id="wf-refresh" class="link">Refresh</button>
     <div id="wf-title-wrap" hidden>
       <label for="wf-title">Title</label>
       <input id="wf-title" type="text" maxlength="120">
     </div>
-    <button id="wf-go" disabled>Prepare in Real Signature</button>
+    <button id="wf-go" class="primary" disabled>Prepare in Real Signature</button>
     <p class="note">Draft only — nothing is sent.</p>
-    <button id="wf-refresh" class="link">Refresh</button>
   </section>
 
   <!-- Step 2: Real Signature -->
@@ -219,7 +225,7 @@
       </div>
       <p class="note" id="rs-agent-who"></p>
       </div>
-      <button id="rs-go" disabled aria-describedby="rs-go-why">Finish draft</button>
+      <button id="rs-go" class="primary" disabled aria-describedby="rs-go-why">Finish draft</button>
       <p class="note" id="rs-go-why" hidden>Choose a template (or No template) for every form first.</p>
       <p class="note">Draft only — nothing is sent.</p>
     </div>
