@@ -511,6 +511,9 @@ function option(value, text, { selected = false, disabled = false } = {}) {
   return o;
 }
 
+/** A job from uploads in Real Signature (one document, or a packet of them), not WEBForms. */
+const uploaded = (job) => !!(job?.draftId || job?.packetId);
+
 async function showRealsig(tab, job) {
   show("rs");
   hideNotice();
@@ -521,7 +524,7 @@ async function showRealsig(tab, job) {
   try {
     c = await send(tab.id, { type: "rs:context" });
   } catch (e) {
-    await reportError(e, "context", { job, ...(job.draftId ? { path: "draft" } : {}) });
+    await reportError(e, "context", { job, ...(uploaded(job) ? { path: "draft" } : {}) });
     throw e;
   } finally {
     $("rs-status").className = "note";
@@ -543,6 +546,9 @@ async function showRealsig(tab, job) {
   // the end of what "Prepare in Real Signature" started (Dan, 2026-10-15).
   $("rs-status").textContent = "Almost done — check the choices below.";
   $("rs-title").value = job.title;
+  // A packet of uploads keeps the name it was given when its documents were combined:
+  // Real names it there, and Dotted Line only sets up its documents.
+  $("rs-title").hidden = $("rs-title-label").hidden = !!job.packetId;
   // The subject is shown and sent as seen: it follows the title (or the Settings pattern)
   // until the agent edits it, and a subject over Real's limit holds "Finish draft" rather
   // than being cut on the way (Dan, 2026-10-26). "Leave it to Real Signature" hides it.
@@ -740,8 +746,8 @@ function updateDeal() {
   // from the file name and the place from the deal picked here, redone when the deal
   // changes, until the agent edits them. Without this the subject was just "Please sign"
   // (Dan's test, 2026-10-30).
-  if (job.draftId) {
-    job.titleValues = draftTitleValues({ fileName: job.fileName, deal });
+  if (uploaded(job)) {
+    job.titleValues = draftTitleValues({ fileName: job.fileName, fileNames: job.fileNames, deal });
     if (!rsState.titleEdited) $("rs-title").value = titleFor(rsState.settings, job.titleValues, draftTitle(job.titleValues)) || job.title;
     if (!rsState.subjectEdited) {
       $("rs-subject").value = draftSubject(rsState.settings, job.titleValues, $("rs-title").value.trim() || job.title) || "";
@@ -756,7 +762,7 @@ function updateDeal() {
     if (why) notes.push(`${form.name}: "${t.name}" would place no blocks — ${why}.`);
   });
   if (id === "none" && rsState.noneFits) {
-    notes.push({ level: "info", text: job.draftId ? "No reZEN deal's address is on this form, so it's made without one. Choose a deal if there is one."
+    notes.push({ level: "info", text: uploaded(job) ? `No reZEN deal's address is on ${job.packetId ? "these documents" : "this form"}, so it's made without one. Choose a deal if there is one.`
       : "No reZEN deal matches this address or buyer, so it's made without one. Choose a deal if there is one." });
   }
   if (deal && deal.id === rsState.autoPicked) {
@@ -764,7 +770,7 @@ function updateDeal() {
       ? { level: "info", text: "The deal already chosen for this document in Real Signature." }
       : rsState.autoBy === "name"
       ? "Picked for you because the buyer's name matches this Buyer Record. Check it's the right one, or choose another (or No deal)."
-      : job.draftId ? "Picked for you because its address is on this form. Check it's the right deal, or choose another (or No deal)."
+      : uploaded(job) ? `Picked for you because its address is on ${job.packetId ? "these documents" : "this form"}. Check it's the right deal, or choose another (or No deal).`
       : "Picked for you because the address matches. Check it's the right deal, or choose another (or No deal).");
   }
   if (deal?.kind === "buyer") {
@@ -811,7 +817,7 @@ function updateDeal() {
       // Real's own Transaction step attaches a deal but doesn't fill in its clients on a draft
       // whose signer roles are already set up (tried 2026-10-12) — only picking it here does.
       // Short (Dan, 2026-10-15: too much text): the why is in the deal ⓘ.
-      notes.push({ level: "info", text: job.draftId ? "No deal, so you'll add the signers in Real Signature."
+      notes.push({ level: "info", text: uploaded(job) ? "No deal, so you'll add the signers in Real Signature."
         : "No client emails in WEBForms — you'll add the signers in Real Signature." });
     }
     notes.push(...actingNotes({ me: c.me, deal: null, webformsUserName: job.webformsUserName, webformsUserEmail: job.webformsUserEmail }));
@@ -980,7 +986,7 @@ $("rs-title").addEventListener("input", () => {
   if (rsState) rsState.titleEdited = true;
   if (!rsState || rsState.subjectEdited) return;
   const { job, settings: s } = rsState;
-  $("rs-subject").value = (job.draftId ? draftSubject : subjectFor)(s, job.titleValues || {}, $("rs-title").value.trim() || job.title) || "";
+  $("rs-subject").value = (uploaded(job) ? draftSubject : subjectFor)(s, job.titleValues || {}, $("rs-title").value.trim() || job.title) || "";
   updateSubject();
 });
 $("rs-subject").addEventListener("input", () => { if (rsState) { rsState.subjectEdited = true; updateSubject(); } });
@@ -994,6 +1000,7 @@ $("rs-go").addEventListener("click", async () => {
   const counts = { BUYER: Number($("rs-buyers").value) || 0, SELLER: Number($("rs-sellers").value) || 0 };
   if (subjectHeld()) { say("Shorten the email subject to 70 characters.", "warn"); return; }
   $("rs-go").disabled = true;
+  if (job.packetId) { await finishPacket(templateIds, counts); return; }
   if (job.draftId) { await finishDraft(templateIds[0], counts); return; }
   const done = working($("rs-go"), job.forms.length > 1 ? "Creating your packet…" : "Creating your document…");
   try {
@@ -1097,6 +1104,44 @@ async function finishDraft(templateId, counts) {
     await reportError(e, "on-draft", { path: "draft", c, job, dealId: dealId === "none" ? null : dealId,
       dealBy: dealId === rsState?.autoPicked || (dealId === "none" && rsState?.noneFits) ? rsState.autoBy : null,
       templateIds: [templateId === "none" ? null : templateId], counts,
+      warned: !!$("rs-warn").querySelector(".warn") });
+  }
+}
+
+/** Uploads combined into a packet: every document set up at once (rs:setup-packet). */
+async function finishPacket(templateIds, counts) {
+  const { tab, job, c } = rsState;
+  const dealId = $("rs-deal").value;
+  const done = working($("rs-go"), "Setting up your packet…");
+  try {
+    const r = await send(tab.id, {
+      type: "rs:setup-packet", id: job.packetId, dealId: dealId === "none" ? null : dealId,
+      docs: job.forms.map((f, i) => ({ id: f.docId, templateId: templateIds[i] === "none" ? null : templateIds[i] })),
+      counts, agentChoice: agentChoice(),
+      emailSubject: $("rs-subject-wrap").hidden ? null : cleanSubject($("rs-subject").value) || null,
+    });
+    if (r?.error) throw new Error(r.error);
+    const autos = job.forms.filter((_, i) => templateIds[i] === "auto");
+    chrome.runtime.sendMessage({ type: "report:ok", path: "panel", forms: job.forms.length, labels: autos.length > 0 }).catch(() => {});
+    for (const f of autos) {
+      if (f.placed?.outcome) chrome.runtime.sendMessage({ type: "report:placed", outcome: f.placed.outcome, added: 0 }).catch(() => {});
+    }
+    rsState = null;
+    await chrome.tabs.update(tab.id, { url: new URL(r.url, RS).toString() });
+    done();
+    say(r.unfilled?.length ? `Packet ready. Add the ${roleWords(r.unfilled)} in Add Signees.` : `Packet ready, with ${r.drafts} documents. Check it in Real Signature before you send.`, "ok");
+    $("rs-form").hidden = true;
+    setTimeout(() => {
+      Promise.resolve(chrome.sidePanel?.close?.({ tabId: tab.id }))
+        .catch(() => {}).finally(() => window.close());
+    }, 1500);
+  } catch (e) {
+    done();
+    say(String(e.message || e), "err");
+    $("rs-go").disabled = !canFinish();
+    await reportError(e, "on-draft", { path: "draft", c, job, dealId: dealId === "none" ? null : dealId,
+      dealBy: dealId === rsState?.autoPicked || (dealId === "none" && rsState?.noneFits) ? rsState.autoBy : null,
+      templateIds: templateIds.map((t) => (t === "none" ? null : t)), counts,
       warned: !!$("rs-warn").querySelector(".warn") });
   }
 }
@@ -1336,6 +1381,7 @@ async function placeDraft(tab, id, side = null) {
  *  single draft's Prepare; the packet's deal, subject and signers are Real's. */
 async function openPacket(tab, id) {
   if (drBusy || wfBusy) return;
+  if (rsState?.job?.packetId === id) { show("rs"); return; } // the same packet, choices as left
   show("dr");
   $("dr-form").hidden = true;
   $("dr-ask").hidden = true;
@@ -1350,6 +1396,20 @@ async function openPacket(tab, id) {
     return;
   }
   if (info.template) { show("idle"); return; }
+  if (info.fresh) {
+    // Uploads combined into a packet, nothing on them yet (Dan, 2026-10-31): set it up as a
+    // single upload is, one template row per document. The deal is found in all their text.
+    const lines = info.docs.flatMap((d) => d.lines || []);
+    const first = info.docs.find((d) => d.transactionId) || {};
+    const subj = info.docs.find((d) => d.emailSubject) || {};
+    await showRealsig(tab, {
+      id: `packet:${id}`, packetId: id, title: info.name, fileName: info.name, fileNames: info.docs.map((d) => d.name),
+      presetDealId: first.transactionId || null, presetSubject: subj.emailSubject || null,
+      forms: info.docs.map((d) => ({ docId: d.id, name: formNameFromFile(d.name), pageCount: d.pageCount, placed: d.placed, library: null })),
+      textLines: lines.length ? lines : null,
+    });
+    return;
+  }
   $("dr-status").className = "note";
   const ready = info.docs.filter((d) => d.signers);
   if (!ready.length) {
@@ -1439,10 +1499,14 @@ async function refresh() {
         return;
       }
       if (tab?.url?.startsWith(RS)) {
+        // The document or packet open in this tab is what the panel shows, always (Dan,
+        // 2026-10-31): a WEBForms hand-off tied to the tab put its own forms up over an
+        // uploaded packet. A hand-off shows on the pages it opens on, never over a draft.
+        const draftId = draftIdOf(tab.url), packetId = packetIdOf(tab.url);
         // Clicked over before the forms arrived: say what's happening; job:ready redraws.
-        const pending = await chrome.runtime.sendMessage({ type: "job:pending", tabId: tab.id });
+        const pending = draftId || packetId ? null : await chrome.runtime.sendMessage({ type: "job:pending", tabId: tab.id });
         if (pending) { showHandoff(pending); return; }
-        const job = await chrome.runtime.sendMessage({ type: "job:forTab", tabId: tab.id });
+        const job = draftId || packetId ? null : await chrome.runtime.sendMessage({ type: "job:forTab", tabId: tab.id });
         if (job && !job.error) {
           // Same hand-off as before (back from Settings, say): show it again with the agent's
           // choices as they left them. Without show(), the idle screen another tab put up
@@ -1453,10 +1517,8 @@ async function refresh() {
         }
         const made = await chrome.runtime.sendMessage({ type: "made:forTab", tabId: tab.id, url: tab.url });
         if (made && !made.error) { showMade(made); return; }
-        const draftId = draftIdOf(tab.url);
         if (draftId) { await openDraft(tab, draftId); return; }
         if (HOME_URL.test(tab.url)) { await showUploads(tab); return; }
-        const packetId = packetIdOf(tab.url);
         if (packetId) { await openPacket(tab, packetId); return; }
       }
       if (!$("msg").querySelector(".ok")) say("");
@@ -1475,7 +1537,10 @@ async function refresh() {
 
 $("open-settings").addEventListener("click", () => chrome.runtime.openOptionsPage());
 chrome.tabs.onActivated.addListener(() => refresh());
-chrome.tabs.onUpdated.addListener((_id, info) => {
+chrome.tabs.onUpdated.addListener(async (id, info) => {
+  // Only the tab in front: a WEBForms tab loading behind a Real Signature packet redrew the
+  // packet and threw away the agent's choices (Dan, 2026-10-31).
+  if ((await activeTab())?.id !== id) return;
   // Real Signature moves between its pages without a page load, so leaving a one-click
   // draft for the Drafts list only changes the address — and the summary stayed up there
   // (Dan's test, 2026-10-29). Only while the summary shows: elsewhere an address change

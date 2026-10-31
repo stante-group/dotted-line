@@ -12,8 +12,12 @@ Dotted Line by itself a few hours after a version is published.
     the deal, signers, document name and email subject the same way as from WEBForms.
   - Anything you already chose in Real Signature stays: a deal picked, a name given, a
     subject typed, blocks already placed.
-  - Packets too: on a packet's Edit page, Auto place this packet places blocks on each of
-    its documents for that document's own signers.
+  - Packets too. Combine uploads into a packet and click Edit: the panel sets up every
+    document at once (deal, signers, subject and blocks), and the packet keeps its name.
+    On a packet whose signers are already in, Auto place this packet places blocks on each
+    of its documents for that document's own signers.
+  - The panel always shows the document or packet open in Real Signature, even with
+    WEBForms open beside it.
   - When a form has a client signature line and the document has both buyers and
     sellers, the panel asks whose line it is.
   - The Disclosure of Remuneration's one client line gets both clients side by side.
