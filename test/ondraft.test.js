@@ -251,3 +251,14 @@ test("Auto place on a packet is summed up document by document", async () => {
     "Every block Dotted Line would place is already on this packet.");
   assert.match(packetPlacedSummary([{ name: "A.pdf", added: 0, skipped: 0, outcome: null }]).text, /^A\.pdf: its signature lines are for signers who aren't on it/);
 });
+
+test("a packet with documents on different reZEN deals is said, by name", async () => {
+  const { packetDeals, mixedDealsWarning } = await import("../src/lib/ondraft.js");
+  const docs = [{ name: "Land Title.pdf", transactionId: "d1" }, { name: "Contract.pdf", transactionId: "d1" },
+    { name: "Addendum.pdf", transactionId: "d1" }, { name: "120 Example Street NW – Offer to Lease", transactionId: "d2" }, { name: "Fresh.pdf", transactionId: null }];
+  const r = packetDeals(docs);
+  assert.deepEqual(r, { deal: "d1", odd: ["120 Example Street NW – Offer to Lease"] });
+  assert.match(mixedDealsWarning(r.odd), /^120 Example Street NW – Offer to Lease is on a different reZEN deal from the rest of this packet\./);
+  assert.equal(mixedDealsWarning([]), null);
+  assert.deepEqual(packetDeals([{ name: "a", transactionId: null }]), { deal: null, odd: [] });
+});

@@ -114,3 +114,23 @@ export function packetPlacedSummary(results) {
   }
   return { text: parts.join(" "), level: added ? "ok" : "warn" };
 }
+
+/** A packet's documents on different reZEN deals (Dan, 2026-10-31: a lease document made
+ *  from another deal, added to a seller's packet). Real sends a packet to everyone on it,
+ *  so one deal's clients would get the other deal's documents. Real allows it; the panel
+ *  says so. docs: [{name, transactionId}]. → {deal: the one most documents share (the
+ *  first such, on a tie) or null, odd: the names of documents on another deal} */
+export function packetDeals(docs) {
+  const tally = new Map();
+  for (const d of docs) if (d.transactionId) tally.set(d.transactionId, (tally.get(d.transactionId) || 0) + 1);
+  let deal = null;
+  for (const [id, n] of tally) if (!deal || n > tally.get(deal)) deal = id;
+  return { deal, odd: docs.filter((d) => d.transactionId && d.transactionId !== deal).map((d) => d.name) };
+}
+
+/** The warning for packetDeals' odd documents, or null. */
+export function mixedDealsWarning(odd) {
+  if (!odd.length) return null;
+  const list = odd.length === 1 ? odd[0] : `${odd.slice(0, -1).join(", ")} and ${odd.at(-1)}`;
+  return `${list} ${odd.length === 1 ? "is" : "are"} on a different reZEN deal from the rest of this packet. Everyone on the packet gets every document in it: check this is meant before you send.`;
+}

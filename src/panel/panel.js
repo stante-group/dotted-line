@@ -9,7 +9,7 @@ import { suggestTemplate, rememberKey, normalizeName, rememberEntry, pruneRememb
 import { titleValues, titleFor, subjectFor, draftTitleValues, draftTitle, draftSubject, formNameFromFile, DEFAULT_SETTINGS } from "../lib/pattern.js";
 import { signerCounts, signersWithoutEmail, signeesFromDeal, agentRoleFor, agentPeople, cleanSubject, subjectTooLong, SUBJECT_MAX, countDisagreements } from "../lib/draft.js";
 import { actingNotes } from "../lib/actor.js";
-import { packetPlacedSummary } from "../lib/ondraft.js";
+import { packetPlacedSummary, packetDeals, mixedDealsWarning } from "../lib/ondraft.js";
 import { contextFromDraft, REPORTS_ON } from "../lib/report.js";
 
 // The same page is the popup (WEBForms and other sites) and the side panel (Real Signature);
@@ -1406,11 +1406,10 @@ async function openPacket(tab, id) {
     const todo = info.docs.filter((d) => info.unset.includes(d.id));
     const done = info.docs.length - todo.length;
     const lines = todo.flatMap((d) => d.lines || []);
-    const first = info.docs.find((d) => d.transactionId) || {};
     const subj = info.docs.find((d) => d.emailSubject) || {};
     await showRealsig(tab, {
       id: `packet:${id}`, packetId: id, title: info.name, fileName: info.name, fileNames: todo.map((d) => d.name),
-      presetDealId: first.transactionId || null, presetSubject: subj.emailSubject || null,
+      presetDealId: packetDeals(info.docs).deal, presetSubject: subj.emailSubject || null,
       forms: todo.map((d) => ({ docId: d.id, name: formNameFromFile(d.name), pageCount: d.pageCount, placed: d.placed, library: null })),
       textLines: lines.length ? lines : null,
       note: done ? `${done} of this packet's documents ${done > 1 ? "are" : "is"} set up already and stay${done > 1 ? "" : "s"} as ${done > 1 ? "they are" : "it is"}. These ${todo.length > 1 ? `${todo.length} are` : "one is"} new.` : null,
@@ -1418,6 +1417,7 @@ async function openPacket(tab, id) {
     return;
   }
   $("dr-status").className = "note";
+  const mixed = mixedDealsWarning(packetDeals(info.docs).odd);
   const ready = info.docs.filter((d) => d.signers);
   if (!ready.length) {
     $("dr-status").textContent = "To place blocks on this packet, first add who signs (Edit details) and press Next. Then come back here on the Prepare step.";
@@ -1438,6 +1438,7 @@ async function openPacket(tab, id) {
   $("dr-form").hidden = false;
   $("dr-go").disabled = false;
   $("dr-go").onclick = () => placePacket(tab, ready.map((d) => d.id), null, ready.map((d) => d.name));
+  if (mixed) say(mixed, "warn");
 }
 
 async function placePacket(tab, ids, side = null, names = []) {
