@@ -57,11 +57,40 @@ function show(section) {
   $("settings-wrap").hidden = section === "rs";
 }
 function say(text, kind = "note") {
-  $("msg").replaceChildren(text ? el("div", text, kind) : "");
+  // "Still working" at the top, where what's loading appears; a result or an error under
+  // the button that caused it (Dan, 2026-10-30).
+  const busy = kind === "busy";
+  $("status").replaceChildren(text && busy ? el("div", text, kind) : "");
+  $("msg").replaceChildren(text && !busy ? el("div", text, kind) : "");
   if (kind !== "err") $("report").hidden = true; // a report belongs to the error it follows
   // Some paths report first and show the error after (the report is made, then the error is
   // thrown up to whoever shows it): move the report into this new red box.
   else if (!$("report").hidden) showReport().catch(() => {});
+}
+
+/** The button just pressed says what it's doing, with a spinner, and can't be pressed
+ *  twice: the eye is on it, not on a line elsewhere (Dan, 2026-10-30). done() puts its
+ *  words back; whoever called it decides whether it's pressable again. */
+function working(btn, label) {
+  const was = btn.textContent;
+  btn.disabled = true;
+  btn.classList.add("working");
+  btn.textContent = label;
+  return () => { btn.classList.remove("working"); btn.textContent = was; };
+}
+
+/** "Uploaded 5 minutes ago", from a time in milliseconds. */
+function uploadedAgo(t) {
+  const m = Math.max(0, Math.round((Date.now() - (t || 0)) / 60000));
+  const n = (v, w) => `${v} ${w}${v === 1 ? "" : "s"} ago`;
+  return `Uploaded ${m < 1 ? "just now" : m < 60 ? n(m, "minute") : m < 1440 ? n(Math.round(m / 60), "hour") : n(Math.round(m / 1440), "day")}`;
+}
+
+/** The Auto place screen's heading and button, for a draft or a packet. */
+function drKind(kind) {
+  $("dr-title").textContent = `Place blocks on this ${kind}`;
+  $("dr-go").textContent = `Auto place this ${kind}`;
+  $("dr-docs").hidden = true;
 }
 
 // ---------- error reports (src/lib/report.js, background.js) ----------
@@ -299,8 +328,9 @@ async function showWebforms(tab) {
     return;
   }
 
-  $("wf-where").textContent = sel.source === "deal" ? `${sel.forms.length} form(s) ticked on this deal:`
-    : sel.source === "open" ? "The form you have open:" : `${sel.forms.length} form(s) in your Basket:`;
+  const nForms = sel.forms.length === 1 ? "1 form" : `${sel.forms.length} forms`;
+  $("wf-where").textContent = sel.source === "deal" ? `${nForms} ticked on this deal`
+    : sel.source === "open" ? "The form you have open" : `${nForms} in your Basket`;
   for (const f of sel.forms) $("wf-forms").append(el("li", f.name));
   // The slow part: WEBForms is asked about each form in turn (rule 1), so say so.
   say(`Reading ${sel.forms.length === 1 ? "the form" : `${sel.forms.length} forms`} from WEBForms…`, "busy");
@@ -328,7 +358,7 @@ async function showWebforms(tab) {
   // else (a standalone form is often named after its civic number, e.g. "120").
   $("wf-forms").replaceChildren(...wfState.forms.map((f) => {
     const li = el("li", f.typeName || f.name);
-    if (f.typeName && normalizeName(f.name) !== normalizeName(f.typeName)) li.append(el("span", ` · ${f.name}`, "note"));
+    if (f.typeName && normalizeName(f.name) !== normalizeName(f.typeName)) li.append(el("span", f.name, "alt"));
     return li;
   }));
   const titled = wfState.forms.map((f) => ({ ...f, name: f.typeName || f.name }));
@@ -359,9 +389,8 @@ async function showWebforms(tab) {
 
 $("wf-go").addEventListener("click", async () => {
   if (!wfState) return;
-  $("wf-go").disabled = true;
   wfBusy = true;
-  say("Getting your forms from WEBForms…", "busy");
+  const done = working($("wf-go"), "Getting your forms…");
   try {
     // Re-read the ticks: the agent may have changed them since the panel last looked.
     const now = await selection(wfState.tabId);
@@ -408,6 +437,7 @@ $("wf-go").addEventListener("click", async () => {
     $("wf-title-wrap").hidden = !wfState; // the title is back to edit before trying again
     $("wf-go").disabled = false;
   } finally {
+    done();
     wfBusy = false;
   }
 });
@@ -926,7 +956,7 @@ $("rs-go").addEventListener("click", async () => {
   if (subjectHeld()) { say("Shorten the signers' email subject to 70 characters.", "warn"); return; }
   $("rs-go").disabled = true;
   if (job.draftId) { await finishDraft(templateIds[0], counts); return; }
-  say(job.forms.length > 1 ? `Creating ${job.forms.length} drafts and grouping them as a packet…` : "Creating your draft…", "busy");
+  const done = working($("rs-go"), job.forms.length > 1 ? `Creating ${job.forms.length} drafts…` : "Creating your draft…");
   try {
     const t1 = Date.now();
     const r = await send(tab.id, {
@@ -964,6 +994,7 @@ $("rs-go").addEventListener("click", async () => {
     await chrome.runtime.sendMessage({ type: "job:done", id: job.id, templateIds });
     chrome.runtime.sendMessage({ type: "report:ok", path: "panel", forms: job.forms.length, labels: templateIds.includes("auto") }).catch(() => {});
     await chrome.tabs.update(tab.id, { url: new URL(r.url, RS).toString() });
+    done();
     say(r.packet && r.drafts === 1 ? `Draft ready. Add the ${roleWords(r.unfilled)} in Add Signees.`
       : r.packet ? `Packet ready (${r.drafts} forms).` : "Draft ready.", "ok");
     $("rs-form").hidden = true;
@@ -976,6 +1007,7 @@ $("rs-go").addEventListener("click", async () => {
         .catch(() => {}).finally(() => window.close());
     }, 1500);
   } catch (e) {
+    done();
     say(String(e.message || e), "err");
     $("rs-go").disabled = !canFinish();
     await reportError(e, "create", { c, job, dealId: dealId === "none" ? null : dealId,
@@ -992,7 +1024,7 @@ $("rs-go").addEventListener("click", async () => {
 async function finishDraft(templateId, counts) {
   const { tab, job, c } = rsState;
   const dealId = $("rs-deal").value;
-  say("Setting up your draft…", "busy");
+  const done = working($("rs-go"), "Setting up your draft…");
   try {
     const r = await send(tab.id, {
       type: "rs:setup-draft", id: job.draftId, title: $("rs-title").value.trim() || job.title,
@@ -1010,6 +1042,7 @@ async function finishDraft(templateId, counts) {
     rsState = null;
     // The same address reloads: Real's steps show the deal, signers and blocks just saved.
     await chrome.tabs.update(tab.id, { url: new URL(r.url, RS).toString() });
+    done();
     say(r.packet ? `Draft ready. Add the ${roleWords(r.unfilled)} in Add Signees.` : "Draft ready. Check it in Real Signature before you send.", "ok");
     $("rs-form").hidden = true;
     // Done, as after a WEBForms draft: the panel would only cover the steps. (The packet of
@@ -1019,6 +1052,7 @@ async function finishDraft(templateId, counts) {
         .catch(() => {}).finally(() => window.close());
     }, 1500);
   } catch (e) {
+    done();
     say(String(e.message || e), "err");
     $("rs-go").disabled = !canFinish();
     await reportError(e, "on-draft", { path: "draft", c, job, dealId: dealId === "none" ? null : dealId,
@@ -1124,6 +1158,7 @@ async function openDraft(tab, id) {
   $("dr-ask").hidden = true;
   $("dr-status").className = "busy";
   $("dr-status").textContent = "Reading this draft…";
+  drKind("draft");
   const info = await send(tab.id, { type: "rs:draft-read", id }).catch((e) => ({ error: String(e?.message || e) }));
   if (info?.error) {
     $("dr-status").className = "err";
@@ -1174,15 +1209,18 @@ async function showUploads(tab) {
     return;
   }
   $("up-status").className = "note";
-  $("up-status").textContent = r.length ? "New uploads, not set up yet:" : "";
+  $("up-status").textContent = r.length ? "From the last week, not set up yet" : "No new uploads from the last week.";
+  $("up-list").hidden = !r.length;
   $("up-list").replaceChildren(...r.map((d) => {
-    const div = el("div", null, "form");
-    div.append(el("b", d.name));
-    const b = el("button", "Set up with Dotted Line");
+    const li = el("li", null, "action-row");
+    const what = el("div", null, "what");
+    what.append(el("span", d.name), el("span", uploadedAgo(d.createdAt), "alt"));
+    const b = el("button", "Set up", "secondary");
     b.type = "button";
+    b.setAttribute("aria-label", `Set up ${d.name}`);
     b.onclick = () => chrome.tabs.update(tab.id, { url: new URL(`/one-time-documents/document/${d.id}`, RS).toString() });
-    div.append(b);
-    return div;
+    li.append(what, b);
+    return li;
   }));
 }
 
@@ -1222,9 +1260,7 @@ function askSide(counts, go) {
 
 async function placeDraft(tab, id, side = null) {
   drBusy = true;
-  $("dr-go").disabled = true;
-  $("dr-status").className = "busy";
-  $("dr-status").textContent = "Placing blocks…";
+  const done = working($("dr-go"), "Placing blocks…");
   say("");
   try {
     const r = await send(tab.id, { type: "rs:place-draft", id, side });
@@ -1251,6 +1287,7 @@ async function placeDraft(tab, id, side = null) {
     await reportError(e, "on-draft", { path: "draft" });
     $("dr-go").disabled = false;
   } finally {
+    done();
     drBusy = false;
   }
 }
@@ -1265,6 +1302,7 @@ async function openPacket(tab, id) {
   $("dr-ask").hidden = true;
   $("dr-status").className = "busy";
   $("dr-status").textContent = "Reading this packet…";
+  drKind("packet");
   const info = await send(tab.id, { type: "rs:packet-read", id }).catch((e) => ({ error: String(e?.message || e) }));
   if (info?.error) {
     $("dr-status").className = "err";
@@ -1282,9 +1320,15 @@ async function openPacket(tab, id) {
   const many = info.docs.length > 1;
   $("dr-status").textContent = ready.length < info.docs.length
     ? `${info.docs.length - ready.length} of its documents ${info.docs.length - ready.length > 1 ? "have" : "has"} no signers yet and ${info.docs.length - ready.length > 1 ? "are" : "is"} left as ${info.docs.length - ready.length > 1 ? "they are" : "it is"}.` : "";
-  $("dr-who").textContent = many
-    ? ready.map((d) => `${d.name}: ${signerWords(d.signers)}${d.blocks ? `, ${d.blocks} block${d.blocks > 1 ? "s" : ""} already on it stay` : ""}.`).join(" ")
+  // Several documents: one row each, with its signers under the name.
+  $("dr-who").textContent = many ? ""
     : `Signers: ${signerWords(ready[0].signers)}.${ready[0].blocks ? ` ${ready[0].blocks} block${ready[0].blocks > 1 ? "s" : ""} already on it stay.` : ""}`;
+  $("dr-docs").hidden = !many;
+  $("dr-docs").replaceChildren(...(many ? ready.map((d) => {
+    const li = el("li", d.name);
+    li.append(el("span", `${signerWords(d.signers)}${d.blocks ? `; ${d.blocks} block${d.blocks > 1 ? "s" : ""} already on it stay` : ""}`, "alt"));
+    return li;
+  }) : []));
   $("dr-form").hidden = false;
   $("dr-go").disabled = false;
   $("dr-go").onclick = () => placePacket(tab, ready.map((d) => d.id));
@@ -1292,9 +1336,7 @@ async function openPacket(tab, id) {
 
 async function placePacket(tab, ids, side = null) {
   drBusy = true;
-  $("dr-go").disabled = true;
-  $("dr-status").className = "busy";
-  $("dr-status").textContent = "Placing blocks…";
+  const done = working($("dr-go"), "Placing blocks…");
   say("");
   let added = 0, skipped = 0, outcome = null;
   try {
@@ -1333,6 +1375,7 @@ async function placePacket(tab, ids, side = null) {
     $("dr-go").disabled = false;
     if (added) await chrome.tabs.reload(tab.id);
   } finally {
+    done();
     drBusy = false;
   }
 }
