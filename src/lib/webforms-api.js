@@ -162,9 +162,16 @@ const COMPANY = /\b(ltd|limited|inc|incorporated|corp|corporation|company|co|llp
 
 /** How many people one name line holds: 1, plus one per "&" / "and" / "+" — unless it's a
  *  company ("Example Holdings Ltd. and Sons" is one signer). A guess, never authoritative. */
+// A name too long for one line runs on to the next: "(operating as …)", "o/a …", "c/o …"
+// under a company's name is that company, not a second signer (Dan, 2026-10-31: a tenant
+// company and its trade name on the lease's two Name lines made 2 tenants). The same in a
+// Contacts entry.
+const CONTINUES = /^\s*(?:\(|o\/a\b|operating as\b|doing business as\b|d\/b\/a\b|dba\b|c\/o\b|carrying on business as\b)/i;
+
 function peopleOnLine(s) {
   const t = String(s ?? "").trim();
   if (!t) return 0;
+  if (CONTINUES.test(t)) return 0; // partiesFromFormValues keeps at least 1 for a side with text
   if (COMPANY.test(t)) return 1;
   return 1 + (t.match(/&|\+|\band\b/gi) || []).length;
 }
@@ -215,13 +222,20 @@ const contactName = (c) => {
   return [g.FirstName, g.LastName].map(field).filter(Boolean).join(" ")
     || field(g.Company) || field(c?.Name);
 };
+/** One side's contacts that sign: a run-on name ("(operating as …)") is the contact before
+ *  it, so it's left out, unless it's all there is. */
+const signingContacts = (cs) => {
+  const own = cs.filter((c) => !CONTINUES.test(contactName(c) || ""));
+  return own.length ? own : cs;
+};
 const contactsOfType = (contacts, type) => (Array.isArray(contacts) ? contacts : [])
   .filter((c) => String(c?.TransactionContactTypeName ?? "").trim().toLowerCase() === type);
 
 /** The transaction's Contacts → {BUYER, SELLER} counts. Contacts are WEBForms' own, the same
  *  in every province, where the form fields (partiesFromFormValues) are AREA's names. */
 export function partiesFromContacts(contacts) {
-  return { BUYER: contactsOfType(contacts, "buyer").length, SELLER: contactsOfType(contacts, "seller").length };
+  const signers = (type) => signingContacts(contactsOfType(contacts, type)).length;
+  return { BUYER: signers("buyer"), SELLER: signers("seller") };
 }
 
 /** The buyers' names from Contacts, for matching a reZEN Buyer Record. */
@@ -233,7 +247,7 @@ export function buyerNamesFromContacts(contacts) {
  *  participants ({role, firstName, lastName, email}): with no reZEN deal to fill the draft
  *  from, WEBForms' own Contacts can (Dan, 2026-10-14). Email may be blank. */
 export function peopleFromContacts(contacts) {
-  return [["buyer", "BUYER"], ["seller", "SELLER"]].flatMap(([type, role]) => contactsOfType(contacts, type).map((c) => {
+  return [["buyer", "BUYER"], ["seller", "SELLER"]].flatMap(([type, role]) => signingContacts(contactsOfType(contacts, type)).map((c) => {
     const g = c?.ContactData?.General || {};
     const first = field(g.FirstName), last = field(g.LastName);
     return { role, firstName: first || (last ? "" : field(g.Company) || field(c?.Name)), lastName: last, email: field(g.Email) };
@@ -268,7 +282,8 @@ export function buyerNamesFromFormValues(values) {
 export function partiesFromFormValues(values) {
   const out = {};
   for (const [side, sets] of Object.entries(PARTY_FIELDS)) {
-    out[side] = Math.max(...sets.map((keys) => keys.reduce((n, k) => n + peopleOnLine(values?.[k]), 0)));
+    const typed = sets.some((keys) => keys.some((k) => String(values?.[k] ?? "").trim()));
+    out[side] = Math.max(typed ? 1 : 0, ...sets.map((keys) => keys.reduce((n, k) => n + peopleOnLine(values?.[k]), 0)));
   }
   return out;
 }

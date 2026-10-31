@@ -689,3 +689,17 @@ test("start-on-click hides the Prepare button while it runs, and brings it back 
   // No title box while it starts by itself: the title has already gone (Dan, 2026-10-29).
   assert.match(panel, /\$\("wf-title-wrap"\)\.hidden = !!\(POPUP && s\.startOnOpen && !autoStarted\);/);
 });
+
+test("a name run on to a second line is one signer: '(operating as …)' under a company", () => {
+  // Dan, 2026-10-31: a tenant company and its trade name on the lease's two Name lines.
+  assert.deepEqual(partiesFromFormValues({ txtbuyer1: "EXAMPLE HOLDINGS LTD.", txtbuyer2: "(operating as Sample Cafe)" }), { BUYER: 1, SELLER: 0 });
+  assert.deepEqual(partiesFromFormValues({ txtbuyer1: "Example Holdings Ltd.", txtbuyer2: "o/a Sample Cafe" }), { BUYER: 1, SELLER: 0 });
+  assert.deepEqual(partiesFromFormValues({ txtbuyer1: "(operating as Sample Cafe)" }), { BUYER: 1, SELLER: 0 });
+  assert.deepEqual(partiesFromFormValues({ txtbuyer1: "Jordan Sample", txtbuyer2: "Riley Sample" }), { BUYER: 2, SELLER: 0 });
+  const contact = (type, FirstName, LastName = "") => ({ TransactionContactTypeName: type, ContactData: { General: { FirstName, LastName } } });
+  const two = [contact("Buyer", "EXAMPLE HOLDINGS LTD."), contact("Buyer", "(operating as Sample Cafe)")];
+  assert.deepEqual(partiesFromContacts(two), { BUYER: 1, SELLER: 0 });
+  assert.deepEqual(peopleFromContacts(two).map((p) => p.firstName), ["EXAMPLE HOLDINGS LTD."]);
+  // the only buyer contact is still a buyer, however it's written
+  assert.deepEqual(partiesFromContacts([contact("Buyer", "(operating as Sample Cafe)", "EXAMPLE HOLDINGS LTD.")]), { BUYER: 1, SELLER: 0 });
+});
