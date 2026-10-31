@@ -85,3 +85,32 @@ export function placeOnDraft(draft, found, pageCount, side = null) {
     skipped: placed.length - fresh.length,
   };
 }
+
+// Why a document got no blocks, in a few words, for a packet's summary line.
+const WHY_NONE = {
+  "no-text": "is a scan with no text to read",
+  fonts: "has text that can't be read as words",
+  "no-labels": "has no signature lines Dotted Line knows",
+  "pdf-locked": "is locked",
+  "pdf-unreadable": "couldn't be read",
+};
+
+/** Auto place on a packet, said document by document (Dan, 2026-10-31: one document with
+ *  no signature lines made the whole packet read "No signature lines … on this form",
+ *  though the other three already had every block). results: [{name, added, skipped,
+ *  outcome}]. → {text, level: "ok" | "warn"} */
+export function packetPlacedSummary(results) {
+  const added = results.reduce((n, r) => n + r.added, 0);
+  const full = results.filter((r) => !r.added && r.skipped);
+  const none = results.filter((r) => !r.added && !r.skipped);
+  const n = (k, w) => `${k} ${w}${k === 1 ? "" : "s"}`;
+  const parts = [];
+  if (added) parts.push(`Placed ${n(added, "block")} on ${n(results.filter((r) => r.added).length, "document")}.`);
+  if (full.length) parts.push(full.length === results.length ? "Every block Dotted Line would place is already on this packet."
+    : `${n(full.length, "document")} already ${full.length === 1 ? "has" : "have"} every block Dotted Line would place.`);
+  for (const r of none) {
+    parts.push(r.outcome ? `${r.name} ${WHY_NONE[r.outcome] || "got no blocks"}: place its blocks in Real Signature if it needs any.`
+      : `${r.name}: its signature lines are for signers who aren't on it. Check Edit details.`);
+  }
+  return { text: parts.join(" "), level: added ? "ok" : "warn" };
+}
