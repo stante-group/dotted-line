@@ -31,6 +31,9 @@ Public repo. Read PLAN.md first; API shapes are in docs/api-notes.md.
   Document / Packet"); **Draft** is only their status until sent (the Draft tab, "Save as
   Draft"), so never "document draft" or "packet draft". Its steps: Transaction, Edit
   details, Prepare, Review; Add Signees.
+- **docs/how-the-panel-decides.md is the picture of the panel's choices** (Dan, 2026-10-31):
+  which deal, which side signs, how many, who goes in as a signer. A change to any of those
+  rules updates its Mermaid chart in the same commit, or the picture is wrong.
 - Real Signature and WEBForms APIs are undocumented. When a shape doesn't match, throw a
   plain message — never guess and carry on.
 
