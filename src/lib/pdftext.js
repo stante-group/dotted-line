@@ -401,6 +401,14 @@ const glyphChar = (g) => {
   return base ? base[1] : "";
 };
 const MAC_QUOTES = { 195: '"', 196: '"', 197: "'", 198: "'" };
+// Apple's own Helvetica Neue (macOS) has four extra glyphs straight after the space, so from
+// "!" on everything sits four earlier than the Macintosh order, and the curly quotes eleven
+// earlier. Its codes are text minus 25, not minus 29. The MREA Listing Contract from WEBForms
+// is set in it with no ToUnicode and no cmap (2026-10-30): read the Mac way, every letter
+// came out four along ("e" as "i") and the form got no blocks. Worked out from the embedded
+// font's widths: ten 556-wide digits at 23–32, "a" at 72.
+const NEUE_QUOTES = { 184: '"', 185: '"', 186: "'", 187: "'" };
+const appleNeue = (name) => /^([A-Z]{6}\+)?HelveticaNeue(-[A-Za-z]+)?$/.test(name || "");
 // WinAnsi's differences from Latin-1 that matter in form text.
 const WINANSI = { 0x91: "'", 0x92: "'", 0x93: '"', 0x94: '"', 0x95: "•", 0x96: "–", 0x97: "—", 0xae: "®" };
 
@@ -455,13 +463,17 @@ async function loadFont(doc, ref) {
       if (Array.isArray(b)) { b.forEach((x, k) => widths.set(a + k, doc.get(x))); i += 2; } else { for (let c = a; c <= b; c++) widths.set(c, doc.get(w[i + 2])); i += 3; }
     }
     font.width = (c) => widths.get(c) ?? dw;
+    const neue = appleNeue(nameOf(f.get("BaseFont")));
     // No ToUnicode map, and the embedded font kept no cmap either (RECA's Consumer
     // Relationships Guide from WEBForms, 2026-10-29): the codes are glyph numbers. Fonts like
     // Arial and Verdana keep the Macintosh standard glyph order, where glyphs 3–97 are the
     // printable ASCII characters in order and 197/198 the curly quotes — enough for labels.
-    // A font in some other order reads as nonsense, which matches no label.
+    // A font in some other order reads as nonsense, which matches no label; Apple's Helvetica
+    // Neue is the one other order we know (NEUE_QUOTES).
     font.text = (c) => cmap?.map.get(c)
-      ?? (cmap ? "" : c >= 3 && c <= 97 ? String.fromCharCode(c + 29) : MAC_QUOTES[c] ?? "");
+      ?? (cmap ? ""
+        : neue ? (c === 3 ? " " : c >= 8 && c <= 101 ? String.fromCharCode(c + 25) : NEUE_QUOTES[c] ?? "")
+        : c >= 3 && c <= 97 ? String.fromCharCode(c + 29) : MAC_QUOTES[c] ?? "");
     return font;
   }
   const first = doc.get(f.get("FirstChar")) ?? 0;
@@ -662,6 +674,12 @@ export async function readPdfText(u8) {
     }
     await runContent(doc, concat(...parts), doc.get(p.res), [1, 0, 0, 1, -box[0], -box[1]], page);
     delete page.fontCache;
+    // Only what's on the page. The MREA Listing Contract is a two-page spread cut in two:
+    // each page draws the whole spread and shows its half, so page 1 also carried page 2's
+    // signing block 600pt off to the right, where a block would be off the page.
+    const on = (x1, x2, y1, y2) => x2 > 0 && x1 < page.width && y2 > 0 && y1 < page.height;
+    page.items = page.items.filter((i) => on(i.x, i.x + i.w, i.y, i.y + i.size));
+    page.shapes = page.shapes.filter((s) => on(Math.min(s.x1, s.x2), Math.max(s.x1, s.x2), Math.min(s.y1, s.y2), Math.max(s.y1, s.y2)));
     out.push(page);
   }
   return out;

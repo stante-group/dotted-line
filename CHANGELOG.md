@@ -22,6 +22,11 @@ Dotted Line by itself a few hours after a version is published.
   what it's doing; results and errors appear under it. The panel uses each site's own
   words: forms and the Basket for WEBForms, a document or packet for Real Signature.
 - Error reports (only if you said yes) cover Auto place on an uploaded document too.
+- **Auto place: Manitoba's Listing Contract.** Its text used to come out as nonsense (its
+  font numbers letters in Apple's order), so it got no blocks. Now the sellers' signatures,
+  your signature on the Listing Brokerage's line and the date are placed. Text printed off
+  the edge of a page is no longer read. A date printed beside a signature line goes to that
+  signer, and one date blank shared by everyone goes to Buyer 1 or Seller 1.
 - **Auto place: more BC forms.** The Contract of Purchase and Sale's and Subject Removal's
   page-foot "BUYER'S INITIALS" and "SELLER'S INITIALS" boxes, Subject Removal's three buyer
   and three seller signature lines (printed as a picture, so found by where they sit), and the Disclosure of
