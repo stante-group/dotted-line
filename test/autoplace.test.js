@@ -478,3 +478,14 @@ test("the commercial Agency Relationships guide: 'Your signature' and its Date o
     [rule(46, 300, 439), rule(365, 560, 439)]);
   assert.deepEqual(labels(autoLayout([p]).layout), ["SIGNATURE CLIENT1", "SIGNED_DATE CLIENT1"]);
 });
+
+test("a time blank of its own however the date line is worded: 'and DATED at ____ ___. m. on'", () => {
+  const p = page([
+    word("SIGNED in the presence of a witness, and DATED at ________ ___. m. on ______________________, 20_____.", 38, 620),
+    word("Landlord/Tenant", 38, 590), word("Witness", 330, 590),
+  ], [rule(38, 300, 600), rule(330, 570, 600)]);
+  assert.deepEqual(labels(autoLayout([p]).layout), ["SIGNED_TIME_ONLY CLIENT1", "SIGNED_DATE_ONLY CLIENT1", "SIGNATURE CLIENT1"]);
+  // no time blank: one Date & Time block, as before
+  const q = page([word("SIGNED AND DATED on ______________________, 20_____.", 38, 620), word("Buyer Signature", 38, 590)], [rule(38, 300, 600)]);
+  assert.deepEqual(labels(autoLayout([q]).layout), ["SIGNED_DATE BUYER1", "SIGNATURE BUYER1"]);
+});
