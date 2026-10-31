@@ -278,10 +278,12 @@ export function pageBlocks(page, { lease = false } = {}) {
   };
   // AREA's purchase contracts end with "INFORMATION — The following is for information
   // purposes and has no effect on the contract's terms: REJECTION, I/we do not accept this
-  // offer". Signing there declines the offer, so nothing goes in it, down to the next
-  // heading (CONVEYANCING INFORMATION). The residential forms' "Seller: ___" lines matched
-  // nothing anyway; the commercial one's "Signature of Seller or Authorized Signatory" got
-  // the seller's signature and a date under REJECTION (Dan, 2026-10-31).
+  // offer". Signing there declines the offer, so nothing goes in it, down to CONVEYANCING
+  // INFORMATION, the heading that follows it, or the page's end. The residential forms'
+  // "Seller: ___" lines matched nothing anyway; the commercial one's "Signature of Seller or
+  // Authorized Signatory" got the seller's signature and a date under REJECTION (Dan,
+  // 2026-10-31). Not "any line in capitals": a company's name typed in capitals between
+  // the two signature lines ended the section early, and the second line still got one.
   let declining = false;
   const add = (spec, role, x, bottom, extra = {}) => {
     if (declining) return;
@@ -294,7 +296,7 @@ export function pageBlocks(page, { lease = false } = {}) {
   for (const line of lines) {
     const words = line.text.trim();
     if (/^REJECTION$/.test(words) || /has no effect on the contract['’]s terms/i.test(words)) declining = true;
-    else if (declining && /^[^a-z]*[A-Z]{4,}[^a-z]*$/.test(words)) declining = false; // the next heading
+    else if (declining && /^CONVEYANCING\b/.test(words)) declining = false;
     const heading = PARTY_HEADING.exec(line.text);
     if (heading) party = heading[1];
     for (const [re, role] of [[CLIENT_ROW, "CLIENT"], [YOUR_SIGNATURE, "CLIENT"], [SIGNING_OFFICER, party]]) {

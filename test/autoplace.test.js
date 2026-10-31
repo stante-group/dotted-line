@@ -556,9 +556,12 @@ test("nothing in a purchase contract's REJECTION section: signing there declines
     word("REJECTION", 38, 530, 10),
     word("I/we do not accept this offer/counteroffer. No counteroffer is being made.", 38, 515),
     word("SIGNED AND DATED at ________ ___. m. on ______________________, 20_____.", 38, 495),
-    word("Signature of Seller or Authorized Signatory of Seller", 38, 455), word("Signature of Buyer or Authorized Signatory of Buyer", 330, 455),
+    word("Signature of Seller or Authorized Signatory of Seller", 38, 470), word("Signature of Buyer or Authorized Signatory of Buyer", 330, 470),
+    // a company's name typed in capitals between the two lines is not a heading
+    word("EXAMPLE HOLDINGS LTD.", 38, 452),
+    word("Signature of Seller or Authorized Signatory of Seller", 38, 440), word("Signature of Buyer or Authorized Signatory of Buyer", 330, 440),
     word("CONVEYANCING INFORMATION", 38, 400, 10),
-  ], [rule(38, 300, 670), rule(330, 570, 670), rule(38, 300, 465), rule(330, 570, 465)]);
+  ], [rule(38, 300, 670), rule(330, 570, 670), rule(38, 300, 480), rule(330, 570, 480), rule(38, 300, 450), rule(330, 570, 450)]);
   const f = autoLayout([p]).layout.fieldDefinitions;
   assert.equal(f.every((d) => d.fieldLocations[0].position[1] > 600), true, "nothing below the INFORMATION heading");
   assert.ok(f.some((d) => d.type === "SIGNATURE"), "the acceptance still gets its signature");
