@@ -41,7 +41,7 @@ const slots = (body) => body.fieldDefinitions.map((f) => `${f.signeeType}/${f.si
 test("signers come from the draft's own Edit details, and nobody named means not yet", () => {
   assert.equal(draftSigners(draft([])), null);
   assert.equal(draftSigners({ defaults: null }), null);
-  assert.deepEqual(draftSigners(draft([casey])), { counts: { SELLER: 1 }, agentRole: null, total: 1 });
+  assert.deepEqual(draftSigners(draft([casey])), { counts: { SELLER: 1 }, agentRole: null, total: 1, stray: 0 });
   assert.equal(draftSigners(draft([casey, agent])).agentRole, "SELLERS_AGENT");
   assert.equal(draftSigners(draft([casey, agent, { ...agent, signeeType: "BUYERS_AGENT" }])).agentRole, "both");
   assert.throws(() => draftSigners(draft([{ name: "x" }])), /changed shape/);
@@ -261,4 +261,18 @@ test("a packet with documents on different reZEN deals is said, by name", async 
   assert.match(mixedDealsWarning(r.odd), /^120 Example Street NW – Offer to Lease is on a different reZEN deal from the rest of this packet\./);
   assert.equal(mixedDealsWarning([]), null);
   assert.deepEqual(packetDeals([{ name: "a", transactionId: null }]), { deal: null, odd: [] });
+});
+
+test("signers in a role the document doesn't have don't count, and are said (Real's packet leftovers)", async () => {
+  const { draftSigners, straySignersWarning } = await import("../src/lib/ondraft.js");
+  // as read off Dan's packet: four copies of Seller 1, and a buyer from a removed document
+  const s = (signeeType) => ({ signeeType, signeeIndex: 0, name: "x", email: "x@example.com" });
+  const d = { signeeConfigs: [{ signeeType: "SELLER", minNum: 0, maxNum: 1 }], defaults: { signees: [s("SELLER"), s("SELLER"), s("SELLER"), s("SELLER"), s("BUYER")] } };
+  assert.deepEqual(draftSigners(d), { counts: { SELLER: 1 }, agentRole: null, total: 4, stray: 1 });
+  // no roles saved at all: everyone counts, as before
+  assert.deepEqual(draftSigners({ defaults: { signees: [s("BUYER")] } }).counts, { BUYER: 1 });
+  // only stray signers: nobody signs this document
+  assert.equal(draftSigners({ signeeConfigs: [{ signeeType: "SELLER" }], defaults: { signees: [s("BUYER")] } }), null);
+  assert.match(straySignersWarning([{ name: "Contract.pdf", stray: 1 }, { name: "Title.pdf", stray: 0 }]), /^Contract\.pdf has a signer saved in a role it doesn't have/);
+  assert.equal(straySignersWarning([{ name: "a", stray: 0 }]), null);
 });

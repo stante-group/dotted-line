@@ -308,6 +308,7 @@ async function packetRead({ id }) {
   const docs = p.documentTemplates.map((d) => {
     const who = lib.draftSigners(d);
     return { id: d.id, name: String(d.name || "Document"), signers: who ? { counts: who.counts, agentRole: who.agentRole } : null, blocks: blockCount(d),
+      stray: who?.stray || (d.defaults?.signees?.length && !who ? d.defaults.signees.length : 0),
       transactionId: d.defaults?.transactionId || null, emailSubject: d.defaults?.emailSubject || null };
   });
   // Fresh documents beside set-up ones (one added after Set up, or a Set up that stopped

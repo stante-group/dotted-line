@@ -9,7 +9,7 @@ import { suggestTemplate, rememberKey, normalizeName, rememberEntry, pruneRememb
 import { titleValues, titleFor, subjectFor, draftTitleValues, draftTitle, draftSubject, formNameFromFile, DEFAULT_SETTINGS } from "../lib/pattern.js";
 import { signerCounts, signersWithoutEmail, signeesFromDeal, agentRoleFor, agentPeople, cleanSubject, subjectTooLong, SUBJECT_MAX, countDisagreements } from "../lib/draft.js";
 import { actingNotes } from "../lib/actor.js";
-import { packetPlacedSummary, packetDeals, mixedDealsWarning } from "../lib/ondraft.js";
+import { packetPlacedSummary, packetDeals, mixedDealsWarning, straySignersWarning } from "../lib/ondraft.js";
 import { contextFromDraft, REPORTS_ON } from "../lib/report.js";
 
 // The same page is the popup (WEBForms and other sites) and the side panel (Real Signature);
@@ -1417,7 +1417,7 @@ async function openPacket(tab, id) {
     return;
   }
   $("dr-status").className = "note";
-  const mixed = mixedDealsWarning(packetDeals(info.docs).odd);
+  const mixed = [mixedDealsWarning(packetDeals(info.docs).odd), straySignersWarning(info.docs)].filter(Boolean).join(" ");
   const ready = info.docs.filter((d) => d.signers);
   if (!ready.length) {
     $("dr-status").textContent = "To place blocks on this packet, first add who signs (Edit details) and press Next. Then come back here on the Prepare step.";
