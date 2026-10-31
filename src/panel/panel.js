@@ -565,7 +565,8 @@ async function showRealsig(tab, job) {
 
   // A failed one-click attempt goes on top. What's left to choose is said in the section it
   // belongs to (the deal hint, each form's template), not repeated up here.
-  $("rs-needs").replaceChildren(...(job.autoError ? [el("div", job.autoError, "err")] : []));
+  $("rs-needs").replaceChildren(...(job.autoError ? [el("div", job.autoError, "err")] : []),
+    ...(job.note ? [el("div", job.note, "info")] : []));
   if (job.autoError) showReport().catch(() => {});
   $("rs-deal-first").textContent = job.address || job.buyerNames?.length || job.textLines
     ? "No deal clearly matches — choose one, or No deal."
@@ -1255,7 +1256,7 @@ async function openDraft(tab, id) {
   if (info.inPacket) {
     // Blocks only: the deal, subject and signers are set on the packet's own steps.
     showDraft(tab, id, info);
-    if (!info.signers) $("dr-status").textContent = `${IN_PACKET} Add who signs there (Edit details) and press Next, then use Dotted Line on the packet.`;
+    if (!info.signers) $("dr-status").textContent = `${IN_PACKET} Open the packet (the Draft tab → the packet's Edit): Dotted Line sets up all its documents there.`;
     else $("dr-who").textContent += ` ${IN_PACKET}`;
     return;
   }
@@ -1397,17 +1398,22 @@ async function openPacket(tab, id) {
     return;
   }
   if (info.template) { show("idle"); return; }
-  if (info.fresh) {
+  if (info.unset?.length) {
     // Uploads combined into a packet, nothing on them yet (Dan, 2026-10-31): set it up as a
     // single upload is, one template row per document. The deal is found in all their text.
-    const lines = info.docs.flatMap((d) => d.lines || []);
+    // Some already set up (a document added later, or a Set up that stopped part way): only
+    // the fresh ones, starting from the deal and subject already on the others.
+    const todo = info.docs.filter((d) => info.unset.includes(d.id));
+    const done = info.docs.length - todo.length;
+    const lines = todo.flatMap((d) => d.lines || []);
     const first = info.docs.find((d) => d.transactionId) || {};
     const subj = info.docs.find((d) => d.emailSubject) || {};
     await showRealsig(tab, {
-      id: `packet:${id}`, packetId: id, title: info.name, fileName: info.name, fileNames: info.docs.map((d) => d.name),
+      id: `packet:${id}`, packetId: id, title: info.name, fileName: info.name, fileNames: todo.map((d) => d.name),
       presetDealId: first.transactionId || null, presetSubject: subj.emailSubject || null,
-      forms: info.docs.map((d) => ({ docId: d.id, name: formNameFromFile(d.name), pageCount: d.pageCount, placed: d.placed, library: null })),
+      forms: todo.map((d) => ({ docId: d.id, name: formNameFromFile(d.name), pageCount: d.pageCount, placed: d.placed, library: null })),
       textLines: lines.length ? lines : null,
+      note: done ? `${done} of this packet's documents ${done > 1 ? "are" : "is"} set up already and stay${done > 1 ? "" : "s"} as ${done > 1 ? "they are" : "it is"}. These ${todo.length > 1 ? `${todo.length} are` : "one is"} new.` : null,
     });
     return;
   }
