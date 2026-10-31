@@ -30,7 +30,7 @@ export const ENUMS = {
   // Finish draft in the panel, or the one-click draft. "labels": not a failed draft — a
   // form placed from its printed labels that got no blocks (autoplace.js placeOutcome).
   // "import": Real Signature refusing a template made by Import templates (Settings).
-  // "on-draft": Auto place on a draft the agent uploaded in Real Signature (ondraft.js).
+  // "on-draft": Auto place on a document the agent uploaded in Real Signature (ondraft.js).
   step: ["handoff", "context", "create", "one-click", "labels", "import", "on-draft"],
   // What kind of failure. The receiving end alerts on some and only logs others (signed-out
   // and network are the agent's connection, not a bug).

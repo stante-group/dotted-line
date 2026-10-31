@@ -6,8 +6,9 @@
   <style>
     /* Dotted Line's look (Dan, 2026-10-30: "is this the best visual design you can come up
        with?"). Paper and pen: white paper, navy-ink text, one ballpoint blue for everything
-       you can press. The one flourish is the name, signed on a dotted line under a "×"
-       sign-here mark; everything else stays quiet. System fonts only: an extension loads
+       you can press. The one flourish is the name, signed on a dotted line; everything
+       else stays quiet. No "×" sign-here mark beside it (Dan, 2026-10-31): in a popup's
+       corner it reads as a close button that doesn't close. System fonts only: an extension loads
        nothing from the web. */
     :root {
       --ink: #1a2233; --muted: #5d6678; --faint: #8b93a3;
@@ -20,7 +21,6 @@
     /* The name, signed on the line. */
     header.brand { display: flex; align-items: flex-end; gap: 8px; padding: 0 0 6px; margin: 0 0 14px;
       border-bottom: 2px dotted var(--dots); }
-    header.brand .x { color: var(--pen); font: 600 15px/1 system-ui, sans-serif; padding-bottom: 4px; }
     header.brand h1 { margin: 0; font: italic 400 21px/1.1 Georgia, "Times New Roman", serif; letter-spacing: .005em; color: var(--ink); }
     header.brand .end { margin-left: auto; padding-bottom: 2px; }
 
@@ -185,7 +185,6 @@
 </head>
 <body>
   <header class="brand">
-    <span class="x" aria-hidden="true">×</span>
     <h1>Dotted Line</h1>
     <span id="settings-wrap" class="end"><button id="open-settings" class="icon" type="button" aria-label="Settings" title="Settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></button></span>
   </header>
