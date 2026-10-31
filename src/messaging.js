@@ -31,7 +31,8 @@ export async function sendToTab(tabId, msg) {
   }
   if (r?.error) {
     throw new Error(NOT_LISTENING.test(r.error)
-      ? "Reload this tab once (the extension was installed or updated after it opened)." : r.error);
+      // Save first: WEBForms has no auto-save, so a reload mid-edit loses the edit.
+      ? "Save your changes on this page, then reload this tab once (the extension was installed or updated after it opened)." : r.error);
   }
   return r;
 }

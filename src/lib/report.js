@@ -84,7 +84,7 @@ const OUR_CODES = [
   [/didn't come back as a PDF/, "not-pdf"],
   [/came back as a fillable PDF/, "fillable-pdf"],
   [/hand-off has expired/, "handoff-expired"],
-  [/Reload (this|your Real Signature) tab once/, "stale-tab"],
+  [/[Rr]eload (this|your Real Signature) tab once/, "stale-tab"],
   [/no longer in your open deals/, "deal-gone"],
   [/Pick a template \(or none\)/, "template-missing"],
   [/Couldn't find the agent you're acting for/, "acting-no-deals"],

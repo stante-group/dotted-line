@@ -66,6 +66,7 @@ test("our own messages become codes — the form and template names in them don'
     ['"Agreement of Purchase and Sale - Jordan Sample" didn\'t come back as a PDF.', "not-pdf", "ours"],
     ["This hand-off has expired. Start again from WEBForms.", "handoff-expired", "interrupted"],
     ["Reload this tab once (the extension was installed or updated after it opened).", "stale-tab", "interrupted"],
+    ["Save your changes on this page, then reload this tab once (the extension was installed or updated after it opened).", "stale-tab", "interrupted"],
     ["reZEN's deal list changed shape", "changed-shape", "changed-shape"],
     ["Real Signature sign-in expired", "unknown", "signed-out"],
     ["Failed to fetch", "unknown", "network"],

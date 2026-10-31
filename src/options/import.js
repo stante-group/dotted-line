@@ -48,7 +48,7 @@ async function toRealSignature(msg) {
   if (!tabs.length) throw new Error("Open Real Signature in a tab first (signed in), then try again.");
   for (const t of tabs) {
     try { return await sendToTab(t.id, msg); }
-    catch (e) { if (!/Reload this tab once/.test(String(e?.message))) throw e; }
+    catch (e) { if (!/[Rr]eload this tab once/.test(String(e?.message))) throw e; }
   }
   throw new Error("Reload your Real Signature tab once (the extension was updated after it opened), then try again.");
 }
