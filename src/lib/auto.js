@@ -130,7 +130,7 @@ export function planDraft({ job, c, remembered = {}, agentMode = "one" }) {
     for (const n of actingNotes({ me: c.me, deal, webformsUserName: job.webformsUserName, webformsUserEmail: job.webformsUserEmail })) {
       if (n.level === "warn") needs.push(n.text);
     }
-    if (signersWithoutEmail(deal, counts).length) needs.push("A client on this deal has no email in reZEN.");
+    if (signersWithoutEmail(deal, counts).length) needs.push("A client on this deal has no email or no name in reZEN.");
   }
 
   // Same default as the panel's box: the agent signs when a picked template has agent

@@ -790,7 +790,7 @@ function updateDeal() {
     const n = { BUYER: Number($("rs-buyers").value) || 0, SELLER: Number($("rs-sellers").value) || 0 };
     for (const p of signersWithoutEmail(deal, n)) {
       const who = `${p.role === "BUYER" ? "Buyer" : "Seller"} ${p.slot}${p.name ? ` (${p.name})` : ""}`;
-      notes.push(`${who} has no email in reZEN, so they're left off — add them in Real Signature before sending.`);
+      notes.push(`${who} has no ${p.noName ? "name" : "email"} in reZEN, so they're left off — add them in Real Signature before sending.`);
     }
   } else if (id === "none") {
     // No reZEN deal: the signers come from the WEBForms deal's Contacts when they have emails.
@@ -800,7 +800,7 @@ function updateDeal() {
     if (filled) {
       notes.push({ level: "info", text: `${filled === 1 ? "1 signer is" : `${filled} signers are`} filled in from the WEBForms Contacts.` });
       for (const p of signersWithoutEmail(people, n)) {
-        notes.push(`${p.role === "BUYER" ? "Buyer" : "Seller"} ${p.slot}${p.name ? ` (${p.name})` : ""} has no email in WEBForms, so they're left off — add them in Real Signature before sending.`);
+        notes.push(`${p.role === "BUYER" ? "Buyer" : "Seller"} ${p.slot}${p.name ? ` (${p.name})` : ""} has no ${p.noName ? "name" : "email"} in WEBForms, so they're left off — add them in Real Signature before sending.`);
       }
     } else {
       // Real's own Transaction step attaches a deal but doesn't fill in its clients on a draft

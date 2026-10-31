@@ -94,10 +94,14 @@ export function summarizeDeal(t, { listing = false } = {}) {
     agentName: trim(t.transactionOwner?.name),
     ownerId: t.transactionOwner?.id ?? null,
     mlsNum: trim(t.mlsNum),
+    // A client can be a company: reZEN then has its name in `company` and no first or last
+    // name (2026-10-31: a buyer like that went to Real Signature with a blank name, and it
+    // refused the whole packet). The company's name is the signer's name.
     participants: (t.participants || []).map((p) => ({
       role: p.participantRole,
       firstName: trim(p.firstName),
       lastName: trim(p.lastName),
+      company: trim(p.company),
       email: trim(p.emailAddress),
     })),
   };
@@ -133,6 +137,7 @@ export function summarizeBuyerRecord(r) {
       role: p.role,
       firstName: trim(p.firstName),
       lastName: trim(p.lastName),
+      company: trim(p.entityName),
       email: trim(p.emailAddress),
     })),
   };

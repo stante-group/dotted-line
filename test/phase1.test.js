@@ -489,6 +489,21 @@ test("signers without an email are left off (Real refuses a blank one) and named
     { role: "BUYER", slot: 1, name: "Jordan Sample" }, { role: "SELLER", slot: 1, name: "Casey Placeholder" }]);
 });
 
+test("a company client signs under the company's name; one with no name at all is left off", () => {
+  // reZEN keeps a company buyer's name in `company`, with no first or last name (2026-10-31:
+  // the blank name made Real Signature refuse the packet).
+  const deal = summarizeDeal({ id: "t1", address: { oneLine: "120 Example Street NW" }, participants: [
+    { participantRole: "BUYER", company: " Example Holdings Ltd. ", emailAddress: "office@example.com" },
+    { participantRole: "BUYERS_AGENT", firstName: "Sam", lastName: "Agent", emailAddress: "sam@example.com" },
+    { participantRole: "SELLER", emailAddress: "seller@example.com" },
+  ] });
+  const counts = { BUYER: 1, SELLER: 1 };
+  assert.deepEqual(signeesFromDeal(deal, counts).map((s) => [s.signeeType, s.name, s.email]),
+    [["BUYER", "Example Holdings Ltd.", "office@example.com"]]);
+  assert.deepEqual(signersWithoutEmail(deal, counts), [{ role: "SELLER", slot: 1, name: "", noName: true }]);
+  assert.equal(signeesFromDeal(deal, counts).every((s) => s.name), true);
+});
+
 test("draft body without a template still names the signers and carries no blocks", () => {
   const body = buildDraftBody({ draft: { id: "x", name: "x", type: "USER_PDF", pagesCount: null, defaults: null },
     layout: null, name: "Addendum", pageCount: 1, transactionId: null, counts: { BUYER: 1, SELLER: 0 }, signees: [], sender: { email: "alex@example.com" } });
