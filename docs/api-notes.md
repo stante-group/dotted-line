@@ -42,6 +42,14 @@ Real's UI has no "packet" choice at upload: each PDF uploads as its own one-time
   each a full document template (`fieldDefinitions`, `signeeConfigs`, `defaults`, …). The
   packet has no `defaults` of its own; where the packet-level deal is stored is not yet
   observed (likely each document's `defaults.transactionId`).
+- **Observed 2026-10-30:** the packet's Edit details saves the signers on each document
+  (`defaults.signees`, as a single draft's does), and a member document carries
+  `oneTimeUsePacket: true` (a flag, not the packet's id). `PUT /document-templates/{id}`
+  on a member keeps it in the packet, so Auto place works per document from the packet's
+  steps. Real won't send a member alone: Next on its own steps answers "The document you
+  are trying to send is associated with a packet. Please send the packet instead."
+- Clicking a packet's name on the Drafts list opens `/view/packet/{id}?oneTimeUse=true`,
+  which has no actions; its **Edit** opens the steps at `/one-time-documents/packet/{id}`.
 - Other routes in the app's client: `PUT /packet-templates/{id}`,
   `POST /packet-templates/{id}/document-templates` (add documents),
   `POST /packet-templates/draft`, `/clone`, `/from-packet`, `/share/*`,
@@ -219,6 +227,31 @@ role (Buyer 1, Seller 1, Sellers Agent 1); Edit details says "Number of Signees:
 Next greyed out until all are filled, and **Add Signees** has a row per role — the blocks
 stay. The packet box's name quirk (above) shows here too: the agent's name lands in the
 Buyer row.
+
+### Reading a draft's PDF back (observed 2026-10-30, on an invented test draft)
+
+For "Auto place this draft": the agent uploads in Real Signature as usual, then the
+extension reads the PDF back and places blocks on that draft.
+
+- `GET /document-templates/{id}` carries **no** link to the file: `renderMode: IMAGES`,
+  `hasImages`, `pagesCount: null`, `defaults: null` straight after upload.
+- `GET /document-templates/{id}/file-url` → `200 {url, attachmentUrl}`. `url` is a presigned
+  S3 GET on `prod-signature-files.s3.amazonaws.com`, `X-Amz-Expires=3600`.
+- Fetched from the Real Signature page, that URL returned the **uploaded PDF byte for byte**
+  (1,696 of 1,696 bytes, `%PDF-1.4`, text intact). S3's CORS allowed the page's origin, so
+  the content script (which already runs on the page's origin) can read it with no new host
+  permission. Not yet tried: a fetch from the service worker, which would need one.
+- Found in the app's client, not yet called: `/documents/{id}/download-url`,
+  `/documents/{id}/document-template/file-url` and `/documents/{id}/sent-file-urls` (sent
+  documents), and `/packets/{id}/download-urls` (sent packets). All are read-only, but sent
+  documents are out of scope.
+- A one-time document's steps (Transaction → Edit details → Prepare → Review) all stay at
+  `/one-time-documents/document/{id}`. **Edit details' Next saves** `defaults.signees`
+  (name, email, signeeType, signeeIndex, signOrder), `defaults.sender` and `signeeConfigs`
+  (one per role named) to the draft; `fieldDefinitions` stay empty and `pagesCount` stays
+  null until blocks are placed (Skip on Transaction leaves `transactionId: null`).
+- `report.js` keeps only known route words and blanks the rest, so add `file-url` to
+  `ROUTE_WORDS` with the call, or error reports show that route as `{id}`.
 
 ### Other routes the app's client has (not yet observed)
 

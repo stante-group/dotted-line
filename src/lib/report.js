@@ -29,7 +29,9 @@ export const ENUMS = {
   // Where it failed: the WEBForms → Real Signature hand-off, loading deals and templates,
   // Finish draft in the panel, or the one-click draft. "labels": not a failed draft — a
   // form placed from its printed labels that got no blocks (autoplace.js placeOutcome).
-  step: ["handoff", "context", "create", "one-click", "labels"],
+  // "import": Real Signature refusing a template made by Import templates (Settings).
+  // "on-draft": Auto place on a document the agent uploaded in Real Signature (ondraft.js).
+  step: ["handoff", "context", "create", "one-click", "labels", "import", "on-draft"],
   // What kind of failure. The receiving end alerts on some and only logs others (signed-out
   // and network are the agent's connection, not a bug).
   cls: ["signed-out", "network", "rejected", "forbidden", "not-found", "real-server", "changed-shape", "interrupted", "ours"],
@@ -41,7 +43,8 @@ export const ENUMS = {
     "pdf-locked", "pdf-unreadable", "no-text", "fonts", "no-labels"],
   site: ["real-signature", "webforms", "none"],
   err: ["Error", "TypeError", "RangeError", "SyntaxError", "ReferenceError", "DOMException", "NotSignedIn", "other"],
-  path: ["one-click", "panel"],
+  // "draft": Auto place on a draft uploaded in Real Signature, not a WEBForms hand-off.
+  path: ["one-click", "panel", "draft"],
   wf: ["same", "own-corp", "different", "unknown", "none"],
   // none-default: No deal because nothing came close (auto.js confidentDeal), not picked.
   deal: ["address", "name", "picked", "none", "none-default"],
@@ -81,7 +84,7 @@ const OUR_CODES = [
   [/didn't come back as a PDF/, "not-pdf"],
   [/came back as a fillable PDF/, "fillable-pdf"],
   [/hand-off has expired/, "handoff-expired"],
-  [/Reload (this|your Real Signature) tab once/, "stale-tab"],
+  [/[Rr]eload (this|your Real Signature) tab once/, "stale-tab"],
   [/no longer in your open deals/, "deal-gone"],
   [/Pick a template \(or none\)/, "template-missing"],
   [/Couldn't find the agent you're acting for/, "acting-no-deals"],
@@ -102,6 +105,7 @@ const ROUTE_WORDS = new Set([
   "participant", "listing-transactions", "OPEN", "buyer-record", "api", "systems",
   "GetPopulatedGlobalJson", "Basic", "transactioncontacts", "index", "forms", "single",
   "formeditor", "formfields", "Transfer", "CreateDownloadRequest", "downloadmany",
+  "file-url", "one-time-templates",
 ]);
 
 /** "/document-templates/ec2d…" → "/document-templates/{id}". */

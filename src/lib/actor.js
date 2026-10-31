@@ -177,7 +177,11 @@ export function setupReport({ rs, wf }) {
     );
   }
   lines.push(`WEBForms signed in: ${yn(wf?.signedIn)}`);
-  if (wf?.signedIn && rs?.signedIn) lines.push(`Same person in both: ${yn(wf.samePerson)}`);
+  // wf.match: the panel's own comparison (wfMatch), so an agent whose WEBForms account is
+  // their personal real estate corporation reads as themselves here too, as in the panel
+  // since 0.1.1 (issue #2). wf.samePerson: the email-only answer, from before.
+  const same = { same: "yes", "own-corp": "yes (own corporation)", different: "no" }[wf?.match] ?? yn(wf?.samePerson);
+  if (wf?.signedIn && rs?.signedIn) lines.push(`Same person in both: ${same}`);
   lines.push(`Delegation verified in this version: ${yn(DELEGATION_VERIFIED)}`);
   return lines.join("\n");
 }

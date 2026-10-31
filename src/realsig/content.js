@@ -14,7 +14,7 @@ let ctx = null; // { rs, lib, me, templates: Map, deals: Map } — this tab's li
 
 async function load() {
   const lib = {};
-  for (const p of ["realsig-api.js", "layout.js", "deals.js", "draft.js", "actor.js", "pdf.js", "pdftext.js", "autoplace.js"]) {
+  for (const p of ["realsig-api.js", "layout.js", "deals.js", "draft.js", "actor.js", "pdf.js", "pdftext.js", "autoplace.js", "ondraft.js"]) {
     Object.assign(lib, await import(chrome.runtime.getURL(`src/lib/${p}`)));
   }
   return lib;
@@ -136,6 +136,51 @@ async function setup() {
   };
 }
 
+/** One form's draft body: its blocks (a template, Auto place, or none), the deal, the
+ *  signers and the agent. The same for a form from WEBForms and for a PDF the agent uploaded
+ *  in Real Signature (setupDraft), so both make the same draft. */
+async function formBody(c, { draft, bytes, templateId, counts, agentChoice, deal, agentSide = null,
+  webformsUserName = null, webformsUserEmail = null, name, pageCount, signees, sender, emailSubject }) {
+  const { rs, lib } = c;
+  let layout = null;
+  // "auto": blocks from the form's printed labels. Nothing recognised → no blocks, as
+  // with No template; the agent places them in Real Signature.
+  const auto = templateId === "auto";
+  if (auto) {
+    const found = lib.autoLayout(await lib.readPdfText(bytes).catch(() => [])).layout;
+    if (found) layout = lib.dropUnusedSlots(found, counts);
+  } else if (templateId) {
+    const t = c.templates.get(templateId)?.t || (await rs.getTemplate(templateId));
+    layout = lib.dropUnusedSlots(lib.stripTemplate(t), counts);
+  }
+  // The agent signs this form only if its template has an agent slot, or it has no
+  // template (blocks placed by hand); see agentRoleFor.
+  let agents = null;
+  if (agentChoice) {
+    // Placed blocks carry no agent side of their own: decide it as with No template.
+    // With no agent line on the form, the agent isn't added to it (as for a template
+    // without agent blocks).
+    const role = auto && !lib.placedSummary(layout).agent ? null
+      : lib.agentRoleFor({ layout: auto ? null : layout, counts, dealSide: deal?.side || agentSide });
+    const people = role ? lib.chooseAgents(lib.agentPeople({ deal, role, me: c.me, webformsUserName, webformsUserEmail }), agentChoice) : [];
+    if (people.length) agents = { signeeType: role, people };
+  }
+  // Placed blocks: the signing agent's lines stay, the other side's agent lines go, and
+  // every signer the counts ask for is set up even where the form had no line for them.
+  if (auto && layout) {
+    layout = lib.withSigners(lib.forAgent(lib.forClients(layout, counts), agents?.signeeType ?? null), counts);
+    if (!layout.fieldDefinitions.length) layout = null;
+  }
+  return lib.buildDraftBody({
+    draft, layout, name,
+    // A Buyer Record gives the buyers; whether a draft can be attached to one is untested.
+    pageCount, transactionId: deal?.kind === "buyer" && !lib.BUYER_RECORDS_ATTACH ? null : deal?.id, counts, signees, sender, agents,
+    // From the panel (the title, the agent's pattern, or null = Real's own). A packet has
+    // no settings of its own, so every document carries the same subject.
+    emailSubject,
+  });
+}
+
 const fileName = (name) => `${String(name).replace(/\.pdf$/i, "").replace(/[\\/:*?"<>|]+/g, "_")}.pdf`;
 
 // agentChoice: null = don't add the agent; "all" = every agent on the deal; else the email
@@ -165,43 +210,11 @@ async function create({ jobId, title, dealId, templateIds, counts, agentChoice =
       if (!up?.id) throw Object.assign(new Error("Real Signature's upload answer changed shape"), { leftover: true });
       created.push(up.id);
       const draft = await timed("readBack", rs.getTemplate(up.id));
-      let layout = null;
-      // "auto": blocks from the form's printed labels. Nothing recognised → no blocks, as
-      // with No template; the agent places them in Real Signature.
-      const auto = templateIds[i] === "auto";
-      if (auto) {
-        const found = lib.autoLayout(await lib.readPdfText(lib.fromBase64(form.pdfBase64)).catch(() => [])).layout;
-        if (found) layout = lib.dropUnusedSlots(found, counts);
-      } else if (templateIds[i]) {
-        const t = c.templates.get(templateIds[i])?.t || (await rs.getTemplate(templateIds[i]));
-        layout = lib.dropUnusedSlots(lib.stripTemplate(t), counts);
-      }
-      // The agent signs this form only if its template has an agent slot, or it has no
-      // template (blocks placed by hand); see agentRoleFor.
-      let agents = null;
-      if (agentChoice) {
-        // Placed blocks carry no agent side of their own: decide it as with No template.
-        // With no agent line on the form, the agent isn't added to it (as for a template
-        // without agent blocks).
-        const role = auto && !lib.placedSummary(layout).agent ? null
-          : lib.agentRoleFor({ layout: auto ? null : layout, counts, dealSide: deal?.side || job.agentSide });
-        const people = role ? lib.chooseAgents(lib.agentPeople({ deal, role, me: c.me, webformsUserName: job.webformsUserName, webformsUserEmail: job.webformsUserEmail }), agentChoice) : [];
-        if (people.length) agents = { signeeType: role, people };
-      }
-      // Placed blocks: the signing agent's lines stay, the other side's agent lines go, and
-      // every signer the counts ask for is set up even where the form had no line for them.
-      if (auto && layout) {
-        layout = lib.withSigners(lib.forAgent(lib.forClients(layout, counts), agents?.signeeType ?? null), counts);
-        if (!layout.fieldDefinitions.length) layout = null;
-      }
-      const body = lib.buildDraftBody({
-        draft, layout,
+      const body = await formBody(c, {
+        draft, bytes: lib.fromBase64(form.pdfBase64), templateId: templateIds[i], counts, agentChoice, deal,
+        agentSide: job.agentSide, webformsUserName: job.webformsUserName, webformsUserEmail: job.webformsUserEmail,
         name: job.forms.length > 1 ? String(form.name).replace(/\.pdf$/i, "") : title,
-        // A Buyer Record gives the buyers; whether a draft can be attached to one is untested.
-        pageCount: form.pageCount, transactionId: deal?.kind === "buyer" && !lib.BUYER_RECORDS_ATTACH ? null : deal?.id, counts, signees, sender, agents,
-        // From the panel (the title, the agent's pattern, or null = Real's own). A packet has
-        // no settings of its own, so every document carries the same subject.
-        emailSubject,
+        pageCount: form.pageCount, signees, sender, emailSubject,
       });
       for (const r of lib.unfilledRoles(body)) unfilled.add(r);
       await timed("save", rs.putDraft(up.id, body));
@@ -254,6 +267,117 @@ async function importTemplate({ pdfBase64, template }) {
   }
   ctx = null; // the panel's next look lists the new template
   return { id: up.id, url: `/prepare/${up.id}` };
+}
+
+// Auto place on a draft the agent uploaded in Real Signature (src/lib/ondraft.js). Only
+// the one draft this tab is on, read and saved; nothing else is touched.
+const client = (lib) => new lib.RealSignature({ getToken: () => lib.readToken(document.cookie), getActingAs: () => lib.readActingAs(document.cookie) });
+
+/** What the panel needs before the click. Signers already named (Edit details done): their
+ *  counts only, for blocks on Prepare. Nobody yet: the PDF's text lines (the panel looks
+ *  for each deal's address in them) and what Auto place would find — for setting the whole
+ *  draft up, as from WEBForms. The text stays in this browser, like a WEBForms hand-off. */
+async function draftRead({ id }) {
+  const lib = await load();
+  const rs = client(lib);
+  const d = await rs.getTemplate(id);
+  if (!d || !Array.isArray(d.fieldDefinitions)) throw new Error("Real Signature's draft changed shape");
+  if (d.oneTimeUse === false) return { template: true }; // a reusable template, not a draft
+  const who = lib.draftSigners(d);
+  // A deal already picked on Real's own Transaction step (it saves transactionId on Next)
+  // comes first in the panel, so the panel never quietly swaps it for another.
+  // inPacket: a packet's document. Its deal, subject and signers are the packet's (its own
+  // steps), and Real sends it only with the packet: "associated with a packet. Please send
+  // the packet instead" (Dan's test, 2026-10-30). So blocks only, never the whole setup.
+  const out = { name: d.name, transactionId: d.defaults?.transactionId || null, emailSubject: d.defaults?.emailSubject || null, signers: who ? { counts: who.counts, agentRole: who.agentRole } : null, blocks: blockCount(d), inPacket: d.oneTimeUsePacket === true };
+  if (who || out.blocks || out.inPacket) return out;
+  const bytes = await rs.draftPdf(id);
+  if (!lib.isPdf(bytes)) throw new Error("the draft's file isn't a PDF");
+  let pages = null, error = null;
+  try { pages = await lib.readPdfText(bytes); } catch (e) { error = e; }
+  const found = pages ? lib.autoLayout(pages).layout : null;
+  return {
+    ...out,
+    pageCount: pages?.length ?? lib.countPages(bytes) ?? null,
+    lines: (pages || []).flatMap((p) => lib.toLines(p.items).map((l) => l.text)),
+    placed: { ...lib.placedSummary(found), outcome: lib.placeOutcome({ pages, error, blocks: found?.fieldDefinitions?.length || 0 }) },
+  };
+}
+
+/** A packet draft's documents, for the panel on the packet's own steps
+ *  (/one-time-documents/packet/{id}): each with its signers and blocks, as draftRead. */
+async function packetRead({ id }) {
+  const lib = await load();
+  const p = await client(lib).getPacketDraft(id);
+  if (!p || !Array.isArray(p.documentTemplates)) throw new Error("Real Signature's packet changed shape");
+  if (p.oneTimeUse === false) return { template: true }; // a reusable packet, not a draft
+  return {
+    name: p.name,
+    docs: p.documentTemplates.map((d) => {
+      const who = lib.draftSigners(d);
+      return { id: d.id, name: String(d.name || "Document"), signers: who ? { counts: who.counts, agentRole: who.agentRole } : null, blocks: blockCount(d) };
+    }),
+  };
+}
+
+/** Uploads not set up yet, for the panel on the Drafts list: single documents, newest
+ *  first, with nobody named (defaults null or no signers) and made in the last week. */
+async function recentUploads() {
+  const lib = await load();
+  const r = await client(lib).listOneTimeDrafts({ size: 20 });
+  if (!r || !Array.isArray(r.data)) throw new Error("Real Signature's draft list changed shape");
+  return lib.newUploads(r.data);
+}
+
+/** The whole draft from the panel's choices — deal, signers, agent, blocks, subject — in
+ *  one save, as rs:create does for a WEBForms form. Only on a draft nobody has set up yet:
+ *  signers or blocks already there are the agent's work, and a full replace would lose
+ *  them (Prepare's Auto place adds to them instead). Never deletes the agent's draft, even
+ *  on failure: it was theirs before Dotted Line touched it. */
+async function setupDraft({ id, title, dealId, templateId, counts, agentChoice = null, emailSubject = null }) {
+  const c = await context();
+  const { rs, lib } = c;
+  const deal = dealId ? c.deals.get(dealId) : null;
+  if (dealId && !deal) throw new Error("That deal is no longer in your open deals.");
+  const draft = await rs.getTemplate(id);
+  if (lib.draftSigners(draft) || blockCount(draft)) {
+    throw new Error("This draft already has signers or blocks. Use Auto place on the Prepare step to add blocks to it.");
+  }
+  const bytes = await rs.draftPdf(id);
+  if (!lib.isPdf(bytes)) throw new Error("the draft's file isn't a PDF");
+  const body = await formBody(c, {
+    draft, bytes, templateId, counts, agentChoice, deal, name: title,
+    pageCount: draft.pagesCount ?? lib.countPages(bytes) ?? null,
+    signees: lib.signeesFromDeal(deal || { participants: [] }, counts), sender: lib.senderFor(c.me, deal), emailSubject,
+  });
+  const unfilled = lib.unfilledRoles(body);
+  await rs.putDraft(id, body);
+  // A role nobody fills: a packet of one, as rs:create does — a single document's Edit
+  // details would delete that role's blocks (see create()).
+  if (unfilled.length) {
+    const p = await rs.createPacketDraft(title, [id]);
+    if (!p?.id) throw new Error("Real Signature's packet answer changed shape. Check your Drafts: the draft is set up, but may not be in a packet");
+    return { url: `/one-time-documents/packet/${p.id}`, drafts: 1, packet: true, unfilled };
+  }
+  return { url: `/one-time-documents/document/${id}`, drafts: 1, packet: false };
+}
+
+async function placeDraft({ id, side = null }) {
+  const lib = await load();
+  const rs = client(lib);
+  const draft = await rs.getTemplate(id);
+  if (!lib.draftSigners(draft)) throw new Error("Add who signs in Real Signature first (Edit details), then try again on the Prepare step.");
+  const bytes = await rs.draftPdf(id);
+  if (!lib.isPdf(bytes)) throw new Error("the draft's file isn't a PDF");
+  let pages = null, error = null;
+  try { pages = await lib.readPdfText(bytes); } catch (e) { error = e; }
+  const found = pages ? lib.autoLayout(pages).layout : null;
+  const placed = lib.placeOnDraft(draft, found, pages?.length ?? lib.countPages(bytes), side);
+  if (placed.needSide) return { needSide: true, counts: lib.draftSigners(draft).counts };
+  const { body, added, skipped } = placed;
+  // Nothing new: no save, so a draft that can't be placed is left exactly as it was.
+  if (added) await rs.putDraft(id, body);
+  return { added, skipped, outcome: lib.placeOutcome({ pages, error, blocks: found?.fieldDefinitions?.length || 0 }) };
 }
 
 /** Open Real's own "Acting as" menu (bottom left), so the TC can pick another agent. Opens
@@ -336,6 +460,11 @@ chrome.runtime.onMessage.addListener((msg, _sender, reply) => {
     "rs:setup": setup,
     "rs:import-template": () => importTemplate(msg),
     "rs:create": () => create(msg),
+    "rs:draft-read": () => draftRead(msg),
+    "rs:recent-uploads": recentUploads,
+    "rs:packet-read": () => packetRead(msg),
+    "rs:setup-draft": () => setupDraft(msg),
+    "rs:place-draft": () => placeDraft(msg),
   }[msg.type];
   if (!run) return false;
   run().then(reply, (e) => reply({ error: String(e?.message || e) }));

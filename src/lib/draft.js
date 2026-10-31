@@ -16,8 +16,10 @@ export function countsFromDeal(deal) {
 // Forms that only one side ever signs, by WEBForms form name. Deliberately narrow: a
 // purchase contract, amendment or waiver can be signed by either side (or both, in dual),
 // so those give no clue and fall through to the deal.
-const SELLER_FORM = /\b(sellers?'?s?|vendors?'?s?|listing|property disclosure)\b/i;
-const BUYER_FORM = /\b(buyers?'?s?|purchasers?'?s?)\b/i;
+// A lease's tenant is the buyer's side and its landlord the seller's (Real Signature has only
+// buyers and sellers): "Commercial Exclusive Tenant Representation Agreement".
+const SELLER_FORM = /\b(sellers?'?s?|vendors?'?s?|listing|property disclosure|landlords?'?s?|lessors?'?s?)\b/i;
+const BUYER_FORM = /\b(buyers?'?s?|purchasers?'?s?|tenants?'?s?|lessees?'?s?)\b/i;
 
 /** "BUYER" / "SELLER" if the one-sided forms all point the same way, else null. A form that
  *  names neither side (a Consumer Relationships Guide) gives no clue and is skipped — it
@@ -98,9 +100,8 @@ export function signerCounts({ deal, formNames, templates = [], webforms = [], a
 
   // How many on a signing side: the names typed on the form when there are any (Dan,
   // 2026-10-14: "if we can read the number of buyers or sellers on the form, set to that
-  // number. if we can't read them, default to 2"). Only when the form names nobody on that
-  // side does the old rule apply: the most of the deal's people, the template's slots and
-  // MIN_SIGNERS.
+  // number. if we can't read them, default to 2"). Then the picked deal's own clients.
+  // Only when neither names anybody on that side: the template's slots or MIN_SIGNERS.
   const counts = {};
   const notes = [];
   for (const role of SIGNER_ROLES) {
@@ -112,8 +113,17 @@ export function signerCounts({ deal, formNames, templates = [], webforms = [], a
       notes.push(`${fromForms} ${who}${fromForms === 1 ? "" : "s"} named in WEBForms`);
       continue;
     }
+    // Next, the deal the agent picked: it lists its clients, so its count is better than a
+    // guess (Dan, 2026-10-31: a deal with one buyer, a commercial form whose names we can't
+    // read, and the panel said 2). A template with more slots loses the spare's blocks, as
+    // with names read off the form.
+    if (n[role] > 0) {
+      counts[role] = n[role];
+      notes.push(`${n[role]} ${who}${n[role] === 1 ? "" : "s"} on the reZEN deal`);
+      continue;
+    }
     const fromTemplates = Math.max(0, ...templates.map((x) => x[role] || 0));
-    const base = Math.max(MIN_SIGNERS, n[role]);
+    const base = MIN_SIGNERS;
     counts[role] = Math.max(base, fromTemplates);
     notes.push(fromTemplates > base ? `no ${who}s named in WEBForms, and your template has blocks for ${fromTemplates}`
       : `no ${who}s named in WEBForms, so ${counts[role]}`);
@@ -129,14 +139,25 @@ export function signerCounts({ deal, formNames, templates = [], webforms = [], a
 export const isEmail = (s) => /^[^\s@<>()[\],;:"]+@[^\s@<>()[\],;:"]+\.[a-z]{2,}$/i.test(String(s ?? "").trim());
 const hasEmail = (p) => isEmail(p.email);
 
+/** A signer's name: the person's, or the company's when the client is a company (reZEN's
+ *  `company`, a Buyer Record's `entityName`). "" when reZEN has neither. */
+export const personName = (p) => [p.firstName, p.lastName].filter(Boolean).join(" ") || String(p.company ?? "").trim();
+/** Real Signature takes a signer only with an email and a name: a blank one refuses the whole
+ *  draft ("defaults.signees[0].name: must not be blank", 2026-10-31). */
+const canSign = (p) => hasEmail(p) && !!personName(p);
+
 /** Deal signers Real Signature can't take yet: reZEN often has a buyer or seller with no
  *  email, and Real refuses the whole draft ("defaults.signees[n].email: must not be blank",
- *  2026-10-11). They're left out; the panel names them so the agent adds them by hand. */
+ *  2026-10-11); the same for no name at all. They're left out; the panel names them so the
+ *  agent adds them by hand. `noName` marks one with an email but no name. */
 export function signersWithoutEmail(deal, counts) {
   const out = [];
   for (const role of SIGNER_ROLES) {
     (deal?.participants || []).filter((p) => p.role === role).slice(0, counts[role] ?? 0)
-      .forEach((p, i) => { if (!hasEmail(p)) out.push({ role, slot: i + 1, name: [p.firstName, p.lastName].filter(Boolean).join(" ") }); });
+      .forEach((p, i) => {
+        if (!hasEmail(p)) out.push({ role, slot: i + 1, name: personName(p) });
+        else if (!personName(p)) out.push({ role, slot: i + 1, name: "", noName: true });
+      });
   }
   return out;
 }
@@ -150,10 +171,10 @@ export function signeesFromDeal(deal, counts) {
   const out = [];
   for (const role of SIGNER_ROLES) {
     const people = (deal?.participants || []).filter((p) => p.role === role).slice(0, counts[role] ?? 0);
-    people.forEach((p, i) => hasEmail(p) && out.push({
+    people.forEach((p, i) => canSign(p) && out.push({
       signeeType: role,
       signeeIndex: i,
-      name: [p.firstName, p.lastName].filter(Boolean).join(" "),
+      name: personName(p),
       email: String(p.email).trim(),
       signOrder: 1,
     }));
@@ -203,10 +224,10 @@ const norm = (s) => String(s ?? "").replace(/\s+/g, " ").trim().toLowerCase();
  *  role, the signed-in user if they are an agent and it's theirs. A TC is never put in as
  *  the agent. → [{name, email}] */
 export function agentPeople({ deal, role, me, webformsUserName = null, webformsUserEmail = null }) {
-  const full = (p) => [p.firstName, p.lastName].filter(Boolean).join(" ");
+  const full = personName;
   const seen = new Set();
   const people = (deal?.participants || [])
-    .filter((p) => p.role === role && hasEmail(p))
+    .filter((p) => p.role === role && canSign(p))
     .filter((p) => !seen.has(norm(p.email)) && seen.add(norm(p.email)));
   // Whose forms these are comes first: a team lead impersonating a teammate in WEBForms (or
   // a TC working in an agent's account) is doing that agent's file, even when the signed-in
@@ -322,4 +343,37 @@ export function buildDraftBody({ draft, layout: tpl, name, pageCount, transactio
       emailBody: prev.emailBody ?? null,
     },
   };
+}
+
+// ---- when WEBForms and the deal disagree on how many ----
+
+const people = (n, role) => `${n} ${role === "BUYER" ? "buyer" : "seller"}${n === 1 ? "" : "s"}`;
+const slots = (from, to, role) => {
+  const w = role === "BUYER" ? "Buyer" : "Seller";
+  return from === to ? `${w} ${from}` : `${w}s ${from}–${to}`;
+};
+
+/** The line under the Buyers and Sellers boxes when the forms and the picked deal count a
+ *  side differently (Dan, 2026-10-31). The forms' number is the starting one (signerCounts),
+ *  because a missing signer costs their blocks placed by hand and an extra one is a click
+ *  to delete; the deal's number is one click away, never set for the agent. Shown only
+ *  while the box holds one of the two numbers: a number the agent typed needs no advice.
+ *  → [{role, text, use, useLabel}] */
+export function countDisagreements({ deal, webforms = [], current = {} }) {
+  if (!deal) return [];
+  const fromDeal = countsFromDeal(deal);
+  const out = [];
+  for (const role of SIGNER_ROLES) {
+    const f = Math.max(0, ...webforms.map((x) => x?.[role] || 0)), d = fromDeal[role] || 0, now = current[role];
+    if (!f || !d || f === d) continue;
+    if (now === f) {
+      const more = f > d
+        ? `${slots(d + 1, f, role)} ${f - d === 1 ? "isn't" : "aren't"} on the deal, so you'll add them in Real Signature.`
+        : `${slots(f + 1, d, role)} on the deal ${d - f === 1 ? "is" : "are"} left off.`;
+      out.push({ role, text: `The forms name ${people(f, role)}; the reZEN deal has ${d}. ${more}`, use: d, useLabel: `Use ${d}, as on the deal` });
+    } else if (now === d) {
+      out.push({ role, text: `Using the reZEN deal's ${people(d, role)}; the forms name ${f}.`, use: f, useLabel: `Use ${f}, as on the forms` });
+    }
+  }
+  return out;
 }

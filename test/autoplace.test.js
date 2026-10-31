@@ -6,15 +6,15 @@ import { deflateSync } from "node:zlib";
 import { createHash } from "node:crypto";
 
 import { readPdfText, md5, rc4 } from "../src/lib/pdftext.js";
-import { pageBlocks, autoLayout, forAgent, forClients, withSigners, toLines } from "../src/lib/autoplace.js";
-import { placeOutcome } from "../src/lib/autoplace.js";
+import { pageBlocks, autoLayout, forAgent, forClients, withSigners, toLines, isLease } from "../src/lib/autoplace.js";
+import { placeOutcome, assignSlots } from "../src/lib/autoplace.js";
 
 const enc = (s) => new TextEncoder().encode(s);
 const latin = (u8) => new TextDecoder("latin1").decode(u8);
 
 /** A one-page Helvetica PDF from a content stream; optionally Flate and RC4-locked the way
  *  WEBForms locks its PDFs (Standard handler, R3, 128-bit, empty user password). */
-function makePdf(content, { flate = false, lock = false } = {}) {
+function makePdf(content, { flate = false, lock = false, font = null } = {}) {
   let data = enc(content);
   if (flate) data = new Uint8Array(deflateSync(data));
   const id = enc("0123456789abcdef");
@@ -37,7 +37,7 @@ function makePdf(content, { flate = false, lock = false } = {}) {
     "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
     "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>",
     null, // the content stream
-    "<< /Type /Font /Subtype /Type1 /BaseFont /Courier /Encoding /WinAnsiEncoding >>",
+    ...(font || ["<< /Type /Font /Subtype /Type1 /BaseFont /Courier /Encoding /WinAnsiEncoding >>"]),
   ];
   if (lock) objs.push(`<< /Filter /Standard /V 2 /R 3 /Length 128 /P ${P} /O <${Buffer.from(O).toString("hex")}> /U <${"00".repeat(32)}> >>`);
   const parts = [enc("%PDF-1.4\n")];
@@ -82,6 +82,27 @@ test("reads words and their positions from a plain, a compressed and a locked PD
     assert.equal(sig.w, 19 * 6); // 19 characters × 600/1000 × 10pt
     assert.deepEqual(page.shapes[0], { x1: 72, y1: 120, x2: 300, y2: 120 });
   }
+});
+
+// A Type0 font with no ToUnicode and no cmap, so its codes are glyph numbers: object 6 is
+// the CID font, 1000 units a glyph.
+const glyphFont = (base) => [
+  `<< /Type /Font /Subtype /Type0 /BaseFont /${base} /Encoding /Identity-H /DescendantFonts [6 0 R] >>`,
+  `<< /Type /Font /Subtype /CIDFontType2 /BaseFont /${base} /CIDToGIDMap /Identity /DW 1000
+     /CIDSystemInfo << /Registry (Adobe) /Ordering (Identity) /Supplement 0 >> >>`,
+];
+const glyphHex = (s, shift, quote) => [...s].map((ch) => (ch === " " ? 3 : ch === "\u2019" ? quote : ch.charCodeAt(0) - shift)
+  .toString(16).padStart(4, "0")).join("");
+
+test("glyph-number fonts: the Macintosh order, and Apple's Helvetica Neue four places along", async () => {
+  const label = "Seller\u2019s Signature, 2026/10";
+  for (const [base, shift, quote] of [["ABCDEF+ArialMT", 29, 198], ["OITECW+HelveticaNeue", 25, 187], ["HelveticaNeue-Bold", 25, 187]]) {
+    const [page] = await readPdfText(makePdf(`BT /F1 10 Tf 72 110 Td <${glyphHex(label, shift, quote)}> Tj ET`, { font: glyphFont(base) }));
+    assert.equal(page.items[0]?.str, "Seller's Signature, 2026/10", base);
+  }
+  // Helvetica Neue LT Std is Linotype's, not Apple's: left in the Macintosh order.
+  const [lt] = await readPdfText(makePdf(`BT /F1 10 Tf 72 110 Td <${glyphHex("Signature", 29, 198)}> Tj ET`, { font: glyphFont("HelveticaNeueLTStd-Md") }));
+  assert.equal(lt.items[0]?.str, "Signature");
 });
 
 test("a PDF with a real password is refused, not misread", async () => {
@@ -356,6 +377,13 @@ test("BCFSA remuneration: fake bold read once; licensee and client lines, each w
   ]);
   const f = autoLayout([p]).layout.fieldDefinitions.map((d) => `${d.type} ${d.signeeType} ${d.signeeIndex}`);
   assert.deepEqual(f, ["SIGNED_DATE AGENT 0", "SIGNATURE AGENT 0", "SIGNED_DATE CLIENT 0", "SIGNATURE CLIENT 0"]);
+  // The real form's line is long: room for both clients side by side (one comes off with
+  // a single client, forClients).
+  const long = page([word(`Signature of person/persons to whom disclosure has been made: ${"_".repeat(70)}`, 41, 66, 8)]);
+  const both = autoLayout([long]).layout.fieldDefinitions;
+  assert.deepEqual(both.map((d) => `${d.signeeType} ${d.signeeIndex}`), ["CLIENT 0", "CLIENT 1"]);
+  const [a, b] = both.map((d) => d.fieldLocations[0].position);
+  assert.ok(a[2] < b[0] && a[1] === b[1], "side by side on the one line");
 });
 
 test("BCFSA disclosure of representation: each consumer initials and dates their line (optional on paper)", () => {
@@ -364,4 +392,155 @@ test("BCFSA disclosure of representation: each consumer initials and dates their
   const f = autoLayout([p]).layout.fieldDefinitions;
   assert.deepEqual(f.map((d) => `${d.type} ${d.signeeType} ${d.signeeIndex} x${d.fieldLocations[0].position[0]}`),
     ["INITIALS CLIENT 0 x63", "SIGNED_DATE CLIENT 0 x180", "INITIALS CLIENT 1 x312", "SIGNED_DATE CLIENT 1 x429"]);
+});
+
+test("BC purchase contract footer: BUYER'S and SELLER'S INITIALS, each under its own cells (or a picture of them)", () => {
+  const cells = (x) => [box(x, 83, x + 39, 110), box(x + 39, 83, x + 78, 110), box(x + 78, 83, x + 118, 110)];
+  const label = [word("BUYER’S INITIALS", 45, 72, 10), word("SELLER’S INITIALS", 484, 72, 10)];
+  const f = autoLayout([page(label, [...cells(27), ...cells(467)])]).layout.fieldDefinitions;
+  assert.deepEqual(f.map((d) => `${d.signeeType} ${d.signeeIndex} x${d.fieldLocations[0].position[0]}`),
+    ["BUYER 0 x28", "BUYER 1 x67", "BUYER 2 x106", "SELLER 0 x468", "SELLER 1 x507", "SELLER 2 x546"]);
+  // Subject Removal draws each row of boxes as one picture: three cells centred on the label.
+  const pic = { image: true, x1: 31, y1: 84, x2: 149, y2: 135 };
+  const g = autoLayout([page([word("BUYER’S INITIALS", 47, 75, 11)], [pic])]).layout.fieldDefinitions;
+  assert.equal(g.length, 3);
+  const xs = g.map((d) => d.fieldLocations[0].position);
+  assert.ok(xs.every((p) => p[0] >= 31 && p[2] <= 149 && p[1] >= 84 && p[3] <= 135), JSON.stringify(xs));
+});
+
+test("AREA Notice: Buyer/Seller Signature is the agent's own client, not the seller", () => {
+  const p = page([word("Signed and dated at ________. m. on __________________________________, 20_______.", 40, 323, 9),
+    word("Buyer/Seller Signature", 40, 289, 8), word("Witness Signature", 230, 289, 8)], [rule(38, 210, 300), rule(228, 390, 300)]);
+  const { layout } = autoLayout([p]);
+  assert.deepEqual(layout.fieldDefinitions.filter((d) => d.type === "SIGNATURE").map((d) => `${d.signeeType} ${d.signeeIndex}`), ["CLIENT 0"]);
+  // A buyer's agent: the buyer signs it.
+  assert.deepEqual(forClients(layout, { BUYER: 1 }).fieldDefinitions.filter((d) => d.type === "SIGNATURE").map((d) => d.signeeType), ["BUYER"]);
+});
+
+test("BC Subject Removal: three buyer and three seller lines drawn as one picture above B. APPOINTMENT OF CONVEYANCER", () => {
+  const pic = { image: true, x1: 35, y1: 198, x2: 574, y2: 358 };
+  const f = autoLayout([page([word("B. APPOINTMENT OF CONVEYANCER", 44, 156, 11.5)], [pic])]).layout.fieldDefinitions;
+  assert.deepEqual(f.map((d) => `${d.type} ${d.signeeType} ${d.signeeIndex}`), [
+    "SIGNATURE BUYER 0", "SIGNATURE BUYER 1", "SIGNATURE BUYER 2", "SIGNATURE SELLER 0", "SIGNATURE SELLER 1", "SIGNATURE SELLER 2"]);
+  // Each on its own line, in its own third, left of the SEAL badge. The buyers' boxes reach
+  // a little above the picture, into the blank under "Continued on Page 2".
+  for (const [n, d] of f.entries()) {
+    const [x1, y1, x2, y2] = d.fieldLocations[0].position;
+    const third = 35 + (n % 3) * 539 / 3;
+    assert.ok(x1 >= third && x2 <= third + 539 * 0.3 && y1 >= 198 && y2 <= 358 + 5, JSON.stringify(d.fieldLocations[0].position));
+  }
+  // The heading with no picture above it, or a small one: nothing.
+  assert.equal(autoLayout([page([word("B. APPOINTMENT OF CONVEYANCER", 44, 156, 11.5)], [])]).layout, null);
+  assert.equal(autoLayout([page([word("B. APPOINTMENT OF CONVEYANCER", 44, 156, 11.5)], [{ ...pic, x2: 200 }])]).layout, null);
+});
+
+test("BC multiple offers: (Seller's signature) and (Designated Agent's signature) under lines; signed this___Day of", () => {
+  const p = page([
+    word("Confirmed and signed this___Day of ___________________ Year ________.", 72, 212, 11),
+    word("(Seller's signature)", 72, 159), word("(Listing Brokerage Name)", 329, 159),
+    word("(Seller's signature)", 72, 111), word("(Designated Agent's signature)", 329, 111),
+  ], [rule(71, 281, 176), rule(319, 541, 176), rule(71, 281, 128), rule(319, 541, 128)]);
+  const f = autoLayout([p]).layout.fieldDefinitions.map((d) => `${d.type} ${d.signeeType} ${d.signeeIndex}`);
+  assert.deepEqual(f, ["SIGNED_DATE SELLER 0", "SIGNATURE SELLER 0", "SIGNATURE SELLER 1", "SIGNATURE AGENT 0"]);
+});
+
+test("MREA Listing Contract: lower-case labels alone under their lines, and nothing from off the page", async () => {
+  const [page] = await readPdfText(makePdf([
+    "0 0 0 RG 33 154 m 273 154 l S 33 122 m 273 122 l S 33 90 m 273 90 l S 33 58 m 273 58 l S",
+    "BT /F1 6 Tf 33 147 Td (Seller's signature) Tj ET",
+    "BT /F1 6 Tf 33 115 Td (Seller's signature) Tj ET",
+    "BT /F1 6 Tf 33 83 Td (Witness to Seller's signature) Tj ET",
+    "BT /F1 6 Tf 33 51 Td (Listing Brokerage's representative) Tj ET",
+    // In a sentence, under a line, it's only words.
+    "300 220 m 560 220 l S BT /F1 6 Tf 300 213 Td (signed by the Seller's signature date) Tj ET",
+    // The other half of a two-page spread, drawn 600pt to the right of the page.
+    "656 154 m 896 154 l S BT /F1 6 Tf 656 147 Td (Seller's signature) Tj ET",
+  ].join("\n")));
+  assert.ok(page.items.every((i) => i.x < 612) && page.shapes.every((s) => s.x1 < 612), "off-page text and lines are dropped");
+  const sigs = pageBlocks(page).filter((b) => b.spec.type === "SIGNATURE").map((b) => [b.role, b.x, b.y]);
+  assert.deepEqual(sigs, [["SELLER", 35, 155], ["SELLER", 35, 123], ["AGENT", 35, 59]]);
+});
+
+test("MREA Listing Contract: the date beside Seller 1's line is Seller 1's", async () => {
+  const [page] = await readPdfText(makePdf([
+    "0 0 0 RG 33 154 m 273 154 l S 33 122 m 273 122 l S",
+    "BT /F1 6 Tf 33 147 Td (Seller's signature) Tj ET",
+    "BT /F1 6 Tf 33 115 Td (Seller's signature) Tj ET",
+    "BT /F1 7 Tf 320 152 Td (SIGNED THIS ______________DAY OF _____________, 20____) Tj ET",
+  ].join("\n")));
+  const date = assignSlots(pageBlocks(page)).find((b) => b.date);
+  assert.deepEqual([date.role, date.index], ["SELLER", 0]);
+});
+
+test("a form drawn a letter at a time still reads as words for its report", () => {
+  const letters = (s, y) => [...s].map((ch, i) => ({ str: ch, x: 72 + i * 6, y, w: 6, size: 10, xs: [72 + i * 6] }));
+  const pages = [{ items: [...letters("the price and the date of the sale to the buyer", 700), ...letters("Something unlabelled", 680)], shapes: [] }];
+  assert.equal(placeOutcome({ pages, blocks: 0 }), "no-labels");
+});
+
+// Lease forms (AREA's commercial ones, 2026-10-31): Tenant and Landlord are buyer and seller.
+const lines = (p) => toLines(p.items).map((l) => l.text);
+const labels = (layout) => layout.fieldDefinitions.map((f) => `${f.type} ${f.signeeType}${f.signeeIndex + 1}`);
+
+test("a lease: TENANT and LANDLORD headings name the side of the signing-officer lines under them", () => {
+  const p = page([
+    word("The tenant offers to lease the Premises to the landlord.", 38, 700),
+    word("TENANT (CORPORATE NAME)", 38, 600, 10),
+    word("Per:", 38, 560), word("Authorized Signing Officer", 54, 550), word("Witness", 324, 550),
+    word("Per:", 38, 500), word("Authorized Signing Officer", 54, 490), word("Witness", 324, 490),
+    word("LANDLORD (CORPORATE NAME)", 38, 400, 10),
+    word("Per:", 38, 360), word("Authorized Signing Officer", 54, 350), word("Witness", 324, 350),
+  ], [rule(54, 300, 560), rule(54, 300, 500), rule(54, 300, 360), rule(324, 570, 560)]);
+  assert.equal(isLease([p]), true);
+  const { layout } = autoLayout([p]);
+  assert.deepEqual(labels(layout), ["SIGNATURE BUYER1", "SIGNATURE BUYER2", "SIGNATURE SELLER1"]);
+  // the witness line beside each gets nothing
+  assert.equal(layout.fieldDefinitions.every((f) => f.fieldLocations[0].position[0] < 300), true);
+});
+
+test("a lease's Landlord/Tenant rows are the agent's client; a 'circle one' note isn't a signing line", () => {
+  const p = page([
+    word("Notice to:", 38, 700), word("Landlord/Tenant (circle appropriate party)", 300, 688, 6),
+    word("Landlord/Tenant", 38, 590), word("Witness", 330, 590),
+    word("Landlord/Tenant", 38, 560), word("Witness", 330, 560),
+  ], [rule(100, 560, 700), rule(38, 300, 600), rule(38, 300, 570), rule(330, 570, 600)]);
+  const { layout } = autoLayout([p]);
+  assert.deepEqual(labels(layout), ["SIGNATURE CLIENT1", "SIGNATURE CLIENT2"]);
+  assert.deepEqual(labels(forClients(layout, { BUYER: 1, SELLER: 0 })), ["SIGNATURE BUYER1"]);
+});
+
+test("a lease's own label decides even when the form says 'you' more than 'tenant'", () => {
+  const p = page([
+    word("You authorize us to ask the landlord's brokerage, and the landlord, for details.", 38, 700),
+    word("Signature of Tenant/Authorized Signing Officer", 38, 590),
+  ], [rule(38, 300, 600)]);
+  assert.equal(isLease([p]), true);
+  assert.deepEqual(labels(autoLayout([p]).layout), ["SIGNATURE BUYER1"]);
+});
+
+test("a purchase contract that mentions tenants stays a purchase contract", () => {
+  const p = page([
+    word("The seller will deliver the property free of tenants, and the tenant's lease ends before the buyer takes possession.", 38, 700, 7),
+    word("Buyer Signature", 38, 590), word("Seller Signature", 330, 590),
+  ], [rule(38, 300, 600), rule(330, 570, 600)]);
+  assert.equal(isLease([p]), false);
+  assert.deepEqual(labels(autoLayout([p]).layout), ["SIGNATURE BUYER1", "SIGNATURE SELLER1"]);
+  assert.deepEqual(lines(p)[0].includes("tenant"), true);
+});
+
+test("the commercial Agency Relationships guide: 'Your signature' and its Date on one row", () => {
+  const p = page([word("Your signature", 46, 424), word("Date", 369, 424)],
+    [rule(46, 300, 439), rule(365, 560, 439)]);
+  assert.deepEqual(labels(autoLayout([p]).layout), ["SIGNATURE CLIENT1", "SIGNED_DATE CLIENT1"]);
+});
+
+test("a time blank of its own however the date line is worded: 'and DATED at ____ ___. m. on'", () => {
+  const p = page([
+    word("SIGNED in the presence of a witness, and DATED at ________ ___. m. on ______________________, 20_____.", 38, 620),
+    word("Landlord/Tenant", 38, 590), word("Witness", 330, 590),
+  ], [rule(38, 300, 600), rule(330, 570, 600)]);
+  assert.deepEqual(labels(autoLayout([p]).layout), ["SIGNED_TIME_ONLY CLIENT1", "SIGNED_DATE_ONLY CLIENT1", "SIGNATURE CLIENT1"]);
+  // no time blank: one Date & Time block, as before
+  const q = page([word("SIGNED AND DATED on ______________________, 20_____.", 38, 620), word("Buyer Signature", 38, 590)], [rule(38, 300, 600)]);
+  assert.deepEqual(labels(autoLayout([q]).layout), ["SIGNED_DATE BUYER1", "SIGNATURE BUYER1"]);
 });

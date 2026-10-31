@@ -8,10 +8,10 @@ import { isPdf, hasAcroForm, countPages, toBase64, fromBase64 } from "../src/lib
 import { suggestTitle, matchAddress, addressLine } from "../src/lib/title.js";
 import { WebForms, isAllowed, readBearer, zipEntryName, pairEntries, zipBatches, WebFormsSignedOut, partiesFromFormValues, libraryNamesFrom, agentSideFromFormValues, agentSideFromContacts, combineSides, partiesFromContacts, buyerNamesFromContacts, mergeParties, peopleFromContacts } from "../src/lib/webforms-api.js";
 import { formKey } from "../src/lib/match.js";
-import { buildDraftBody, signeesFromDeal, countsFromDeal, signersWithoutEmail, signerCounts, sideFromFormNames, templateSlots, isEmail, agentRoleFor, agentPerson, agentPeople, chooseAgents, unfilledRoles, fitSubject, SUBJECT_MAX, cleanSubject, subjectTooLong } from "../src/lib/draft.js";
+import { countDisagreements, buildDraftBody, signeesFromDeal, countsFromDeal, signersWithoutEmail, signerCounts, sideFromFormNames, templateSlots, isEmail, agentRoleFor, agentPerson, agentPeople, chooseAgents, unfilledRoles, fitSubject, SUBJECT_MAX, cleanSubject, subjectTooLong } from "../src/lib/draft.js";
 import { stripTemplate, dropUnusedSlots } from "../src/lib/layout.js";
-import { summarizeDeal } from "../src/lib/deals.js";
-import { actingNotes, setupReport, senderFor, meFromYenta, meFromDeals, DELEGATION_VERIFIED, samePerson, isOwnCorporation } from "../src/lib/actor.js";
+import { summarizeDeal, addressScore } from "../src/lib/deals.js";
+import { actingNotes, setupReport, senderFor, meFromYenta, meFromDeals, DELEGATION_VERIFIED, samePerson, isOwnCorporation, wfMatch } from "../src/lib/actor.js";
 import { sampleTemplate } from "./fixtures.js";
 
 const enc = (s) => new TextEncoder().encode(s);
@@ -281,9 +281,10 @@ test("signer counts follow the side represented, then the form names", () => {
 
   const offer = ["Residential Purchase Contract"];
   assert.deepEqual(signerCounts({ deal: deal("Buy Side Representation"), formNames: offer }).counts, { BUYER: 2, SELLER: 0 });
-  assert.deepEqual(signerCounts({ deal: deal("Listing Side Representation"), formNames: offer }).counts, { BUYER: 0, SELLER: 2 });
-  assert.deepEqual(signerCounts({ deal: deal("Dual Representation"), formNames: offer }).counts, { BUYER: 2, SELLER: 2 });
-  assert.deepEqual(signerCounts({ deal: deal("Dual Representation"), formNames: ["Exclusive Seller Representation Agreement"] }).counts, { BUYER: 0, SELLER: 2 });
+  assert.deepEqual(signerCounts({ deal: deal("Listing Side Representation"), formNames: offer }).counts, { BUYER: 0, SELLER: 1 });
+  // the deal names one seller, so 1 — not the minimum of 2 (2026-10-31)
+  assert.deepEqual(signerCounts({ deal: deal("Dual Representation"), formNames: offer }).counts, { BUYER: 2, SELLER: 1 });
+  assert.deepEqual(signerCounts({ deal: deal("Dual Representation"), formNames: ["Exclusive Seller Representation Agreement"] }).counts, { BUYER: 0, SELLER: 1 });
   assert.deepEqual(signerCounts({ deal: null, formNames: ["Buyer Representation Agreement"] }).counts, { BUYER: 2, SELLER: 0 });
   assert.deepEqual(signerCounts({ deal: null, formNames: ["Listing Agreement", "Property Disclosure Statement"] }).counts, { BUYER: 0, SELLER: 2 });
   assert.deepEqual(signerCounts({ deal: null, formNames: ["Seller's Acceptance of Buyer's Offer"] }).counts, { BUYER: 2, SELLER: 2 });
@@ -293,6 +294,10 @@ test("signer counts follow the side represented, then the form names", () => {
   const three = summarizeDeal({ ...raw("Buy Side Representation"), participants: [1, 2, 3].map((i) => ({ participantRole: "BUYER", firstName: "B" + i, lastName: "Sample", emailAddress: "b" + i + "@example.com" })) });
   assert.deepEqual(signerCounts({ deal: three, formNames: offer }).counts, { BUYER: 3, SELLER: 0 });
   assert.equal(sideFromFormNames(offer), null);
+  // a lease's sides: tenant = buyer, landlord = seller; an offer to lease names neither
+  assert.equal(sideFromFormNames(["Commercial Exclusive Tenant Representation Agreement (designated agency)"]), "BUYER");
+  assert.equal(sideFromFormNames(["Commercial Exclusive Landlord Representation Agreement"]), "SELLER");
+  assert.equal(sideFromFormNames(["Commercial Offer to Lease"]), null);
   // a neutral form beside a seller's one doesn't cancel it (2026-10-15)
   const pair = ["Consumer Relationships Guide (Print Friendly)", "Exclusive Seller Representation Agreement (designated agency)"];
   assert.equal(sideFromFormNames(pair), "SELLER");
@@ -318,12 +323,17 @@ test("signer counts: the picked templates' slots raise the count and, without a 
   // a two-sided template gives no side clue; never fewer than 2
   assert.deepEqual(signerCounts({ deal: null, formNames: offer, templates: [both] }).counts, { BUYER: 2, SELLER: 2 });
   assert.deepEqual(signerCounts({ deal: null, formNames: offer, templates: [buyers1] }).counts, { BUYER: 2, SELLER: 0 });
-  // the deal's side wins over a template: a buy-side deal never asks the sellers
+  // the deal's side wins over a template: a buy-side deal never asks the sellers; and its
+  // one buyer is the count
   const buySide = { side: "BUYER", participants: [{ role: "BUYER" }] };
-  assert.deepEqual(signerCounts({ deal: buySide, formNames: offer, templates: [sellers3] }).counts, { BUYER: 2, SELLER: 0 });
-  // dual: template narrows it
+  assert.deepEqual(signerCounts({ deal: buySide, formNames: offer, templates: [sellers3] }).counts, { BUYER: 1, SELLER: 0 });
+  assert.match(signerCounts({ deal: buySide, formNames: offer }).why, /1 buyer on the reZEN deal/);
+  // dual: template narrows the side; the deal's one seller is the count
   const dual = { side: "DUAL", participants: [{ role: "BUYER" }, { role: "SELLER" }] };
-  assert.deepEqual(signerCounts({ deal: dual, formNames: offer, templates: [sellers3] }).counts, { BUYER: 0, SELLER: 3 });
+  assert.deepEqual(signerCounts({ deal: dual, formNames: offer, templates: [sellers3] }).counts, { BUYER: 0, SELLER: 1 });
+  // a deal with nobody on the side: the template's slots, never fewer than 2
+  const noSellers = { side: "DUAL", participants: [{ role: "BUYER" }] };
+  assert.deepEqual(signerCounts({ deal: noSellers, formNames: offer, templates: [sellers3] }).counts, { BUYER: 0, SELLER: 3 });
 });
 
 test("the agent's side from the WEBForms agent emails decides who signs when the deal can't", () => {
@@ -489,6 +499,29 @@ test("signers without an email are left off (Real refuses a blank one) and named
     { role: "BUYER", slot: 1, name: "Jordan Sample" }, { role: "SELLER", slot: 1, name: "Casey Placeholder" }]);
 });
 
+test("a numbered street's number isn't a civic number: two deals on 9 Ave SE don't tie", () => {
+  const wf = "120 9 Ave SE, Calgary";
+  assert.equal(addressScore(wf, "120 9 Avenue Southeast, Southeast Calgary, Calgary, AB, T2G 0A1"), 1);
+  assert.equal(addressScore(wf, "300, 304, 308 9 ave se, Calgary, AB, T2G 0A2"), 0);
+  assert.equal(addressScore("120 9th Ave SE", "120 9 Avenue Southeast, Calgary"), 1);
+  assert.equal(addressScore("4 150 8 Avenue NE", "150 8 Ave NE, Calgary"), 1);
+});
+
+test("a company client signs under the company's name; one with no name at all is left off", () => {
+  // reZEN keeps a company buyer's name in `company`, with no first or last name (2026-10-31:
+  // the blank name made Real Signature refuse the packet).
+  const deal = summarizeDeal({ id: "t1", address: { oneLine: "120 Example Street NW" }, participants: [
+    { participantRole: "BUYER", company: " Example Holdings Ltd. ", emailAddress: "office@example.com" },
+    { participantRole: "BUYERS_AGENT", firstName: "Sam", lastName: "Agent", emailAddress: "sam@example.com" },
+    { participantRole: "SELLER", emailAddress: "seller@example.com" },
+  ] });
+  const counts = { BUYER: 1, SELLER: 1 };
+  assert.deepEqual(signeesFromDeal(deal, counts).map((s) => [s.signeeType, s.name, s.email]),
+    [["BUYER", "Example Holdings Ltd.", "office@example.com"]]);
+  assert.deepEqual(signersWithoutEmail(deal, counts), [{ role: "SELLER", slot: 1, name: "", noName: true }]);
+  assert.equal(signeesFromDeal(deal, counts).every((s) => s.name), true);
+});
+
 test("draft body without a template still names the signers and carries no blocks", () => {
   const body = buildDraftBody({ draft: { id: "x", name: "x", type: "USER_PDF", pagesCount: null, defaults: null },
     layout: null, name: "Addendum", pageCount: 1, transactionId: null, counts: { BUYER: 1, SELLER: 0 }, signees: [], sender: { email: "alex@example.com" } });
@@ -587,6 +620,17 @@ test("setup report has counts and yes/no only", () => {
   for (const leak of ["Taylor", "Alex", "x@y"]) assert.ok(!r.includes(leak), `report leaked ${leak}`);
 });
 
+test("setup report: a WEBForms account in the agent's own corporation is the same person (issue #2)", () => {
+  const rs = { signedIn: true, fullName: "Jordan Sample", email: "jordan@example.com", deals: 0, ownDeals: 0 };
+  const match = (userName, userEmail) => wfMatch({ me: { fullName: rs.fullName, email: rs.email }, webformsUserName: userName, webformsUserEmail: userEmail });
+  const line = (m) => setupReport({ rs, wf: { signedIn: true, match: m } }).match(/Same person in both: (.*)/)[1];
+  assert.equal(line(match("Jordan Sample Personal Real Estate Corporation", "corp@example.com")), "yes (own corporation)");
+  assert.equal(line(match("Jordan Sample", "jordan@example.com")), "yes");
+  assert.equal(line(match("Riley Example", "riley@example.com")), "no");
+  assert.equal(line(match("Jordan Sample", null)), "unknown");
+  assert.ok(!setupReport({ rs, wf: { signedIn: true, match: "own-corp" } }).includes("Jordan"));
+});
+
 test("setup report says which Real Signature call failed when not signed in", () => {
   const r = setupReport({ rs: { signedIn: false, steps: "token yes, me ok, roles ok, templates ok, shared ok, deals 403" }, wf: null });
   assert.match(r, /Real Signature signed in: no/);
@@ -644,4 +688,49 @@ test("start-on-click hides the Prepare button while it runs, and brings it back 
   assert.match(panel, /\$\("wf-go"\)\.hidden = false;\n    \$\("wf-title-wrap"\)\.hidden = !wfState;[^\n]*\n    \$\("wf-go"\)\.disabled = false;/);
   // No title box while it starts by itself: the title has already gone (Dan, 2026-10-29).
   assert.match(panel, /\$\("wf-title-wrap"\)\.hidden = !!\(POPUP && s\.startOnOpen && !autoStarted\);/);
+});
+
+test("a name run on to a second line is one signer: '(operating as …)' under a company", () => {
+  // Dan, 2026-10-31: a tenant company and its trade name on the lease's two Name lines.
+  assert.deepEqual(partiesFromFormValues({ txtbuyer1: "EXAMPLE HOLDINGS LTD.", txtbuyer2: "(operating as Sample Cafe)" }), { BUYER: 1, SELLER: 0 });
+  assert.deepEqual(partiesFromFormValues({ txtbuyer1: "Example Holdings Ltd.", txtbuyer2: "o/a Sample Cafe" }), { BUYER: 1, SELLER: 0 });
+  assert.deepEqual(partiesFromFormValues({ txtbuyer1: "(operating as Sample Cafe)" }), { BUYER: 1, SELLER: 0 });
+  assert.deepEqual(partiesFromFormValues({ txtbuyer1: "Jordan Sample", txtbuyer2: "Riley Sample" }), { BUYER: 2, SELLER: 0 });
+  for (const run of ["aka Jordy Sample", "a.k.a. Jordy Sample", "A.K.A Jordy Sample", "Also known as Jordy Sample", "trading as Sample Cafe",
+    "t/a Sample Cafe", "O/A Sample Cafe", "formerly Example Ltd.", "f/k/a Example Ltd.", "nka Example Ltd.", "d/b/a Sample Cafe", "c/o Riley Sample"]) {
+    assert.deepEqual(partiesFromFormValues({ txtbuyer1: "Jordan Sample", txtbuyer2: run }), { BUYER: 1, SELLER: 0 }, run);
+  }
+  // a second person still counts, however the line starts
+  for (const two of ["& Riley Sample", "and Riley Sample", "Akash Sample", "Formby Sample", "Tanya Sample"]) {
+    assert.deepEqual(partiesFromFormValues({ txtbuyer1: "Jordan Sample", txtbuyer2: two }), { BUYER: 2, SELLER: 0 }, two);
+  }
+  const contact = (type, FirstName, LastName = "") => ({ TransactionContactTypeName: type, ContactData: { General: { FirstName, LastName } } });
+  const two = [contact("Buyer", "EXAMPLE HOLDINGS LTD."), contact("Buyer", "(operating as Sample Cafe)")];
+  assert.deepEqual(partiesFromContacts(two), { BUYER: 1, SELLER: 0 });
+  assert.deepEqual(peopleFromContacts(two).map((p) => p.firstName), ["EXAMPLE HOLDINGS LTD."]);
+  // the only buyer contact is still a buyer, however it's written
+  assert.deepEqual(partiesFromContacts([contact("Buyer", "(operating as Sample Cafe)", "EXAMPLE HOLDINGS LTD.")]), { BUYER: 1, SELLER: 0 });
+});
+
+test("forms and deal disagree on how many: said under the boxes, the other number one click away", () => {
+  const deal = { participants: [{ role: "BUYER" }, { role: "SELLER" }, { role: "SELLER" }] };
+  const webforms = [{ BUYER: 2, SELLER: 0 }];
+  // the box shows the forms' 2: the deal has 1, so Buyer 2 is to add by hand
+  assert.deepEqual(countDisagreements({ deal, webforms, current: { BUYER: 2, SELLER: 0 } }), [{ role: "BUYER",
+    text: "The forms name 2 buyers; the reZEN deal has 1. Buyer 2 isn't on the deal, so you'll add them in Real Signature.",
+    use: 1, useLabel: "Use 1, as on the deal" }]);
+  // after "Use 1": the line says where the number came from, and offers the forms' back
+  assert.deepEqual(countDisagreements({ deal, webforms, current: { BUYER: 1, SELLER: 0 } }).map((d) => [d.text, d.useLabel]),
+    [["Using the reZEN deal's 1 buyer; the forms name 2.", "Use 2, as on the forms"]]);
+  // a number the agent typed: no advice
+  assert.deepEqual(countDisagreements({ deal, webforms, current: { BUYER: 3, SELLER: 0 } }), []);
+  // the deal has more: who'd be left off
+  assert.equal(countDisagreements({ deal, webforms: [{ BUYER: 0, SELLER: 1 }], current: { BUYER: 0, SELLER: 1 } })[0].text,
+    "The forms name 1 seller; the reZEN deal has 2. Seller 2 on the deal is left off.");
+  assert.equal(countDisagreements({ deal: { participants: [{ role: "BUYER" }] }, webforms: [{ BUYER: 3 }], current: { BUYER: 3 } })[0].text,
+    "The forms name 3 buyers; the reZEN deal has 1. Buyers 2–3 aren't on the deal, so you'll add them in Real Signature.");
+  // agreeing, nothing read on the forms, or no deal: nothing to say
+  assert.deepEqual(countDisagreements({ deal, webforms: [{ BUYER: 1 }], current: { BUYER: 1 } }), []);
+  assert.deepEqual(countDisagreements({ deal, webforms: [], current: { BUYER: 2 } }), []);
+  assert.deepEqual(countDisagreements({ deal: null, webforms, current: { BUYER: 2 } }), []);
 });

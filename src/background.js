@@ -454,7 +454,10 @@ const OWN = chrome.runtime.getURL("");
 const RS_TAB_ONLY = new Set(["job:get", "job:status", "made:next"]);
 chrome.runtime.onMessage.addListener((msg, sender, reply) => {
   const fromRsTab = !!sender.tab?.url?.startsWith(RS);
-  const fromOwnPage = !sender.tab && String(sender.url || "").startsWith(OWN);
+  // One of Dotted Line's own pages: the panel, the popup, or Settings, which opens in a tab
+  // of its own (so has a sender.tab, whose page is ours too). A content script's sender.url
+  // is the website's, never ours.
+  const fromOwnPage = String(sender.url || "").startsWith(OWN) && (!sender.tab || String(sender.tab.url || "").startsWith(OWN));
   if (RS_TAB_ONLY.has(msg?.type) ? !fromRsTab : !fromOwnPage) return false;
   (async () => {
     if (msg.type === "job:start") return startJob(msg);
@@ -492,6 +495,15 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
       return made;
     }
     if (msg.type === "report:error") return recordError({ error: msg.error, step: msg.step, ctx: msg.ctx });
+    // Auto place on a draft uploaded in Real Signature (panel.js placeDraft). Blocks placed:
+    // counted as a panel draft with labels — the daily count has no column for it, and the
+    // receiver must stay compatible with every released version. None: why, as a labels
+    // report, with no form code (Real Signature's upload has no library code to give).
+    if (msg.type === "report:placed") {
+      if (msg.added > 0) await recordOk({ path: "panel", forms: 1, labels: true });
+      else if (msg.outcome) await recordLabels({ job: { forms: [{ library: null, placed: { outcome: msg.outcome } }] }, templateIds: ["auto"], path: "draft" });
+      return { ok: true };
+    }
     if (msg.type === "report:ok") return recordOk({ path: msg.path, forms: msg.forms, labels: msg.labels === true }).then(() => ({ ok: true }));
     if (msg.type === "report:last") {
       if (!REPORTS_ON) return null; // nothing to offer: the panel shows no report box
