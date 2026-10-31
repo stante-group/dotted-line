@@ -79,6 +79,10 @@ function working(btn, label) {
   return () => { btn.classList.remove("working"); btn.textContent = was; };
 }
 
+/** Each side's own words (Dan, 2026-10-30): WEBForms has forms and a Basket; what Real
+ *  Signature makes is a draft, or a packet when there are several forms. */
+const nameLabel = (forms) => (forms > 1 ? "Packet name" : "Draft name");
+
 /** "Uploaded 5 minutes ago", from a time in milliseconds. */
 function uploadedAgo(t) {
   const m = Math.max(0, Math.round((Date.now() - (t || 0)) / 60000));
@@ -368,6 +372,7 @@ async function showWebforms(tab) {
   const suggested = suggestTitle({ transaction: d.transaction, forms: titled, firstFormValues: d.firstFormValues });
   const s = await settings();
   $("wf-title").value = titleFor(s, wfState.titleValues, suggested);
+  $("wf-title-label").textContent = nameLabel(wfState.forms.length);
   say("");
   // Not when the icon click starts it: the title goes the moment it's filled in, so a box
   // to edit it changed nothing (Dan, 2026-10-29). It's in the Real Signature panel, and it
@@ -529,6 +534,7 @@ async function showRealsig(tab, job) {
   const remembered = (await chrome.storage.local.get("templateFor")).templateFor || {};
   const { agentMode = "one" } = await chrome.storage.local.get("agentMode");
   rsState = { tab, job, c, remembered, agentMode };
+  $("rs-title-label").textContent = nameLabel(job.forms.length);
   $("rs-agent-pick").replaceChildren(); // a fresh hand-off starts from the remembered mode
   // The second step of the same draft, not a new one: say so, so "Finish draft" reads as
   // the end of what "Prepare in Real Signature" started (Dan, 2026-10-15).
@@ -953,10 +959,10 @@ $("rs-go").addEventListener("click", async () => {
   const templateIds = job.forms.map((_, i) => $(`tpl-${i}`).value);
   if (templateIds.some((t) => !t)) { say("Choose a template (or No template) for every form.", "warn"); return; }
   const counts = { BUYER: Number($("rs-buyers").value) || 0, SELLER: Number($("rs-sellers").value) || 0 };
-  if (subjectHeld()) { say("Shorten the signers' email subject to 70 characters.", "warn"); return; }
+  if (subjectHeld()) { say("Shorten the email subject to 70 characters.", "warn"); return; }
   $("rs-go").disabled = true;
   if (job.draftId) { await finishDraft(templateIds[0], counts); return; }
-  const done = working($("rs-go"), job.forms.length > 1 ? `Creating ${job.forms.length} drafts…` : "Creating your draft…");
+  const done = working($("rs-go"), job.forms.length > 1 ? "Creating your packet…" : "Creating your draft…");
   try {
     const t1 = Date.now();
     const r = await send(tab.id, {
@@ -996,7 +1002,7 @@ $("rs-go").addEventListener("click", async () => {
     await chrome.tabs.update(tab.id, { url: new URL(r.url, RS).toString() });
     done();
     say(r.packet && r.drafts === 1 ? `Draft ready. Add the ${roleWords(r.unfilled)} in Add Signees.`
-      : r.packet ? `Packet ready (${r.drafts} forms).` : "Draft ready.", "ok");
+      : r.packet ? `Packet ready, with ${r.drafts} documents.` : "Draft ready.", "ok");
     $("rs-form").hidden = true;
     rsState = null;
     // Done: the agent is on the draft, and the panel would only cover it. Leave the message

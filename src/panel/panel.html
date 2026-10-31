@@ -268,7 +268,7 @@
     </div>
     <ul id="wf-forms" class="forms docs"></ul>
     <div id="wf-title-wrap" hidden>
-      <label for="wf-title">Draft name</label>
+      <label for="wf-title" id="wf-title-label">Draft name</label>
       <input id="wf-title" type="text" maxlength="120">
     </div>
     <button id="wf-go" class="primary" disabled>Prepare in Real Signature</button>
@@ -312,10 +312,10 @@
         <select id="rs-agent-pick"></select>
       </div>
       <p class="note" id="rs-agent-who"></p>
-      <label for="rs-title">Draft name</label>
+      <label for="rs-title" id="rs-title-label">Draft name</label>
       <input id="rs-title" type="text" maxlength="120">
       <div id="rs-subject-wrap" hidden>
-        <label for="rs-subject">Signers' email subject <span id="rs-subject-count" class="count"></span></label>
+        <label for="rs-subject">Email subject <span id="rs-subject-count" class="count"></span></label>
         <input id="rs-subject" type="text" aria-describedby="rs-subject-note">
         <div id="rs-subject-note" class="err" hidden>Real Signature allows 70 characters. Shorten the subject to finish the draft.</div>
       </div>
