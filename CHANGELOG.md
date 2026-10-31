@@ -27,6 +27,10 @@ Dotted Line by itself a few hours after a version is published.
   and three seller signature lines (printed as a picture, so found by where they sit), and the Disclosure of
   Multiple Offers Presented (sellers, the designated agent, and "Confirmed and signed
   this ___ Day of").
+- **Fix:** a client entered in reZEN as a company (a company name, no first or last name)
+  made Real Signature refuse the whole document ("name must not be blank"). The company's
+  name is now the signer's name; a client with no name at all is left off and named in
+  the panel, like one with no email.
 - **Fix:** Auto place put Alberta's Notice (waiver or satisfaction of conditions) on the
   sellers; its "Buyer/Seller Signature" lines now go to your own clients, whichever side.
 - **Fix:** Check my setup now says "yes (own corporation)" when WEBForms is signed in as

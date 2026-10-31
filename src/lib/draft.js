@@ -129,14 +129,25 @@ export function signerCounts({ deal, formNames, templates = [], webforms = [], a
 export const isEmail = (s) => /^[^\s@<>()[\],;:"]+@[^\s@<>()[\],;:"]+\.[a-z]{2,}$/i.test(String(s ?? "").trim());
 const hasEmail = (p) => isEmail(p.email);
 
+/** A signer's name: the person's, or the company's when the client is a company (reZEN's
+ *  `company`, a Buyer Record's `entityName`). "" when reZEN has neither. */
+export const personName = (p) => [p.firstName, p.lastName].filter(Boolean).join(" ") || String(p.company ?? "").trim();
+/** Real Signature takes a signer only with an email and a name: a blank one refuses the whole
+ *  draft ("defaults.signees[0].name: must not be blank", 2026-10-31). */
+const canSign = (p) => hasEmail(p) && !!personName(p);
+
 /** Deal signers Real Signature can't take yet: reZEN often has a buyer or seller with no
  *  email, and Real refuses the whole draft ("defaults.signees[n].email: must not be blank",
- *  2026-10-11). They're left out; the panel names them so the agent adds them by hand. */
+ *  2026-10-11); the same for no name at all. They're left out; the panel names them so the
+ *  agent adds them by hand. `noName` marks one with an email but no name. */
 export function signersWithoutEmail(deal, counts) {
   const out = [];
   for (const role of SIGNER_ROLES) {
     (deal?.participants || []).filter((p) => p.role === role).slice(0, counts[role] ?? 0)
-      .forEach((p, i) => { if (!hasEmail(p)) out.push({ role, slot: i + 1, name: [p.firstName, p.lastName].filter(Boolean).join(" ") }); });
+      .forEach((p, i) => {
+        if (!hasEmail(p)) out.push({ role, slot: i + 1, name: personName(p) });
+        else if (!personName(p)) out.push({ role, slot: i + 1, name: "", noName: true });
+      });
   }
   return out;
 }
@@ -150,10 +161,10 @@ export function signeesFromDeal(deal, counts) {
   const out = [];
   for (const role of SIGNER_ROLES) {
     const people = (deal?.participants || []).filter((p) => p.role === role).slice(0, counts[role] ?? 0);
-    people.forEach((p, i) => hasEmail(p) && out.push({
+    people.forEach((p, i) => canSign(p) && out.push({
       signeeType: role,
       signeeIndex: i,
-      name: [p.firstName, p.lastName].filter(Boolean).join(" "),
+      name: personName(p),
       email: String(p.email).trim(),
       signOrder: 1,
     }));
@@ -203,10 +214,10 @@ const norm = (s) => String(s ?? "").replace(/\s+/g, " ").trim().toLowerCase();
  *  role, the signed-in user if they are an agent and it's theirs. A TC is never put in as
  *  the agent. → [{name, email}] */
 export function agentPeople({ deal, role, me, webformsUserName = null, webformsUserEmail = null }) {
-  const full = (p) => [p.firstName, p.lastName].filter(Boolean).join(" ");
+  const full = personName;
   const seen = new Set();
   const people = (deal?.participants || [])
-    .filter((p) => p.role === role && hasEmail(p))
+    .filter((p) => p.role === role && canSign(p))
     .filter((p) => !seen.has(norm(p.email)) && seen.add(norm(p.email)));
   // Whose forms these are comes first: a team lead impersonating a teammate in WEBForms (or
   // a TC working in an agent's account) is doing that agent's file, even when the signed-in
