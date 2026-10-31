@@ -27,6 +27,9 @@ Dotted Line by itself a few hours after a version is published.
   and three seller signature lines (printed as a picture, so found by where they sit), and the Disclosure of
   Multiple Offers Presented (sellers, the designated agent, and "Confirmed and signed
   this ___ Day of").
+- **Fix:** on a numbered street ("120 9 Ave SE") the street's number counted as a house
+  number, so another deal on the same street tied with the right one and no deal was
+  picked. "9th Ave" and "9 Ave" now match too.
 - **Fix:** a client entered in reZEN as a company (a company name, no first or last name)
   made Real Signature refuse the whole document ("name must not be blank"). The company's
   name is now the signer's name; a client with no name at all is left off and named in

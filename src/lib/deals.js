@@ -18,7 +18,7 @@ export function normalizeAddress(s) {
     .replace(/\s+/g, " ")
     .trim()
     .split(" ")
-    .map((w) => ABBREV[w] || w)
+    .map((w) => ABBREV[w] || w.replace(/^(\d+)(ST|ND|RD|TH)$/, "$1"))   // 9TH AVE = 9 AVE
     .join(" ");
 }
 
@@ -26,13 +26,24 @@ function tokens(addr) {
   return normalizeAddress(addr).split(" ").filter(Boolean);
 }
 
+/** Street types, as normalizeAddress writes them. */
+const STREET_TYPES = new Set([...Object.values(ABBREV).filter((v) => !/^[NS][EW]$/.test(v)), "AVE", "ST"]);
+
+/** The civic numbers in an address's words: every number except a numbered street's own
+ *  ("9" in "120 9 AVE SE"). Calgary's numbered avenues and streets put the street's number
+ *  right after the civic one, and counting it as a civic number made every deal on 9 Ave SE
+ *  "the same house": two deals tied and none was picked (2026-10-31). */
+function civicNumbers(T) {
+  return T.filter((t, i) => /^\d+[A-Z]?$/.test(t) && !STREET_TYPES.has(T[i + 1]));
+}
+
 /** 0..1: civic number must agree (a different house is a different deal), then the share
  *  of the rest of the words in common. */
 export function addressScore(a, b) {
   const A = tokens(a);
   const B = tokens(b);
-  const numsA = A.filter((t) => /^\d+[A-Z]?$/.test(t));
-  const numsB = B.filter((t) => /^\d+[A-Z]?$/.test(t));
+  const numsA = civicNumbers(A);
+  const numsB = civicNumbers(B);
   if (numsA.length && numsB.length && !numsA.some((n) => numsB.includes(n))) return 0;
   const setB = new Set(B);
   const words = A.filter((t) => !numsA.includes(t));

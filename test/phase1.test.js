@@ -10,7 +10,7 @@ import { WebForms, isAllowed, readBearer, zipEntryName, pairEntries, zipBatches,
 import { formKey } from "../src/lib/match.js";
 import { buildDraftBody, signeesFromDeal, countsFromDeal, signersWithoutEmail, signerCounts, sideFromFormNames, templateSlots, isEmail, agentRoleFor, agentPerson, agentPeople, chooseAgents, unfilledRoles, fitSubject, SUBJECT_MAX, cleanSubject, subjectTooLong } from "../src/lib/draft.js";
 import { stripTemplate, dropUnusedSlots } from "../src/lib/layout.js";
-import { summarizeDeal } from "../src/lib/deals.js";
+import { summarizeDeal, addressScore } from "../src/lib/deals.js";
 import { actingNotes, setupReport, senderFor, meFromYenta, meFromDeals, DELEGATION_VERIFIED, samePerson, isOwnCorporation, wfMatch } from "../src/lib/actor.js";
 import { sampleTemplate } from "./fixtures.js";
 
@@ -487,6 +487,14 @@ test("signers without an email are left off (Real refuses a blank one) and named
   assert.deepEqual(signeesFromDeal(deal, counts).map((s) => [s.signeeType, s.signeeIndex, s.email]), [["BUYER", 1, "riley@example.com"]]);
   assert.deepEqual(signersWithoutEmail(deal, counts), [
     { role: "BUYER", slot: 1, name: "Jordan Sample" }, { role: "SELLER", slot: 1, name: "Casey Placeholder" }]);
+});
+
+test("a numbered street's number isn't a civic number: two deals on 9 Ave SE don't tie", () => {
+  const wf = "120 9 Ave SE, Calgary";
+  assert.equal(addressScore(wf, "120 9 Avenue Southeast, Southeast Calgary, Calgary, AB, T2G 0A1"), 1);
+  assert.equal(addressScore(wf, "300, 304, 308 9 ave se, Calgary, AB, T2G 0A2"), 0);
+  assert.equal(addressScore("120 9th Ave SE", "120 9 Avenue Southeast, Calgary"), 1);
+  assert.equal(addressScore("4 150 8 Avenue NE", "150 8 Ave NE, Calgary"), 1);
 });
 
 test("a company client signs under the company's name; one with no name at all is left off", () => {
