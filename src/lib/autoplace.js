@@ -489,8 +489,11 @@ export function pageBlocks(page, { lease = false } = {}) {
       const x = run ? xAt(line, after + run.index) + 2 : drawn ? drawn.x1 + 2 : xAt(line, after) + 6;
       // A blank of its own for the time ("Signed and dated at ____ .m. on ____", AREA and
       // MREA): time on that one, date-only on the other. Otherwise one Date & Time block
-      // carries both (Dan, 2026-10-29).
-      const at = /\bsigned and dated\s+at\b/i.exec(line.text);
+      // carries both (Dan, 2026-10-29). "dated at" (MREA draws its blanks, so there are no
+      // underscores to go by), or "at", a typed blank, then ". m.": AREA's Commercial Offer
+      // to Lease Addendum says "SIGNED in the presence of a witness, and DATED at ____ ___. m.
+      // on" and got one block when only "signed and dated at" counted (Dan, 2026-10-31).
+      const at = /\bdated\s+at\b|\bat(?=\s*_{3,}[\s_]*\.?\s*m\.)/i.exec(line.text);
       if (at) {
         const atEnd = at.index + at[0].length;
         const tRun = /^\s*_{3,}/.exec(line.text.slice(atEnd));

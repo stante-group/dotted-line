@@ -33,7 +33,7 @@ Dotted Line by itself a few hours after a version is published.
   this ___ Day of").
 - **Auto place: Alberta's commercial lease forms.** On a lease, the tenant signs where a
   buyer would and the landlord where a seller would: the Commercial Offer to Lease (each
-  side's signing officers and its date and time), its Addendum, the Commercial Exclusive
+  side's signing officers and its date and time), its Addendum (with its own time and date blocks), the Commercial Exclusive
   Tenant Representation Agreement, and the commercial Agency Relationships guide. A form
   is read as a lease only when it says tenant and landlord more than buyer and seller, so
   a purchase contract that mentions tenants is unchanged.
