@@ -20,15 +20,15 @@
     .pattern[hidden] { display: none; }
     input[type=text] { width: 100%; box-sizing: border-box; font: 14px ui-monospace, SFMono-Regular, Consolas, monospace;
       padding: 7px 9px; border: 1px solid #c9cfdb; border-radius: 6px; }
-    input[type=text]:focus { outline: 2px solid #2f6fed; outline-offset: 0; border-color: #2f6fed; }
+    input[type=text]:focus { outline: 2px solid #1d4ed8; outline-offset: 0; border-color: #1d4ed8; }
     .words { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
     .words button { font: 12px ui-monospace, SFMono-Regular, Consolas, monospace; padding: 2px 8px; border-radius: 999px;
       border: 1px solid #c9cfdb; background: #f5f6f8; color: #1d2433; cursor: pointer; }
-    .words button:hover, .words button:focus-visible { border-color: #2f6fed; color: #2f6fed; background: #eef3fe; outline: none; }
-    .preview { background: #f5f6f8; border-radius: 6px; padding: 8px 10px; font-size: 13px; margin-top: 8px; }
+    .words button:hover, .words button:focus-visible { border-color: #1d4ed8; color: #1d4ed8; background: #eef3fe; outline: none; }
+    .preview { background: #f5f6f8; border-radius: 8px; padding: 8px 10px; font-size: 13px; margin-top: 8px; }
     .preview b { font-weight: 600; }
     .preview .warn { color: #8a5a00; }
-    #saved { position: fixed; bottom: 16px; right: 16px; background: #eaf6ee; border: 1px solid #8cc9a0; border-radius: 6px;
+    #saved { position: fixed; bottom: 16px; right: 16px; background: #eaf6ee; border: 1px solid #8cc9a0; border-radius: 8px;
       padding: 6px 12px; font-size: 13px; opacity: 0; transition: opacity .2s; }
     #saved.on { opacity: 1; }
     @media (prefers-reduced-motion: reduce) { #saved { transition: none; } }
@@ -42,20 +42,27 @@
       background: #fff; color: #1d2433; cursor: pointer; flex: none; }
     button.remove:hover, button.remove:focus-visible { border-color: #b42318; color: #b42318; outline: none; }
     #setup-run { font: 13px system-ui, sans-serif; padding: 4px 12px; border-radius: 6px; border: 1px solid #c9cfdb; background: #fff; color: #1d2433; cursor: pointer; }
-    #setup-run:hover, #setup-run:focus-visible { border-color: #2f6fed; color: #2f6fed; outline: none; }
+    #setup-run:hover { border-color: #1d4ed8; background: #eef3fe; }
     #setup-out { white-space: pre-wrap; background: #f5f6f8; padding: 8px; border-radius: 6px; font-size: 12px; }
     button.link { font: 13px system-ui, sans-serif; background: none; border: none; color: #1d4ed8; padding: 0; margin-top: 8px;
       text-decoration: underline; cursor: pointer; }
     #ds-file { font: 13px system-ui, sans-serif; margin: 4px 0 8px; max-width: 100%; }
+    /* Chrome's own grey "Choose Files" button, in the page's secondary-button look. */
+    #ds-file::file-selector-button { font: 13px system-ui, sans-serif; padding: 4px 12px; margin-right: 8px; border-radius: 6px;
+      border: 1px solid #c9cfdb; background: #fff; color: #1d2433; cursor: pointer; }
+    #ds-file::file-selector-button:hover { border-color: #1d4ed8; background: #eef3fe; }
+    main a { color: #1d4ed8; }
     .ds { border: 1px solid #e3e6ec; border-radius: 8px; padding: 12px 14px; margin-top: 10px; }
     .ds .t { font-weight: 600; overflow-wrap: anywhere; }
     .ds .sub { margin-bottom: 6px; }
     .ds .role { display: flex; gap: 10px; align-items: center; margin: 6px 0; flex-wrap: wrap; }
     .ds .role span { flex: 1; min-width: 140px; overflow-wrap: anywhere; }
     .ds select { font: 13px system-ui, sans-serif; padding: 3px 6px; border: 1px solid #c9cfdb; border-radius: 6px; }
-    .ds button.go { font: 13px system-ui, sans-serif; padding: 5px 12px; border-radius: 6px; border: 1px solid #2f6fed;
-      background: #2f6fed; color: #fff; cursor: pointer; margin-top: 6px; }
-    .ds button.go:disabled { opacity: .5; cursor: default; }
+    .ds button.go { font: 13px system-ui, sans-serif; padding: 5px 12px; border-radius: 6px; border: 1px solid #1d4ed8;
+      background: #1d4ed8; color: #fff; cursor: pointer; margin-top: 6px; }
+    .ds button.go:hover:not(:disabled) { background: #1e40af; border-color: #1e40af; }
+    .ds button.go:disabled { background: #c9cfdb; border-color: #c9cfdb; opacity: 1; cursor: default; }
+    button:focus-visible { outline: 2px solid #1d4ed8; outline-offset: 2px; }
     .ds .out { font-size: 13px; margin-top: 6px; }
     .ds .out.err { color: #b42318; }
     .ds .out a { color: #1d4ed8; }
