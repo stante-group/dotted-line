@@ -310,10 +310,12 @@ async function packetRead({ id }) {
     return { id: d.id, name: String(d.name || "Document"), signers: who ? { counts: who.counts, agentRole: who.agentRole } : null, blocks: blockCount(d),
       transactionId: d.defaults?.transactionId || null, emailSubject: d.defaults?.emailSubject || null };
   });
-  const fresh = docs.length > 0 && docs.every((d) => !d.signers && !d.blocks);
-  if (!fresh) return { name: p.name, docs };
-  for (const d of docs) Object.assign(d, await readUpload(lib, rs, d.id));
-  return { name: p.name, docs, fresh: true };
+  // Fresh documents beside set-up ones (one added after Set up, or a Set up that stopped
+  // part way): those are read too, so the panel can set them up the same way.
+  const unset = docs.filter((d) => !d.signers && !d.blocks);
+  if (!unset.length) return { name: p.name, docs };
+  for (const d of unset) Object.assign(d, await readUpload(lib, rs, d.id));
+  return { name: p.name, docs, fresh: unset.length === docs.length, unset: unset.map((d) => d.id) };
 }
 
 /** An upload's PDF read for setting it up: pages, text lines and what Auto place would find. */
