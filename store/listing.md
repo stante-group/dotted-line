@@ -47,7 +47,7 @@ What it never does
 - It asks before sending us anything at all. With your yes, a short error report when a draft fails and a daily count of drafts that worked: never a name, address, deal or form.
 
 For transaction coordinators
-If an agent has given you Real Signature access in reZEN, pick them under "Acting as" in Real Signature and the draft goes into their Drafts, with them as sender. Dotted Line warns you when WEBForms and Real Signature are signed in as different people.
+If an agent has given you Real Signature access in reZEN, pick them under "Acting as" in Real Signature and the draft goes into their Draft tab, with them as sender. Dotted Line warns you when WEBForms and Real Signature are signed in as different people.
 
 Free and open source (MIT): https://github.com/stante-group/dotted-line
 
