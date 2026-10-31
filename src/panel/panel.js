@@ -9,6 +9,7 @@ import { suggestTemplate, rememberKey, normalizeName, rememberEntry, pruneRememb
 import { titleValues, titleFor, subjectFor, draftTitleValues, draftTitle, draftSubject, formNameFromFile, DEFAULT_SETTINGS } from "../lib/pattern.js";
 import { signerCounts, signersWithoutEmail, signeesFromDeal, agentRoleFor, agentPeople, cleanSubject, subjectTooLong, SUBJECT_MAX, countDisagreements } from "../lib/draft.js";
 import { actingNotes } from "../lib/actor.js";
+import { packetPlacedSummary } from "../lib/ondraft.js";
 import { contextFromDraft, REPORTS_ON } from "../lib/report.js";
 
 // The same page is the popup (WEBForms and other sites) and the side panel (Real Signature);
@@ -1430,14 +1431,15 @@ async function openPacket(tab, id) {
   }) : []));
   $("dr-form").hidden = false;
   $("dr-go").disabled = false;
-  $("dr-go").onclick = () => placePacket(tab, ready.map((d) => d.id));
+  $("dr-go").onclick = () => placePacket(tab, ready.map((d) => d.id), null, ready.map((d) => d.name));
 }
 
-async function placePacket(tab, ids, side = null) {
+async function placePacket(tab, ids, side = null, names = []) {
   drBusy = true;
   const done = working($("dr-go"), "Placing blocks…");
   say("");
-  let added = 0, skipped = 0, outcome = null;
+  let added = 0, outcome = null;
+  const results = [];
   try {
     // One document at a time: each is its own read and save, like a single draft's.
     for (const id of ids) {
@@ -1446,23 +1448,22 @@ async function placePacket(tab, ids, side = null) {
       // One answer covers the whole packet: the rerun skips blocks already placed.
       if (r.needSide) {
         if (added) await chrome.tabs.reload(tab.id);
-        askSide(r.counts, (s) => placePacket(tab, ids, s));
+        askSide(r.counts, (s) => placePacket(tab, ids, s, names));
         return;
       }
       added += r.added;
-      skipped += r.skipped;
       if (!r.added) outcome ||= r.outcome;
+      results.push({ name: names.at(results.length) || "A document", added: r.added, skipped: r.skipped, outcome: r.outcome || null });
     }
     $("dr-status").className = "note";
     $("dr-status").textContent = "";
     chrome.runtime.sendMessage({ type: "report:placed", outcome: added ? null : outcome, added }).catch(() => {});
+    const sum = packetPlacedSummary(results);
     if (added) {
-      say(`Placed ${added} block${added > 1 ? "s" : ""}. Real Signature reloads to show them: check every block on Prepare before you send.`, "ok");
+      say(`${sum.text} Real Signature reloads to show them: check every block on Prepare before you send.`, "ok");
       await chrome.tabs.reload(tab.id);
     } else {
-      say(NO_BLOCKS[outcome] || (skipped
-        ? "Every block Dotted Line would place is already on this packet."
-        : "This packet's signature lines are all for signers who aren't on it. Check Edit details."), "warn");
+      say(sum.text, "warn");
       $("dr-go").disabled = false;
     }
   } catch (e) {

@@ -236,3 +236,18 @@ test("a subject pattern whose words are all empty on an upload gets the title, n
   assert.equal(draftSubject({ ...DEFAULT_SETTINGS }, v, "T"), "T");
   assert.equal(draftSubject({ ...DEFAULT_SETTINGS, subjectMode: "real" }, v, "T"), null);
 });
+
+test("Auto place on a packet is summed up document by document", async () => {
+  const { packetPlacedSummary } = await import("../src/lib/ondraft.js");
+  // Dan's packet, placed twice: three documents already full, one with no signature lines
+  const again = [{ name: "Land Title.pdf", added: 0, skipped: 0, outcome: "no-labels" },
+    { name: "Addendum.pdf", added: 0, skipped: 1 }, { name: "Remuneration.pdf", added: 0, skipped: 2 }, { name: "Contract.pdf", added: 0, skipped: 13 }];
+  assert.deepEqual(packetPlacedSummary(again), { level: "warn",
+    text: "3 documents already have every block Dotted Line would place. Land Title.pdf has no signature lines Dotted Line knows: place its blocks in Real Signature if it needs any." });
+  const first = [{ name: "Land Title.pdf", added: 0, skipped: 0, outcome: "no-labels" }, { name: "Contract.pdf", added: 13, skipped: 0 }, { name: "Addendum.pdf", added: 1, skipped: 0 }];
+  assert.equal(packetPlacedSummary(first).level, "ok");
+  assert.match(packetPlacedSummary(first).text, /^Placed 14 blocks on 2 documents\. Land Title\.pdf has no signature lines/);
+  assert.equal(packetPlacedSummary([{ name: "A.pdf", added: 0, skipped: 3 }, { name: "B.pdf", added: 0, skipped: 1 }]).text,
+    "Every block Dotted Line would place is already on this packet.");
+  assert.match(packetPlacedSummary([{ name: "A.pdf", added: 0, skipped: 0, outcome: null }]).text, /^A\.pdf: its signature lines are for signers who aren't on it/);
+});
