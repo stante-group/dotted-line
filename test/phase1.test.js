@@ -696,6 +696,14 @@ test("a name run on to a second line is one signer: '(operating as …)' under a
   assert.deepEqual(partiesFromFormValues({ txtbuyer1: "Example Holdings Ltd.", txtbuyer2: "o/a Sample Cafe" }), { BUYER: 1, SELLER: 0 });
   assert.deepEqual(partiesFromFormValues({ txtbuyer1: "(operating as Sample Cafe)" }), { BUYER: 1, SELLER: 0 });
   assert.deepEqual(partiesFromFormValues({ txtbuyer1: "Jordan Sample", txtbuyer2: "Riley Sample" }), { BUYER: 2, SELLER: 0 });
+  for (const run of ["aka Jordy Sample", "a.k.a. Jordy Sample", "A.K.A Jordy Sample", "Also known as Jordy Sample", "trading as Sample Cafe",
+    "t/a Sample Cafe", "O/A Sample Cafe", "formerly Example Ltd.", "f/k/a Example Ltd.", "nka Example Ltd.", "d/b/a Sample Cafe", "c/o Riley Sample"]) {
+    assert.deepEqual(partiesFromFormValues({ txtbuyer1: "Jordan Sample", txtbuyer2: run }), { BUYER: 1, SELLER: 0 }, run);
+  }
+  // a second person still counts, however the line starts
+  for (const two of ["& Riley Sample", "and Riley Sample", "Akash Sample", "Formby Sample", "Tanya Sample"]) {
+    assert.deepEqual(partiesFromFormValues({ txtbuyer1: "Jordan Sample", txtbuyer2: two }), { BUYER: 2, SELLER: 0 }, two);
+  }
   const contact = (type, FirstName, LastName = "") => ({ TransactionContactTypeName: type, ContactData: { General: { FirstName, LastName } } });
   const two = [contact("Buyer", "EXAMPLE HOLDINGS LTD."), contact("Buyer", "(operating as Sample Cafe)")];
   assert.deepEqual(partiesFromContacts(two), { BUYER: 1, SELLER: 0 });
