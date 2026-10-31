@@ -8,7 +8,7 @@ import { isPdf, hasAcroForm, countPages, toBase64, fromBase64 } from "../src/lib
 import { suggestTitle, matchAddress, addressLine } from "../src/lib/title.js";
 import { WebForms, isAllowed, readBearer, zipEntryName, pairEntries, zipBatches, WebFormsSignedOut, partiesFromFormValues, libraryNamesFrom, agentSideFromFormValues, agentSideFromContacts, combineSides, partiesFromContacts, buyerNamesFromContacts, mergeParties, peopleFromContacts } from "../src/lib/webforms-api.js";
 import { formKey } from "../src/lib/match.js";
-import { buildDraftBody, signeesFromDeal, countsFromDeal, signersWithoutEmail, signerCounts, sideFromFormNames, templateSlots, isEmail, agentRoleFor, agentPerson, agentPeople, chooseAgents, unfilledRoles, fitSubject, SUBJECT_MAX, cleanSubject, subjectTooLong } from "../src/lib/draft.js";
+import { countDisagreements, buildDraftBody, signeesFromDeal, countsFromDeal, signersWithoutEmail, signerCounts, sideFromFormNames, templateSlots, isEmail, agentRoleFor, agentPerson, agentPeople, chooseAgents, unfilledRoles, fitSubject, SUBJECT_MAX, cleanSubject, subjectTooLong } from "../src/lib/draft.js";
 import { stripTemplate, dropUnusedSlots } from "../src/lib/layout.js";
 import { summarizeDeal, addressScore } from "../src/lib/deals.js";
 import { actingNotes, setupReport, senderFor, meFromYenta, meFromDeals, DELEGATION_VERIFIED, samePerson, isOwnCorporation, wfMatch } from "../src/lib/actor.js";
@@ -710,4 +710,27 @@ test("a name run on to a second line is one signer: '(operating as …)' under a
   assert.deepEqual(peopleFromContacts(two).map((p) => p.firstName), ["EXAMPLE HOLDINGS LTD."]);
   // the only buyer contact is still a buyer, however it's written
   assert.deepEqual(partiesFromContacts([contact("Buyer", "(operating as Sample Cafe)", "EXAMPLE HOLDINGS LTD.")]), { BUYER: 1, SELLER: 0 });
+});
+
+test("forms and deal disagree on how many: said under the boxes, the other number one click away", () => {
+  const deal = { participants: [{ role: "BUYER" }, { role: "SELLER" }, { role: "SELLER" }] };
+  const webforms = [{ BUYER: 2, SELLER: 0 }];
+  // the box shows the forms' 2: the deal has 1, so Buyer 2 is to add by hand
+  assert.deepEqual(countDisagreements({ deal, webforms, current: { BUYER: 2, SELLER: 0 } }), [{ role: "BUYER",
+    text: "The forms name 2 buyers; the reZEN deal has 1. Buyer 2 isn't on the deal, so you'll add them in Real Signature.",
+    use: 1, useLabel: "Use 1, as on the deal" }]);
+  // after "Use 1": the line says where the number came from, and offers the forms' back
+  assert.deepEqual(countDisagreements({ deal, webforms, current: { BUYER: 1, SELLER: 0 } }).map((d) => [d.text, d.useLabel]),
+    [["Using the reZEN deal's 1 buyer; the forms name 2.", "Use 2, as on the forms"]]);
+  // a number the agent typed: no advice
+  assert.deepEqual(countDisagreements({ deal, webforms, current: { BUYER: 3, SELLER: 0 } }), []);
+  // the deal has more: who'd be left off
+  assert.equal(countDisagreements({ deal, webforms: [{ BUYER: 0, SELLER: 1 }], current: { BUYER: 0, SELLER: 1 } })[0].text,
+    "The forms name 1 seller; the reZEN deal has 2. Seller 2 on the deal is left off.");
+  assert.equal(countDisagreements({ deal: { participants: [{ role: "BUYER" }] }, webforms: [{ BUYER: 3 }], current: { BUYER: 3 } })[0].text,
+    "The forms name 3 buyers; the reZEN deal has 1. Buyers 2–3 aren't on the deal, so you'll add them in Real Signature.");
+  // agreeing, nothing read on the forms, or no deal: nothing to say
+  assert.deepEqual(countDisagreements({ deal, webforms: [{ BUYER: 1 }], current: { BUYER: 1 } }), []);
+  assert.deepEqual(countDisagreements({ deal, webforms: [], current: { BUYER: 2 } }), []);
+  assert.deepEqual(countDisagreements({ deal: null, webforms, current: { BUYER: 2 } }), []);
 });

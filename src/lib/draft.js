@@ -344,3 +344,36 @@ export function buildDraftBody({ draft, layout: tpl, name, pageCount, transactio
     },
   };
 }
+
+// ---- when WEBForms and the deal disagree on how many ----
+
+const people = (n, role) => `${n} ${role === "BUYER" ? "buyer" : "seller"}${n === 1 ? "" : "s"}`;
+const slots = (from, to, role) => {
+  const w = role === "BUYER" ? "Buyer" : "Seller";
+  return from === to ? `${w} ${from}` : `${w}s ${from}–${to}`;
+};
+
+/** The line under the Buyers and Sellers boxes when the forms and the picked deal count a
+ *  side differently (Dan, 2026-10-31). The forms' number is the starting one (signerCounts),
+ *  because a missing signer costs their blocks placed by hand and an extra one is a click
+ *  to delete; the deal's number is one click away, never set for the agent. Shown only
+ *  while the box holds one of the two numbers: a number the agent typed needs no advice.
+ *  → [{role, text, use, useLabel}] */
+export function countDisagreements({ deal, webforms = [], current = {} }) {
+  if (!deal) return [];
+  const fromDeal = countsFromDeal(deal);
+  const out = [];
+  for (const role of SIGNER_ROLES) {
+    const f = Math.max(0, ...webforms.map((x) => x?.[role] || 0)), d = fromDeal[role] || 0, now = current[role];
+    if (!f || !d || f === d) continue;
+    if (now === f) {
+      const more = f > d
+        ? `${slots(d + 1, f, role)} ${f - d === 1 ? "isn't" : "aren't"} on the deal, so you'll add them in Real Signature.`
+        : `${slots(f + 1, d, role)} on the deal ${d - f === 1 ? "is" : "are"} left off.`;
+      out.push({ role, text: `The forms name ${people(f, role)}; the reZEN deal has ${d}. ${more}`, use: d, useLabel: `Use ${d}, as on the deal` });
+    } else if (now === d) {
+      out.push({ role, text: `Using the reZEN deal's ${people(d, role)}; the forms name ${f}.`, use: f, useLabel: `Use ${f}, as on the forms` });
+    }
+  }
+  return out;
+}

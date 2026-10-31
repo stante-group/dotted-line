@@ -87,6 +87,10 @@ flowchart TD
   class A,F1,D1,T1,TWO out
 ```
 
+When the forms and the picked deal both count a side and differ, the panel says so under
+the Buyers and Sellers boxes, with a button to use the other number (`countDisagreements`).
+It never switches the number by itself, and a number typed by hand gets no note.
+
 ## 4. Who goes in as a signer
 
 Real Signature refuses the whole document if any signer has a blank email or name, so
