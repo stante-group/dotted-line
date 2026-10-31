@@ -41,6 +41,26 @@ export function addressScore(a, b) {
   return 0.5 + 0.5 * (hit / words.length);
 }
 
+/** 0..1: how well a deal's street address shows up somewhere in a form's text — for a PDF
+ *  uploaded in Real Signature, where no WEBForms deal names the address. Picking the address
+ *  out of a form is guesswork (every form lays it out differently); looking for each deal's
+ *  own address in the text isn't. Only the street part (before the first comma): the city
+ *  and postal code are on every deal. Each place the civic number appears is scored with
+ *  the words just around it, so a price or a date with the same digits scores nothing
+ *  without the street name beside it. */
+export function addressInText(address, text) {
+  const split = (s) => normalizeAddress(String(s || "").replace(/(\d)-(?=\d)/g, "$1 ").replace(/[^\w\s#.,-]/g, " ")).split(" ").filter(Boolean);
+  const street = split(String(address || "").split(",")[0]);
+  const nums = street.filter((t) => /^\d+[A-Z]?$/.test(t));
+  if (!nums.length) return 0;
+  const T = split(text);
+  let best = 0;
+  T.forEach((t, i) => {
+    if (nums.includes(t)) best = Math.max(best, addressScore(street.join(" "), T.slice(Math.max(0, i - 3), i + 8).join(" ")));
+  });
+  return best;
+}
+
 /** Deals best-first for a WEBForms transaction name/address. Every deal is returned —
  *  the picker shows all, ranked — so a bad match never hides the right one. */
 export function rankDeals(webformsAddress, deals) {

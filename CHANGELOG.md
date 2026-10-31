@@ -5,6 +5,23 @@ Dotted Line by itself a few hours after a version is published.
 
 ## Not released yet
 
+- **Auto place on a document you uploaded in Real Signature.** Upload a PDF to Send
+  One-time Document, open it from your Draft tab, and the panel places its signature,
+  initials and date blocks from its printed labels, as it does for WEBForms forms.
+  - New uploads from the last week are listed in the panel, each with Set up: it fills
+    the deal, signers, document name and email subject the same way as from WEBForms.
+  - Anything you already chose in Real Signature stays: a deal picked, a name given, a
+    subject typed, blocks already placed.
+  - Packets too: on a packet's Edit page, Auto place this packet places blocks on each of
+    its documents for that document's own signers.
+  - When a form has a client signature line and the document has both buyers and
+    sellers, the panel asks whose line it is.
+  - The Disclosure of Remuneration's one client line gets both clients side by side.
+- **A clearer panel.** Each screen has a heading for its one job and the choices in the
+  order you make them; forms and documents are listed as rows; the pressed button shows
+  what it's doing; results and errors appear under it. The panel uses each site's own
+  words: forms and the Basket for WEBForms, a document or packet for Real Signature.
+- Error reports (only if you said yes) cover Auto place on an uploaded document too.
 - **Auto place: more BC forms.** The Contract of Purchase and Sale's and Subject Removal's
   page-foot "BUYER'S INITIALS" and "SELLER'S INITIALS" boxes, Subject Removal's three buyer
   and three seller signature lines (printed as a picture, so found by where they sit), and the Disclosure of

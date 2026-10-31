@@ -102,6 +102,22 @@ export class RealSignature {
   }
   getTemplate(id) { return this.request("GET", `/document-templates/${encodeURIComponent(id)}`); }
 
+  /** The PDF the agent uploaded to a draft, byte for byte. The draft itself carries no link
+   *  to it; this route gives a presigned S3 link, good for an hour (2026-10-30, see
+   *  docs/api-notes.md). The link gets no Authorization header: it is S3's, not Real's,
+   *  and the signature in it is the permission. */
+  async draftPdf(id) {
+    const r = await this.request("GET", `/document-templates/${encodeURIComponent(id)}/file-url`);
+    let url = null;
+    try { url = new URL(r?.url); } catch { /* checked below */ }
+    if (!url || url.protocol !== "https:" || !/(^|\.)s3[.-]([a-z0-9-]+\.)?amazonaws\.com$/.test(url.hostname)) {
+      throw new Error("Real Signature's file link changed shape");
+    }
+    const f = await this.fetch(url.toString());
+    if (!f.ok) throw new Error(`the draft's PDF → ${f.status}`);
+    return new Uint8Array(await f.arrayBuffer());
+  }
+
   // ---- drafts ----
   /** Upload a PDF as a one-time draft. Nothing is emailed. → {id} */
   uploadDraft(pdfBlob, filename) {
@@ -128,7 +144,16 @@ export class RealSignature {
       json: { name, oneTimeUse: true, documentTemplates: draftIds.map((documentTemplateId) => ({ documentTemplateId })) },
     });
   }
+  /** The Drafts tab's list: one-time drafts and packets, newest first. Rows carry type
+   *  ("DOCUMENT" / packet), id, name, createdAt and defaults (null until Edit details is
+   *  saved) — observed 2026-10-30. */
+  listOneTimeDrafts({ page = 0, size = 20 } = {}) {
+    return this.request("GET", "/one-time-templates", { query: { page, size, "sort.dir": "desc", "sort.property": "createdAt" } });
+  }
   deletePacketDraft(id) { return this.request("DELETE", `/packet-templates/${encodeURIComponent(id)}`); }
+  /** A packet draft: {id, name, oneTimeUse, documentTemplates[]}, each a full document
+   *  draft carrying the signers the packet's Edit details saved (observed 2026-10-30). */
+  getPacketDraft(id) { return this.request("GET", `/packet-templates/${encodeURIComponent(id)}`); }
 
   /** Every page of my templates or shared-with-me, up to `max`. Each item already carries
    *  its full fieldDefinitions. */

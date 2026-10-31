@@ -229,6 +229,17 @@ export function pageBlocks(page) {
       // The line can also run on from the label: "Consumer Signature ________" (RECA's
       // Consumer Relationships Guide).
       const r = ruleRight(rules, xEnd, line.y) || ruleAbove(rules, x, xEnd, line.y, line.size);
+      // "person/persons to whom disclosure has been made" (BCFSA's Disclosure of
+      // Remuneration) is one line for every client: two side by side when it's long enough,
+      // narrower than usual if need be, and the second comes off with one client, as with
+      // any spare slot. Before, only Signer 1 got a block on it (Dan's test, 2026-10-30).
+      if (r && /persons/i.test(m[1] || "")) {
+        const w = Math.min(SIG.w, (r.x2 - r.x1 - 8) / 2);
+        if (w >= 100) {
+          [0, 1].forEach((k) => add(SIG, role, r.x1 + 2 + k * (w + 4), r.y + 1, { sig: true, index: k, w }));
+          continue;
+        }
+      }
       add(SIG, role, r ? r.x1 + 2 : x, r ? r.y + 1 : line.y + line.size + 2, { sig: true });
     }
     for (const m of line.text.matchAll(SIGNATURE_CAPS)) {

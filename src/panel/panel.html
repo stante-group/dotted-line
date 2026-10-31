@@ -4,36 +4,142 @@
   <meta charset="utf-8">
   <title>Dotted Line</title>
   <style>
-    body { font: 14px/1.45 system-ui, sans-serif; margin: 16px; color: #1d2433; }
-    h1 { font-size: 16px; margin: 0 0 12px; }
-    h2 { font-size: 13px; margin: 16px 0 6px; text-transform: uppercase; letter-spacing: .04em; color: #5b6475; }
-    .note { color: #5b6475; font-size: 13px; }
-    label.check { display: flex; align-items: center; gap: 6px; margin-top: 10px; font-weight: normal; }
-    label.check input { width: auto; margin: 0; }
-    /* "Still working" — every wait on WEBForms or Real Signature shows this, so a slow
-       lookup never looks like a frozen panel. */
-    .busy { display: flex; align-items: center; gap: 8px; color: #5b6475; font-size: 13px; margin: 8px 0; }
+    /* Dotted Line's look (Dan, 2026-10-30: "is this the best visual design you can come up
+       with?"). Paper and pen: white paper, navy-ink text, one ballpoint blue for everything
+       you can press. The one flourish is the name, signed on a dotted line under a "×"
+       sign-here mark; everything else stays quiet. System fonts only: an extension loads
+       nothing from the web. */
+    :root {
+      --ink: #1a2233; --muted: #5d6678; --faint: #8b93a3;
+      --pen: #1d4ed8; --pen-dark: #1e40af; --pen-wash: #eef2fc;
+      --rule: #e1e5ec; --field: #c8cfdb; --dots: #a9b1bf; --paper-2: #f6f7fa;
+      --ok: #1e7a45; --ok-wash: #edf7f1; --warn: #a16207; --warn-wash: #fdf6e7; --err: #b42318; --err-wash: #fdf0ee;
+    }
+    body { font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; margin: 0; padding: 14px 16px 16px; color: var(--ink); background: #fff; }
+
+    /* The name, signed on the line. */
+    header.brand { display: flex; align-items: flex-end; gap: 8px; padding: 0 0 6px; margin: 0 0 14px;
+      border-bottom: 2px dotted var(--dots); }
+    header.brand .x { color: var(--pen); font: 600 15px/1 system-ui, sans-serif; padding-bottom: 4px; }
+    header.brand h1 { margin: 0; font: italic 400 21px/1.1 Georgia, "Times New Roman", serif; letter-spacing: .005em; color: var(--ink); }
+    header.brand .end { margin-left: auto; padding-bottom: 2px; }
+
+    /* Each screen says what it's for. */
+    h2.screen-title { display: block; font-size: 16px; font-weight: 600; margin: 0 0 8px; }
+    /* How to start: a real sequence, so numbered. */
+    ol.steps { margin: 4px 0 10px; padding: 0; list-style: none; counter-reset: step; }
+    ol.steps li { counter-increment: step; position: relative; padding: 2px 0 8px 32px; }
+    ol.steps li::before { content: counter(step); position: absolute; left: 0; top: 1px; width: 22px; height: 22px; border-radius: 50%;
+      background: var(--pen-wash); color: var(--pen); font-weight: 600; font-size: 12px; display: flex; align-items: center; justify-content: center; }
+    h2 { display: flex; align-items: center; font-size: 13px; font-weight: 600; margin: 18px 0 6px; color: var(--ink); }
+    .note { color: var(--muted); font-size: 13px; }
+    p { margin: 8px 0; }
+
+    /* Icon buttons: Settings in the header, Refresh beside its list. */
+    button.icon { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; padding: 0; margin: 0;
+      border: 1px solid transparent; border-radius: 7px; background: none; color: var(--muted); cursor: pointer; }
+    button.icon:hover:not(:disabled) { background: var(--pen-wash); border-color: transparent; color: var(--pen); }
+    button.icon svg { width: 16px; height: 16px; }
+
+    /* A list's own heading line: what it is on the left, its Refresh on the right. */
+    .list-head { display: flex; align-items: center; gap: 8px; margin: 4px 0 6px; }
+    .list-head p { margin: 0; flex: 1; }
+
+    /* The forms, as a stack of pages: one box, a hairline between them, each with a page. */
+    ul.forms { list-style: none; padding: 0; margin: 0 0 4px; border: 1px solid var(--rule); border-radius: 10px; background: #fff; }
+    ul.forms li { position: relative; padding: 9px 12px 9px 36px; border-top: 1px solid var(--rule); font-size: 13.5px; line-height: 1.35; }
+    ul.forms li:first-child { border-top: none; }
+    ul.forms li .alt { display: block; color: var(--muted); font-size: 12px; margin-top: 1px; }
+    .docs li::before { content: ""; position: absolute; left: 13px; top: 10px; width: 11px; height: 14px; border: 1.5px solid var(--pen);
+      border-radius: 2px; background: linear-gradient(225deg, #fff 0 4px, var(--pen) 4px 5.5px, transparent 5.5px); }
+    /* A row with its action on the right: an upload and its Set up. */
+    ul.forms li.action-row { display: flex; align-items: center; gap: 10px; }
+    ul.forms li.action-row .what { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+    ul.forms li.action-row button { margin: 0; padding: 5px 12px; font-size: 13px; flex: none; }
+    .docs li.action-row::before { top: 50%; margin-top: -8px; }
+    /* A list of facts (what one click chose): the same box, a small blue dot each. */
+    #made-list li { padding-left: 26px; }
+    #made-list li::before { content: ""; position: absolute; left: 12px; top: 15px; width: 5px; height: 5px; border-radius: 50%; background: var(--pen); }
+
+    /* Fields. */
+    label { display: block; font-size: 13px; font-weight: 600; margin: 14px 0 5px; }
+    input[type=text], select { width: 100%; box-sizing: border-box; font: inherit; padding: 8px 10px; border: 1px solid var(--field); border-radius: 8px; background: #fff; color: var(--ink); }
+    input[type=number] { width: 56px; font: inherit; padding: 5px 6px; border: 1px solid var(--field); border-radius: 8px; }
+    input:focus-visible, select:focus-visible { outline: 2px solid var(--pen); outline-offset: 0; border-color: var(--pen); }
+    label.check { display: flex; align-items: center; gap: 8px; margin-top: 12px; font-weight: 400; }
+    label.check input { width: auto; margin: 0; accent-color: var(--pen); }
+    .row { display: flex; gap: 16px; align-items: center; }
+    .row label { font-weight: 400; display: flex; align-items: center; gap: 6px; margin: 4px 0; }
+    .count { color: var(--muted); font-weight: 400; }
+    .count.over { color: var(--err); font-weight: 600; }
+
+    /* Buttons: blue ink for the one thing to press, white for the rest. */
+    button { font: inherit; font-weight: 600; padding: 10px 14px; border-radius: 8px; border: 1px solid var(--pen); background: var(--pen); color: #fff; cursor: pointer; margin-top: 14px; }
+    button:hover:not(:disabled) { background: var(--pen-dark); border-color: var(--pen-dark); }
+    button:focus-visible { outline: 2px solid var(--pen); outline-offset: 2px; }
+    button:disabled { background: #d3d8e1; border-color: #d3d8e1; color: #fff; cursor: default; }
+    button.primary { display: block; width: 100%; }
+    /* The button you pressed says what it's doing, with a spinner, and can't be pressed
+       twice (working() in panel.js). Still blue: it isn't unavailable, it's busy. */
+    button.working, button.working:disabled { display: flex; align-items: center; justify-content: center; gap: 8px;
+      background: var(--pen); border-color: var(--pen); color: #fff; opacity: .9; cursor: progress; }
+    button.working::before { content: ""; flex: none; width: 13px; height: 13px; border-radius: 50%;
+      border: 2px solid rgba(255,255,255,.45); border-top-color: #fff; animation: spin 0.8s linear infinite; }
+    button.secondary { background: #fff; color: var(--ink); border-color: var(--field); font-weight: 500; }
+    button.secondary:hover:not(:disabled) { background: var(--pen-wash); border-color: var(--pen); }
+    button.link { background: none; border: none; color: var(--pen); padding: 0; margin: 0; font-weight: 400; text-decoration: underline; text-underline-offset: 2px; font-size: 13px; }
+    button.link:hover:not(:disabled) { background: none; color: var(--pen-dark); }
+    /* "Draft only. Nothing is sent." under the main button: a promise, so close to it. */
+    .promise, #rs-go-why { color: var(--muted); font-size: 12.5px; margin: 6px 0 0; text-align: center; }
+
+    /* Cards: a template choice per form, an upload to set up. */
+    .form { border: 1px solid var(--rule); border-radius: 10px; padding: 10px 12px; margin: 8px 0; }
+    .form b { display: block; font-size: 13.5px; font-weight: 600; margin-bottom: 2px; }
+    .form button { margin-top: 8px; padding: 6px 12px; font-size: 13px; }
+    .form select { margin-top: 6px; }
+
+    /* Notices: a tinted slip with its colour down the left edge. */
+    .ok, .warn, .err { border-radius: 8px; padding: 9px 12px; font-size: 13px; margin: 10px 0; border: 1px solid transparent; border-left-width: 3px; }
+    .ok { background: var(--ok-wash); border-color: #cfe8d9; border-left-color: var(--ok); }
+    .warn { background: var(--warn-wash); border-color: #f1e0b8; border-left-color: var(--warn); }
+    .err { background: var(--err-wash); border-color: #f3d1cc; border-left-color: var(--err); }
+    /* Context, not a warning: "working as a teammate in WEBForms" and the like. */
+    .info { display: flex; gap: 7px; align-items: baseline; font-size: 13px; color: #3b4456; margin: 6px 0; }
+    .info::before { content: "i"; flex: none; display: inline-flex; align-items: center; justify-content: center;
+      width: 15px; height: 15px; border-radius: 50%; background: var(--pen-wash); color: var(--pen);
+      font: italic 600 10px/1 Georgia, serif; transform: translateY(2px); }
+
+    /* "Still working": at the top, where what's loading will appear (Dan, 2026-10-30: the
+       spinner under the button was "counter intuitive"). Results stay under the button. */
+    .busy { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 13px; margin: 0 0 10px; }
     .busy::before { content: ""; flex: none; width: 14px; height: 14px; border-radius: 50%;
-      border: 2px solid #d5d9e0; border-top-color: #2f6fed; animation: spin 0.8s linear infinite; }
+      border: 2px solid var(--rule); border-top-color: var(--pen); animation: spin 0.8s linear infinite; }
     @keyframes spin { to { transform: rotate(360deg); } }
     @media (prefers-reduced-motion: reduce) { .busy::before { animation-duration: 2.4s; } }
-    .warn { background: #fff7e6; border: 1px solid #f0c36d; border-radius: 6px; padding: 8px 10px; font-size: 13px; margin: 8px 0; }
-    /* Context, not a warning: "working as a teammate in WEBForms" and the like. */
-    .info { display: flex; gap: 6px; align-items: baseline; font-size: 13px; color: #3b4456; margin: 6px 0; }
-    .info::before { content: "i"; flex: none; display: inline-flex; align-items: center; justify-content: center;
-      width: 15px; height: 15px; border-radius: 50%; background: #e3eafb; color: #2f6fed;
-      font: italic 600 10px/1 Georgia, serif; transform: translateY(2px); }
-    .count { color: #5b6475; font-weight: normal; }
-    .count.over { color: #b3261e; font-weight: 600; }
-    .err { background: #fdecec; border: 1px solid #e59a9a; border-radius: 6px; padding: 8px 10px; font-size: 13px; margin: 8px 0; }
-    .ok { background: #eaf6ee; border: 1px solid #8cc9a0; border-radius: 6px; padding: 8px 10px; font-size: 13px; margin: 8px 0; }
-    ul.forms { padding-left: 18px; margin: 6px 0; }
-    label { display: block; font-size: 13px; margin: 8px 0 3px; }
-    input[type=text], select { width: 100%; box-sizing: border-box; font: inherit; padding: 6px 8px; border: 1px solid #c9cfdb; border-radius: 6px; }
-    input[type=number] { width: 56px; font: inherit; padding: 4px 6px; }
-    .row { display: flex; gap: 16px; align-items: center; }
-    .form { border: 1px solid #e3e6ec; border-radius: 6px; padding: 8px 10px; margin: 8px 0; }
-    .form b { display: block; font-size: 13px; }
+
+    /* Questions the agent answers: reports (asked once) and whose a client line is. */
+    .consent, .ask { border: 1px solid #d3ddf5; background: #f5f8fe; border-radius: 10px; padding: 12px 14px; margin: 0 0 14px; font-size: 13px; }
+    .consent p, .ask p { margin: 4px 0; }
+    .consent details { margin: 6px 0; color: #3b4456; }
+    .consent summary, #report summary { cursor: pointer; color: var(--pen); }
+    .consent .row { gap: 8px; }
+    .consent .row button { margin-top: 8px; flex: 1; }
+    .ask .choices { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; margin-top: 10px; }
+    .ask .choices button { margin: 0; display: flex; flex-direction: column; align-items: center; gap: 1px; }
+    .ask .choices small { color: var(--muted); font-size: 12px; font-weight: 400; }
+
+    /* ⓘ: explanations live behind these, so the panel shows only what to do and what to
+       watch out for. Click (or keyboard) opens the text under it; hover shows the same text
+       as the browser's own tooltip. Warnings never go behind one. */
+    button.i { display: inline-flex; align-items: center; justify-content: center; width: 17px; height: 17px;
+      margin: 0 0 0 6px; padding: 0; border-radius: 50%; border: 1px solid #a3abba; background: none;
+      color: var(--muted); font: italic 600 11px/1 Georgia, serif; vertical-align: middle; cursor: pointer; }
+    button.i:hover:not(:disabled), button.i[aria-expanded="true"] { border-color: var(--pen); color: var(--pen); background: var(--pen-wash); }
+    .tip { background: var(--paper-2); border-radius: 8px; padding: 8px 10px; margin: 4px 0 8px; font-size: 12.5px; color: #3b4456; }
+    .with-i { display: flex; align-items: center; }
+    .with-i label { margin-right: 0; }
+    .with-i label.check { margin-top: 12px; }
+
     /* Template lists: a gap, not a line, between the templates and the two choices that
        aren't templates (Dan, 2026-10-29: disabled "──────" rows, then lines, were both
        clutter; "needs like a half line more spacing"). The gap is an <hr> (Chrome 119+)
@@ -43,60 +149,48 @@
     @supports (appearance: base-select) {
       /* The reZEN deal list the same way (Dan, 2026-10-29), with a group per type. */
       .form select, .form select::picker(select), #rs-deal, #rs-deal::picker(select) { appearance: base-select; }
-      #rs-deal::picker(select) { border: 1px solid #c9cfdb; border-radius: 6px; padding: 4px 0;
+      #rs-deal::picker(select) { border: 1px solid var(--field); border-radius: 8px; padding: 4px 0;
         inline-size: anchor-size(inline); box-sizing: border-box; }
-      #rs-deal option { padding: 4px 8px; white-space: normal; overflow-wrap: anywhere; }
+      #rs-deal option { padding: 5px 10px; white-space: normal; overflow-wrap: anywhere; }
       #rs-deal hr { margin: 0 0 0.5em; border: 0; }
-      #rs-deal optgroup { font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: #5b6475; padding-top: 4px; }
-      #rs-deal optgroup option { font-weight: 400; font-size: 14px; text-transform: none; letter-spacing: normal; color: #1d2433; padding-left: 16px; }
+      #rs-deal optgroup { font-weight: 600; font-size: 12px; color: var(--muted); padding-top: 4px; }
+      #rs-deal optgroup option { font-weight: 400; font-size: 14px; color: var(--ink); padding-left: 16px; }
       /* As wide as the box it opens from, and long names wrap: the list used to run past
          the panel's edge and hide the ends of names, "(suggested)" included (Dan's test
          31, 2026-10-29). */
-      .form select::picker(select) { border: 1px solid #c9cfdb; border-radius: 6px; padding: 4px 0;
+      .form select::picker(select) { border: 1px solid var(--field); border-radius: 8px; padding: 4px 0;
         inline-size: anchor-size(inline); box-sizing: border-box; }
-      .form select option { padding: 4px 8px; white-space: normal; overflow-wrap: anywhere; }
+      .form select option { padding: 5px 10px; white-space: normal; overflow-wrap: anywhere; }
       .form select hr { margin: 0 0 0.5em; border: 0; }
     }
-    button { font: inherit; padding: 8px 14px; border-radius: 6px; border: 1px solid #1d4ed8; background: #1d4ed8; color: #fff; cursor: pointer; margin-top: 12px; }
-    button.link { background: none; border: none; color: #1d4ed8; padding: 0; margin: 0; text-decoration: underline; font-size: 13px; }
-    button:disabled { background: #c9cfdb; border-color: #c9cfdb; cursor: default; }
-    pre { white-space: pre-wrap; background: #f5f6f8; padding: 8px; border-radius: 6px; font-size: 12px; }
-    footer { margin-top: 32px; border-top: 1px solid #e3e6ec; padding-top: 12px; font-size: 12px; color: #5b6475; }
-    footer a { color: inherit; }
-    footer .fine { font-size: 11px; color: #8a91a0; }
-    /* ⓘ: explanations live behind these, so the panel shows only what to do and what to
-       watch out for. Click (or keyboard) opens the text under it; hover shows the same text
-       as the browser's own tooltip. Warnings never go behind one. */
-    button.i { display: inline-flex; align-items: center; justify-content: center; width: 17px; height: 17px;
-      margin: 0 0 0 6px; padding: 0; border-radius: 50%; border: 1px solid #9aa3b2; background: none;
-      color: #5b6475; font: italic 600 11px/1 Georgia, serif; text-transform: none; letter-spacing: 0;
-      vertical-align: middle; cursor: pointer; }
-    button.i:hover, button.i[aria-expanded="true"] { border-color: #2f6fed; color: #2f6fed; background: #eef3fe; }
-    button.i:focus-visible { outline: 2px solid #2f6fed; outline-offset: 1px; }
-    .tip { background: #f5f6f8; border-radius: 6px; padding: 6px 8px; margin: 4px 0 8px; font-size: 12.5px; color: #3b4456; }
-    .with-i { display: flex; align-items: center; }
-    .with-i label { margin-right: 0; }
-    /* Popup (WEBForms and other sites): a fixed, compact width over the page. */
-    html.popup body { width: 360px; margin: 12px 14px; }
-    html.popup footer { margin-top: 16px; }
-    /* Asked once: may Dotted Line send error reports and draft counts? */
-    .consent { border: 1px solid #c9d6f5; background: #f4f7fe; border-radius: 8px; padding: 10px 12px; margin: 0 0 12px; font-size: 13px; }
-    .consent p { margin: 4px 0; }
-    .consent details { margin: 6px 0; color: #3b4456; }
-    .consent summary, #report summary { cursor: pointer; color: #1d4ed8; }
-    .consent .row button { margin-top: 6px; }
-    button.secondary { background: #fff; color: #1d2433; border-color: #c9cfdb; }
+
+    pre { white-space: pre-wrap; background: var(--paper-2); padding: 8px; border-radius: 8px; font-size: 12px; }
     #report { font-size: 13px; margin: 4px 0 8px; }
     #report pre { margin: 6px 0; }
-    .report-in-err { margin-top: 8px; padding-top: 8px; border-top: 1px solid #e59a9a; }
+    .report-in-err { margin-top: 8px; padding-top: 8px; border-top: 1px solid #f3d1cc; }
     .report-in-err .note { margin: 0 0 6px; }
-    .report-in-err summary { cursor: pointer; color: #1d4ed8; }
+    .report-in-err summary { cursor: pointer; color: var(--pen); }
     .report-in-err pre { margin: 6px 0; white-space: pre-wrap; }
+
+    footer { margin-top: 28px; border-top: 1px solid var(--rule); padding-top: 10px; font-size: 12px; color: var(--muted); }
+    footer p { margin: 0 0 3px; }
+    footer a { color: inherit; text-underline-offset: 2px; }
+    footer .fine { font-size: 11px; color: var(--faint); }
+
+    /* Popup (WEBForms and other sites): a fixed, compact width over the page. */
+    html.popup body { width: 360px; padding: 12px 14px 14px; }
+    html.popup footer { margin-top: 18px; }
     [hidden] { display: none !important; }
   </style>
 </head>
 <body>
-  <h1>Dotted Line</h1>
+  <header class="brand">
+    <span class="x" aria-hidden="true">×</span>
+    <h1>Dotted Line</h1>
+    <span id="settings-wrap" class="end"><button id="open-settings" class="icon" type="button" aria-label="Settings" title="Settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></button></span>
+  </header>
+  <!-- "Still working" lines: at the top, where what's loading will appear. -->
+  <div id="status" role="status"></div>
 
   <!-- Asked once, after install or the update that added reports. Nothing is sent until
        the agent answers, and "No thanks" sends nothing (src/lib/report.js). -->
@@ -117,41 +211,76 @@
 
   <!-- Nothing to act on -->
   <section id="idle">
-    <p class="note">In WEBForms, open a form or tick forms on a deal, then click here again.</p>
+    <h2 class="screen-title">Turn forms into a Real Signature draft</h2>
+    <ol class="steps">
+      <li>In WEBForms, tick the forms on a deal, or open one form.</li>
+      <li>Click the Dotted Line icon. You check the draft in Real Signature and send it yourself.</li>
+    </ol>
+    <p class="note">Uploaded a PDF in Real Signature? Open that document from your Draft tab and Dotted Line places its blocks.</p>
   </section>
 
   <!-- A one-click draft, afterwards: what was chosen -->
   <section id="made" hidden>
-    <p><strong>Made in one click</strong></p>
+    <h2 class="screen-title">Made in one click</h2>
     <ul id="made-list" class="forms"></ul>
     <p id="made-note" class="note"></p>
   </section>
 
+  <!-- A draft the agent uploaded in Real Signature itself: Auto place its blocks -->
+  <section id="dr" hidden>
+    <h2 id="dr-title" class="screen-title">Place blocks on this document</h2>
+    <p id="dr-status" class="note"></p>
+    <!-- A client signature line on a draft with buyers and sellers: whose is it? -->
+    <div id="dr-ask" class="ask" hidden>
+      <p><strong>Who signs as the client?</strong></p>
+      <p class="note">This form has a client signature line, and this document has both buyers and sellers.</p>
+      <div class="choices">
+        <button id="dr-buyers" class="secondary" type="button"></button>
+        <button id="dr-sellers" class="secondary" type="button"></button>
+      </div>
+    </div>
+    <div id="dr-form" hidden>
+      <p id="dr-who"></p>
+      <ul id="dr-docs" class="forms docs" hidden></ul>
+      <p class="note">Places signature, initial and date blocks where the form's printed labels say, for the signers set in Edit details. Blocks already there stay.</p>
+      <button id="dr-go" class="primary" type="button">Auto place this document</button>
+      <p class="promise">Draft only. Nothing is sent.</p>
+    </div>
+  </section>
+
+  <!-- Real Signature's home and Drafts list: recent uploads not set up yet -->
+  <section id="up" hidden>
+    <h2 class="screen-title">New uploads</h2>
+    <div class="list-head">
+      <p id="up-status" class="note"></p>
+      <button id="up-refresh" class="icon" type="button" aria-label="Refresh" title="Refresh"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 4v7h-7"/></svg></button>
+    </div>
+    <ul id="up-list" class="forms docs" hidden></ul>
+    <p class="note">Drop a PDF in Real Signature's one-time box, then set it up here. Dotted Line finds the deal from the form, fills in the signers and places the blocks.</p>
+  </section>
+
   <!-- Step 1: WEBForms -->
   <section id="wf" hidden>
-    <p id="wf-where" class="note"></p>
-    <ul id="wf-forms" class="forms"></ul>
+    <h2 class="screen-title">Send to Real Signature</h2>
+    <div class="list-head">
+      <p id="wf-where" class="note"></p>
+      <button id="wf-refresh" class="icon" type="button" aria-label="Refresh" title="Refresh"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 4v7h-7"/></svg></button>
+    </div>
+    <ul id="wf-forms" class="forms docs"></ul>
     <div id="wf-title-wrap" hidden>
-      <label for="wf-title">Title</label>
+      <label for="wf-title" id="wf-title-label">Document name</label>
       <input id="wf-title" type="text" maxlength="120">
     </div>
-    <button id="wf-go" disabled>Prepare in Real Signature</button>
-    <p class="note">Draft only — nothing is sent.</p>
-    <button id="wf-refresh" class="link">Refresh</button>
+    <button id="wf-go" class="primary" disabled>Prepare in Real Signature</button>
+    <p class="promise">Draft only. Nothing is sent.</p>
   </section>
 
   <!-- Step 2: Real Signature -->
   <section id="rs" hidden>
+    <h2 id="rs-screen-title" class="screen-title">Set up the document</h2>
     <p id="rs-status" class="note"></p>
     <div id="rs-form" hidden>
       <div id="rs-needs"></div>
-      <label for="rs-title">Title</label>
-      <input id="rs-title" type="text" maxlength="120">
-      <div id="rs-subject-wrap" hidden>
-        <label for="rs-subject">Signers' email subject <span id="rs-subject-count" class="count"></span></label>
-        <input id="rs-subject" type="text" aria-describedby="rs-subject-note">
-        <div id="rs-subject-note" class="err" hidden>Real Signature allows 70 characters. Shorten the subject to finish the draft.</div>
-      </div>
       <div class="with-i">
         <label for="rs-deal">reZEN deal</label>
         <button class="i" type="button" aria-expanded="false" aria-controls="tip-deal" aria-label="About the deal">i</button>
@@ -183,10 +312,17 @@
         <select id="rs-agent-pick"></select>
       </div>
       <p class="note" id="rs-agent-who"></p>
+      <label for="rs-title" id="rs-title-label">Document name</label>
+      <input id="rs-title" type="text" maxlength="120">
+      <div id="rs-subject-wrap" hidden>
+        <label for="rs-subject">Email subject <span id="rs-subject-count" class="count"></span></label>
+        <input id="rs-subject" type="text" aria-describedby="rs-subject-note">
+        <div id="rs-subject-note" class="err" hidden>Real Signature allows 70 characters. Shorten the subject to finish the draft.</div>
       </div>
-      <button id="rs-go" disabled aria-describedby="rs-go-why">Finish draft</button>
+      </div>
+      <button id="rs-go" class="primary" disabled aria-describedby="rs-go-why">Finish draft</button>
       <p class="note" id="rs-go-why" hidden>Choose a template (or No template) for every form first.</p>
-      <p class="note">Draft only — nothing is sent.</p>
+      <p class="promise">Draft only. Nothing is sent.</p>
     </div>
   </section>
 
@@ -195,8 +331,8 @@
 
 
   <footer>
-    Free, from <a href="https://dealdates.app" target="_blank" rel="noopener">Deal Dates</a>: your deal deadlines in your inbox at 6am<span id="settings-wrap"> · <button id="open-settings" class="link" type="button">Settings</button></span><br>
-    <span class="fine">Not affiliated with or endorsed by Lone Wolf Technologies, CREA or The Real Brokerage Inc.</span>
+    <p>Free, from <a href="https://dealdates.app" target="_blank" rel="noopener">Deal Dates</a>: your deal deadlines in your inbox at 6am.</p>
+    <p class="fine">Not affiliated with or endorsed by Lone Wolf Technologies, CREA or The Real Brokerage Inc.</p>
   </footer>
   <script type="module" src="panel.js"></script>
 </body>

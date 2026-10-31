@@ -80,6 +80,51 @@ export function titleValues({ transaction = null, forms = [], firstFormValues = 
   };
 }
 
+/** An uploaded file's name as a form name: "3. Signed-Residential_Purchase_Contract (2).pdf"
+ *  → "Residential Purchase Contract". Downloads pick up numbering, copy counters and
+ *  "Signed-"; none of that is the form. */
+export function formNameFromFile(fileName) {
+  const n = clean(String(fileName ?? "").replace(/\.pdf$/i, "").replace(/_+/g, " ")
+    .replace(/^\s*\d+[.)]\s*/, "").replace(/^signed[\s-]+/i, "").replace(/\s*\(\d+\)\s*$/, ""));
+  return n || "Form";
+}
+
+/** The pattern words for a draft uploaded in Real Signature: the form from the file name,
+ *  the place from the reZEN deal picked in the panel (its one-line address: street, city,
+ *  province, postal code). No deal: the form and the date only, so "Please sign: {forms} –
+ *  {address}" still says what to sign. {deal} and {agent} are WEBForms' and stay empty. */
+export function draftTitleValues({ fileName, deal = null, now = new Date() }) {
+  const [street = "", city = ""] = String(deal?.address ?? "").split(",").map(clean);
+  return {
+    address: [street, city].filter(Boolean).join(", "),
+    street,
+    unit: "",
+    city,
+    forms: listForms([{ name: formNameFromFile(fileName) }]),
+    deal: "",
+    mls: clean(deal?.mlsNum),
+    agent: "",
+    date: now.toLocaleDateString("en-CA", { month: "short", day: "numeric", year: "numeric" }),
+  };
+}
+
+/** An uploaded draft's subject: the agent's own, but never the pattern's fixed words alone.
+ *  "Please sign: {deal} – {address}" with no WEBForms deal and no reZEN deal came out as a
+ *  bare "Please sign" (Dan's test, 2026-10-30): then the title goes after it, "Please sign:
+ *  BCFSA - Disclosure of Remuneration". */
+export function draftSubject(settings, values, title) {
+  const s = { ...DEFAULT_SETTINGS, ...settings };
+  const subject = subjectFor(s, values, title);
+  if (s.subjectMode !== "pattern" || !subject || !title || subject !== fillPattern(s.subjectPattern, {})) return subject;
+  return `${subject}: ${title}`;
+}
+
+/** The suggested title for an uploaded draft: "120 Example Street NW – Residential Purchase
+ *  Contract", or the form alone with no deal (the shape WEBForms' suggestion has). */
+export function draftTitle(values) {
+  return [values.street, values.forms].filter(Boolean).join(" – ");
+}
+
 function stripEmpty(o) {
   return o ? Object.fromEntries(Object.entries(o).filter(([, v]) => clean(v))) : {};
 }
