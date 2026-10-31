@@ -86,6 +86,14 @@
     .consent summary, #report summary { cursor: pointer; color: #1d4ed8; }
     .consent .row button { margin-top: 6px; }
     button.secondary { background: #fff; color: #1d2433; border-color: #c9cfdb; }
+    /* A question the panel can't answer for the agent: the consent box's look, and the
+       answers as two equal buttons rather than buttons run into a sentence (Dan, 2026-10-30). */
+    .ask { border: 1px solid #c9d6f5; background: #f4f7fe; border-radius: 8px; padding: 10px 12px; margin: 8px 0 12px; font-size: 13px; }
+    .ask p { margin: 0 0 4px; }
+    .ask .choices { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; margin-top: 10px; }
+    .ask .choices button { margin: 0; display: flex; flex-direction: column; align-items: center; gap: 1px; }
+    .ask .choices button:hover { border-color: #1d4ed8; background: #eef3fe; }
+    .ask .choices small { color: #5b6475; font-size: 12px; }
     #report { font-size: 13px; margin: 4px 0 8px; }
     #report pre { margin: 6px 0; }
     .report-in-err { margin-top: 8px; padding-top: 8px; border-top: 1px solid #e59a9a; }
@@ -130,6 +138,15 @@
   <!-- A draft the agent uploaded in Real Signature itself: Auto place its blocks -->
   <section id="dr" hidden>
     <p id="dr-status" class="note"></p>
+    <!-- A client signature line on a draft with buyers and sellers: whose is it? -->
+    <div id="dr-ask" class="ask" hidden>
+      <p><strong>Who signs as the client?</strong></p>
+      <p class="note">This form has a client signature line, and this draft has both buyers and sellers.</p>
+      <div class="choices">
+        <button id="dr-buyers" class="secondary" type="button"></button>
+        <button id="dr-sellers" class="secondary" type="button"></button>
+      </div>
+    </div>
     <div id="dr-form" hidden>
       <p id="dr-who"></p>
       <button id="dr-go" type="button">Auto place this draft</button>

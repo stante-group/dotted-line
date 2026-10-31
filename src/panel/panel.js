@@ -1121,6 +1121,7 @@ async function openDraft(tab, id) {
   if (rsState?.job?.draftId === id) { show("rs"); return; } // the same draft, choices as left
   show("dr");
   $("dr-form").hidden = true;
+  $("dr-ask").hidden = true;
   $("dr-status").className = "busy";
   $("dr-status").textContent = "Reading this draft…";
   const info = await send(tab.id, { type: "rs:draft-read", id }).catch((e) => ({ error: String(e?.message || e) }));
@@ -1202,14 +1203,20 @@ function showDraft(tab, id, info) {
 
 /** A form whose signature line says only "client", on a draft with buyers and sellers:
  *  the agent says whose it is, never a guess (placeOnDraft's needSide). */
-function askSide(go) {
+function askSide(counts, go) {
   $("dr-status").className = "note";
-  $("dr-status").textContent = "This form has a client signature line, and this draft has buyers and sellers. Whose is it?";
-  for (const [side, word] of [["BUYER", "The buyers"], ["SELLER", "The sellers"]]) {
-    const b = el("button", word);
-    b.type = "button";
-    b.onclick = () => go(side);
-    $("dr-status").append(" ", b);
+  $("dr-status").textContent = "";
+  $("dr-form").hidden = true;
+  $("dr-ask").hidden = false;
+  for (const [side, id, word] of [["BUYER", "dr-buyers", "buyer"], ["SELLER", "dr-sellers", "seller"]]) {
+    const n = counts?.[side] || 0;
+    const b = $(id);
+    b.replaceChildren(el("span", `The ${word}s`), el("small", n > 1 ? `${word[0].toUpperCase()}${word.slice(1)} 1 and ${word[0].toUpperCase()}${word.slice(1)} 2` : `${n} ${word}`));
+    b.onclick = () => {
+      $("dr-ask").hidden = true;
+      $("dr-form").hidden = false;
+      go(side);
+    };
   }
 }
 
@@ -1222,7 +1229,7 @@ async function placeDraft(tab, id, side = null) {
   try {
     const r = await send(tab.id, { type: "rs:place-draft", id, side });
     if (r?.error) throw new Error(r.error);
-    if (r.needSide) { askSide((s) => placeDraft(tab, id, s)); return; }
+    if (r.needSide) { askSide(r.counts, (s) => placeDraft(tab, id, s)); return; }
     $("dr-status").className = "note";
     $("dr-status").textContent = "";
     chrome.runtime.sendMessage({ type: "report:placed", outcome: r.added ? null : r.outcome, added: r.added }).catch(() => {});
@@ -1255,6 +1262,7 @@ async function openPacket(tab, id) {
   if (drBusy || wfBusy) return;
   show("dr");
   $("dr-form").hidden = true;
+  $("dr-ask").hidden = true;
   $("dr-status").className = "busy";
   $("dr-status").textContent = "Reading this packet…";
   const info = await send(tab.id, { type: "rs:packet-read", id }).catch((e) => ({ error: String(e?.message || e) }));
@@ -1297,7 +1305,7 @@ async function placePacket(tab, ids, side = null) {
       // One answer covers the whole packet: the rerun skips blocks already placed.
       if (r.needSide) {
         if (added) await chrome.tabs.reload(tab.id);
-        askSide((s) => placePacket(tab, ids, s));
+        askSide(r.counts, (s) => placePacket(tab, ids, s));
         return;
       }
       added += r.added;
