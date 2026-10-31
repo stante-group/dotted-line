@@ -26,6 +26,11 @@ Public repo. Read PLAN.md first; API shapes are in docs/api-notes.md.
 - **Public repo: invented data only.** No real forms, deals, names, addresses, emails,
   template exports or screenshots. Fixtures use `120 Example Street NW`, `Jordan Sample`.
   `git rm` does not undo a leak.
+- **Each site's own words in the UI (Dan, 2026-10-30).** WEBForms: forms, ticked on a deal,
+  the Basket. Real Signature: a **document**, or a **packet** of several ("Send One-time
+  Document / Packet"); **Draft** is only their status until sent (the Draft tab, "Save as
+  Draft"), so never "document draft" or "packet draft". Its steps: Transaction, Edit
+  details, Prepare, Review; Add Signees.
 - Real Signature and WEBForms APIs are undocumented. When a shape doesn't match, throw a
   plain message — never guess and carry on.
 
