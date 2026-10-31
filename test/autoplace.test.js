@@ -544,3 +544,22 @@ test("a time blank of its own however the date line is worded: 'and DATED at ___
   const q = page([word("SIGNED AND DATED on ______________________, 20_____.", 38, 620), word("Buyer Signature", 38, 590)], [rule(38, 300, 600)]);
   assert.deepEqual(labels(autoLayout([q]).layout), ["SIGNED_DATE BUYER1", "SIGNATURE BUYER1"]);
 });
+
+test("nothing in a purchase contract's REJECTION section: signing there declines the offer", () => {
+  // AREA's Commercial Purchase Contract, last page (Dan, 2026-10-31): the acceptance gets
+  // the seller; the rejection under "has no effect on the contract's terms" gets nothing.
+  const p = page([
+    word("SIGNED AND DATED at ________ ___. m. on ______________________, 20_____.", 38, 700),
+    word("Signature of Seller or Authorized Signatory of Seller", 38, 660), word("Signature of Witness", 330, 660),
+    word("INFORMATION", 38, 560, 10),
+    word("The following is for information purposes and has no effect on the contract's terms:", 38, 548),
+    word("REJECTION", 38, 530, 10),
+    word("I/we do not accept this offer/counteroffer. No counteroffer is being made.", 38, 515),
+    word("SIGNED AND DATED at ________ ___. m. on ______________________, 20_____.", 38, 495),
+    word("Signature of Seller or Authorized Signatory of Seller", 38, 455), word("Signature of Buyer or Authorized Signatory of Buyer", 330, 455),
+    word("CONVEYANCING INFORMATION", 38, 400, 10),
+  ], [rule(38, 300, 670), rule(330, 570, 670), rule(38, 300, 465), rule(330, 570, 465)]);
+  const f = autoLayout([p]).layout.fieldDefinitions;
+  assert.equal(f.every((d) => d.fieldLocations[0].position[1] > 600), true, "nothing below the INFORMATION heading");
+  assert.ok(f.some((d) => d.type === "SIGNATURE"), "the acceptance still gets its signature");
+});
