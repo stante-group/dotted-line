@@ -7,7 +7,7 @@ import { confidentDeal, usableTemplates, dealGroups, scoresFromText } from "../l
 import { sendToTab } from "../messaging.js";
 import { suggestTemplate, rememberKey, normalizeName, rememberEntry, pruneRemembered, signingSide, sideMismatch, LABELS, LABELS_NAME } from "../lib/match.js";
 import { titleValues, titleFor, subjectFor, draftTitleValues, draftTitle, draftSubject, formNameFromFile, DEFAULT_SETTINGS } from "../lib/pattern.js";
-import { signerCounts, signersWithoutEmail, signeesFromDeal, agentRoleFor, agentPeople, cleanSubject, subjectTooLong, SUBJECT_MAX } from "../lib/draft.js";
+import { signerCounts, signersWithoutEmail, signeesFromDeal, agentRoleFor, agentPeople, cleanSubject, subjectTooLong, SUBJECT_MAX, countDisagreements } from "../lib/draft.js";
 import { actingNotes } from "../lib/actor.js";
 import { contextFromDraft, REPORTS_ON } from "../lib/report.js";
 
@@ -780,9 +780,14 @@ function updateDeal() {
     // Contacts and forms already merged on the WEBForms side; older hand-offs per form.
     const webforms = job.parties ? [job.parties] : job.forms.map((f) => f.parties).filter(Boolean);
     const { counts: n, why } = signerCounts({ deal, formNames: job.forms.map((f) => f.name), templates, webforms, agentSide: job.agentSide });
-    $("rs-buyers").value = n.BUYER;
-    $("rs-sellers").value = n.SELLER;
+    // A number the agent set (typed, or "Use N") stays when a template changes; a different
+    // deal starts the counts again, since it brings its own people.
+    if (rsState.countsDeal !== id) { rsState.countsDeal = id; rsState.countsSet = {}; }
+    if (!rsState.countsSet.BUYER) $("rs-buyers").value = n.BUYER;
+    if (!rsState.countsSet.SELLER) $("rs-sellers").value = n.SELLER;
     $("rs-counts-why").textContent = why;
+    rsState.countSources = { deal, webforms };
+    updateCountCheck();
   }
   if (deal) {
     notes.push(...wrongDealWarnings({ webformsAddress: job.address, webformsAgentName: null, deal }));
@@ -819,6 +824,26 @@ function updateDeal() {
     ...all.filter((n) => n.level === "info").map((n) => el("div", n.text, "info")),
   );
   updateAgent();
+}
+
+/** The forms-vs-deal line under the Signers boxes (countDisagreements), one per side. */
+function updateCountCheck() {
+  const src = rsState?.countSources || {};
+  const current = { BUYER: Number($("rs-buyers").value) || 0, SELLER: Number($("rs-sellers").value) || 0 };
+  const box = $("rs-counts-check");
+  box.replaceChildren(...countDisagreements({ deal: src.deal, webforms: src.webforms, current }).map((d) => {
+    const b = el("button", d.useLabel, "link");
+    b.type = "button";
+    b.onclick = () => {
+      const input = $(d.role === "BUYER" ? "rs-buyers" : "rs-sellers");
+      input.value = d.use;
+      input.dispatchEvent(new Event("input"));
+      input.focus();
+    };
+    const row = el("div", "", "count-check");
+    row.append(el("span", d.text), b);
+    return row;
+  }));
 }
 
 /** A warning, plus — for a TC acting for a different agent than WEBForms — an OFFER to
@@ -945,7 +970,12 @@ $("rs-agent-pick").addEventListener("change", () => {
   chrome.storage.local.set({ agentMode: rsState.agentMode });
   updateAgent();
 });
-for (const id of ["rs-buyers", "rs-sellers"]) $(id).addEventListener("input", () => rsState && updateAgent());
+for (const [id, role] of [["rs-buyers", "BUYER"], ["rs-sellers", "SELLER"]]) $(id).addEventListener("input", () => {
+  if (!rsState) return;
+  (rsState.countsSet ||= {})[role] = true;
+  updateCountCheck();
+  updateAgent();
+});
 $("rs-title").addEventListener("input", () => {
   if (rsState) rsState.titleEdited = true;
   if (!rsState || rsState.subjectEdited) return;

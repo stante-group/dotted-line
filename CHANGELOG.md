@@ -33,6 +33,9 @@ Dotted Line by itself a few hours after a version is published.
   Tenant Representation Agreement, and the commercial Agency Relationships guide. A form
   is read as a lease only when it says tenant and landlord more than buyer and seller, so
   a purchase contract that mentions tenants is unchanged.
+- **When the forms and the deal disagree** on how many buyers or sellers, the panel says
+  so under the numbers, with one click to use the deal's number instead (or back). A
+  number you type is kept when you change a template.
 - **Fix:** a name run on to a second line ("(operating as …)", "o/a", "aka", "trading as",
   "formerly …" under the name, on the form or in the Contacts) counted as a second buyer
   or seller, and a second line starting "& …" counted as two.

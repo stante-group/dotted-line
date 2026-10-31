@@ -103,6 +103,11 @@
     .ok { background: var(--ok-wash); border-color: #cfe8d9; border-left-color: var(--ok); }
     .warn { background: var(--warn-wash); border-color: #f1e0b8; border-left-color: var(--warn); }
     .err { background: var(--err-wash); border-color: #f3d1cc; border-left-color: var(--err); }
+    /* Two sources, two numbers: the line under the Signers boxes. Quiet like .info, with its
+       one action on its own line so it reads as a choice, not a link in a sentence. */
+    .count-check { display: grid; gap: 2px; font-size: 13px; color: #3b4456; margin: 2px 0 8px;
+      padding: 7px 10px; border-radius: 8px; background: var(--pen-wash); }
+    .count-check button.link { justify-self: start; }
     /* Context, not a warning: "working as a teammate in WEBForms" and the like. */
     .info { display: flex; gap: 7px; align-items: baseline; font-size: 13px; color: #3b4456; margin: 6px 0; }
     .info::before { content: "i"; flex: none; display: inline-flex; align-items: center; justify-content: center;
@@ -296,11 +301,14 @@
       <div id="rs-templates"></div>
       <h2>Signers<button class="i" type="button" aria-expanded="false" aria-controls="tip-signers" aria-label="How the signers are set">i</button></h2>
       <div id="tip-signers" class="tip" hidden><span id="rs-counts-why"></span>
-        As many as are named on the form; two when the form names nobody on that side. Blocks for signers beyond these numbers are left off.</div>
+        As many as the forms name; when they name nobody on a side, as many as the reZEN deal has; failing both, two. When the forms and the deal differ, it says so under the numbers. Blocks for signers beyond these numbers are left off.</div>
       <div class="row">
         <label>Buyers <input id="rs-buyers" type="number" min="0" max="4" value="2"></label>
         <label>Sellers <input id="rs-sellers" type="number" min="0" max="4" value="2"></label>
       </div>
+      <!-- When the forms and the reZEN deal count a side differently: said right here, under
+           the number it's about, with the other number one click away. -->
+      <div id="rs-counts-check" aria-live="polite"></div>
       <div class="with-i">
         <label class="check"><input id="rs-agent" type="checkbox"> Add the agent as a signer</label>
         <button class="i" type="button" aria-expanded="false" aria-controls="tip-agent" aria-label="About the agent as a signer">i</button>
