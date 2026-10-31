@@ -18,6 +18,13 @@ Dotted Line by itself a few hours after a version is published.
     of its documents for that document's own signers.
   - The panel always shows the document or packet open in Real Signature, even with
     WEBForms open beside it.
+  - A document added to a packet after Set up gets Set up too, starting from the
+    packet's deal; the documents already set up stay as they are.
+  - The panel says when a packet's documents are on different reZEN deals, since
+    everyone on a packet gets every document in it.
+  - When Real Signature leaves a signer on a document in a role it doesn't have (it
+    does after a document is added to or removed from a packet), Dotted Line places
+    nothing for them and says which documents to check.
   - When a form has a client signature line and the document has both buyers and
     sellers, the panel asks whose line it is.
   - The Disclosure of Remuneration's one client line gets both clients side by side.
