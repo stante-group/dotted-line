@@ -362,7 +362,7 @@ async function setupDraft({ id, title, dealId, templateId, counts, agentChoice =
   return { url: `/one-time-documents/document/${id}`, drafts: 1, packet: false };
 }
 
-async function placeDraft({ id }) {
+async function placeDraft({ id, side = null }) {
   const lib = await load();
   const rs = client(lib);
   const draft = await rs.getTemplate(id);
@@ -372,7 +372,9 @@ async function placeDraft({ id }) {
   let pages = null, error = null;
   try { pages = await lib.readPdfText(bytes); } catch (e) { error = e; }
   const found = pages ? lib.autoLayout(pages).layout : null;
-  const { body, added, skipped } = lib.placeOnDraft(draft, found, pages?.length ?? lib.countPages(bytes));
+  const placed = lib.placeOnDraft(draft, found, pages?.length ?? lib.countPages(bytes), side);
+  if (placed.needSide) return { needSide: true };
+  const { body, added, skipped } = placed;
   // Nothing new: no save, so a draft that can't be placed is left exactly as it was.
   if (added) await rs.putDraft(id, body);
   return { added, skipped, outcome: lib.placeOutcome({ pages, error, blocks: found?.fieldDefinitions?.length || 0 }) };

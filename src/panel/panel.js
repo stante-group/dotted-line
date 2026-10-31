@@ -1200,15 +1200,29 @@ function showDraft(tab, id, info) {
   $("dr-go").onclick = () => placeDraft(tab, id);
 }
 
-async function placeDraft(tab, id) {
+/** A form whose signature line says only "client", on a draft with buyers and sellers:
+ *  the agent says whose it is, never a guess (placeOnDraft's needSide). */
+function askSide(go) {
+  $("dr-status").className = "note";
+  $("dr-status").textContent = "This form has a client signature line, and this draft has buyers and sellers. Whose is it?";
+  for (const [side, word] of [["BUYER", "The buyers"], ["SELLER", "The sellers"]]) {
+    const b = el("button", word);
+    b.type = "button";
+    b.onclick = () => go(side);
+    $("dr-status").append(" ", b);
+  }
+}
+
+async function placeDraft(tab, id, side = null) {
   drBusy = true;
   $("dr-go").disabled = true;
   $("dr-status").className = "busy";
   $("dr-status").textContent = "Placing blocks…";
   say("");
   try {
-    const r = await send(tab.id, { type: "rs:place-draft", id });
+    const r = await send(tab.id, { type: "rs:place-draft", id, side });
     if (r?.error) throw new Error(r.error);
+    if (r.needSide) { askSide((s) => placeDraft(tab, id, s)); return; }
     $("dr-status").className = "note";
     $("dr-status").textContent = "";
     chrome.runtime.sendMessage({ type: "report:placed", outcome: r.added ? null : r.outcome, added: r.added }).catch(() => {});
@@ -1268,7 +1282,7 @@ async function openPacket(tab, id) {
   $("dr-go").onclick = () => placePacket(tab, ready.map((d) => d.id));
 }
 
-async function placePacket(tab, ids) {
+async function placePacket(tab, ids, side = null) {
   drBusy = true;
   $("dr-go").disabled = true;
   $("dr-status").className = "busy";
@@ -1278,8 +1292,14 @@ async function placePacket(tab, ids) {
   try {
     // One document at a time: each is its own read and save, like a single draft's.
     for (const id of ids) {
-      const r = await send(tab.id, { type: "rs:place-draft", id });
+      const r = await send(tab.id, { type: "rs:place-draft", id, side });
       if (r?.error) throw new Error(r.error);
+      // One answer covers the whole packet: the rerun skips blocks already placed.
+      if (r.needSide) {
+        if (added) await chrome.tabs.reload(tab.id);
+        askSide((s) => placePacket(tab, ids, s));
+        return;
+      }
       added += r.added;
       skipped += r.skipped;
       if (!r.added) outcome ||= r.outcome;

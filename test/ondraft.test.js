@@ -61,10 +61,25 @@ test("an offer from the other side: only the named seller gets blocks, the buyer
   assert.deepEqual(body.signeeConfigs, draft([casey]).signeeConfigs);
 });
 
+test("a client line on a draft with buyers and sellers waits for the agent to say whose it is", () => {
+  const both = draft([jordan, casey]);
+  assert.deepEqual(placeOnDraft(both, found(), 3), { needSide: true });
+  // The buyers': the client initials are Buyer 1's; each side's own lines stay theirs.
+  const { body } = placeOnDraft(both, found(), 3, "BUYER");
+  assert.deepEqual(slots(body), ["BUYER/0@1", "BUYER/0@2", "SELLER/0@2"]);
+  assert.deepEqual(slots(placeOnDraft(both, found(), 3, "SELLER").body), ["BUYER/0@2", "SELLER/0@1", "SELLER/0@2"]);
+  // No client line: nothing to ask.
+  const noClient = { ...found(), fieldDefinitions: found().fieldDefinitions.filter((f) => f.signeeType !== "CLIENT") };
+  assert.equal(placeOnDraft(both, noClient, 3).needSide, undefined);
+});
+
 test("the agent's lines when the agent is a signer: the generic brokerage line becomes theirs", () => {
   const { body } = placeOnDraft(draft([casey, agent]), found(), 3);
   assert.deepEqual(slots(body), ["SELLER/0@1", "SELLER/0@2", "SELLERS_AGENT/0@3", "SELLERS_AGENT/0@3"]);
-  const dual = placeOnDraft(draft([casey, jordan, agent, { ...agent, signeeType: "BUYERS_AGENT" }]), found(), 3).body;
+  // (Its client line is asked about first: see the buyers-and-sellers test.)
+  const both = draft([casey, jordan, agent, { ...agent, signeeType: "BUYERS_AGENT" }]);
+  assert.deepEqual(placeOnDraft(both, found(), 3), { needSide: true });
+  const dual = placeOnDraft(both, { ...found(), fieldDefinitions: found().fieldDefinitions.filter((f) => f.signeeType !== "CLIENT") }, 3).body;
   // Both agents: each side's own line; the generic one can't be told apart and comes off.
   assert.deepEqual(slots(dual), ["BUYER/0@2", "BUYERS_AGENT/0@3", "SELLER/0@2", "SELLERS_AGENT/0@3"]);
 });

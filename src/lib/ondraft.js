@@ -52,11 +52,18 @@ export function sameSpot(a, b) {
  *  null), pageCount: the PDF's pages. PUT is a full replace, so everything the draft had —
  *  signers, deal, email, its own blocks — goes back as it was.
  *  → {body, added, skipped} (skipped: placed on a spot that already had a block). */
-export function placeOnDraft(draft, found, pageCount) {
+// side: "BUYER" or "SELLER", the agent's answer to whose a client line is. A form that says
+// only "client" (BCFSA's Disclosure of Remuneration: "person(s) to whom the disclosure is
+// made") on a draft with buyers AND sellers can't be told apart, so → {needSide: true} and
+// nothing is placed until the agent says (Dan's test, 2026-10-30).
+export function placeOnDraft(draft, found, pageCount, side = null) {
   const who = draftSigners(draft);
   if (!who) throw new Error("no signers yet");
   const old = draft.fieldDefinitions || [];
-  let layout = found ? forClients(found, who.counts) : null;
+  const both = who.counts.BUYER > 0 && who.counts.SELLER > 0;
+  if (both && !side && found?.fieldDefinitions?.some((f) => f.signeeType === "CLIENT")) return { needSide: true };
+  const clients = both && side ? { ...who.counts, [side === "BUYER" ? "SELLER" : "BUYER"]: 0 } : who.counts;
+  let layout = found ? forClients(found, clients) : null;
   // The generic "Brokerage Representative" lines: the agent's, when one agent signs. A dual
   // agent can't be told apart on them, so they come off; each side's own lines stay.
   if (layout && who.agentRole !== "both") layout = forAgent(layout, who.agentRole);
