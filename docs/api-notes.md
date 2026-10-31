@@ -42,6 +42,14 @@ Real's UI has no "packet" choice at upload: each PDF uploads as its own one-time
   each a full document template (`fieldDefinitions`, `signeeConfigs`, `defaults`, …). The
   packet has no `defaults` of its own; where the packet-level deal is stored is not yet
   observed (likely each document's `defaults.transactionId`).
+- **Observed 2026-10-30:** the packet's Edit details saves the signers on each document
+  (`defaults.signees`, as a single draft's does), and a member document carries
+  `oneTimeUsePacket: true` (a flag, not the packet's id). `PUT /document-templates/{id}`
+  on a member keeps it in the packet, so Auto place works per document from the packet's
+  steps. Real won't send a member alone: Next on its own steps answers "The document you
+  are trying to send is associated with a packet. Please send the packet instead."
+- Clicking a packet's name on the Drafts list opens `/view/packet/{id}?oneTimeUse=true`,
+  which has no actions; its **Edit** opens the steps at `/one-time-documents/packet/{id}`.
 - Other routes in the app's client: `PUT /packet-templates/{id}`,
   `POST /packet-templates/{id}/document-templates` (add documents),
   `POST /packet-templates/draft`, `/clone`, `/from-packet`, `/share/*`,
