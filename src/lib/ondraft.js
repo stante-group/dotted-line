@@ -13,17 +13,26 @@ import { AGENT_ROLES } from "./draft.js";
 
 /** The draft's signers as counts per signeeType (highest slot + 1), and the agent's role:
  *  the one agent type among them, "both" for a dual agent, or null when no agent signs.
- *  null: Edit details hasn't been saved yet, so nobody is named. */
+ *  null: Edit details hasn't been saved yet, so nobody is named.
+ *  Only signers in a role the document HAS (its signeeConfigs) count. Real rewrites every
+ *  document of a packet when one is added or removed, and leaves the others carrying all
+ *  the packet's signers: a buyer from a removed lease document sat on four seller
+ *  documents, hidden on Real's screens, and Auto place gave them buyer blocks (Dan,
+ *  2026-10-31). stray: how many signers are in a role the document doesn't have. */
 export function draftSigners(draft) {
   const signees = draft?.defaults?.signees;
   if (!Array.isArray(signees) || !signees.length) return null;
+  const roles = new Set((draft.signeeConfigs || []).map((c) => c?.signeeType));
   const counts = {};
+  let stray = 0;
   for (const s of signees) {
     if (!s?.signeeType) throw new Error("Real Signature's draft signers changed shape");
+    if (roles.size && !roles.has(s.signeeType)) { stray++; continue; }
     counts[s.signeeType] = Math.max(counts[s.signeeType] || 0, (s.signeeIndex ?? 0) + 1);
   }
+  if (!Object.keys(counts).length) return null;
   const agents = AGENT_ROLES.filter((r) => counts[r]);
-  return { counts, agentRole: agents.length === 2 ? "both" : agents[0] || null, total: signees.length };
+  return { counts, agentRole: agents.length === 2 ? "both" : agents[0] || null, total: signees.length - stray, stray };
 }
 
 /** The Drafts list's rows → uploads nobody has set up yet: single documents (not packets)
@@ -133,4 +142,13 @@ export function mixedDealsWarning(odd) {
   if (!odd.length) return null;
   const list = odd.length === 1 ? odd[0] : `${odd.slice(0, -1).join(", ")} and ${odd.at(-1)}`;
   return `${list} ${odd.length === 1 ? "is" : "are"} on a different reZEN deal from the rest of this packet. Everyone on the packet gets every document in it: check this is meant before you send.`;
+}
+
+/** The warning for documents carrying signers in a role they don't have (draftSigners'
+ *  stray), or null. docs: [{name, stray}]. */
+export function straySignersWarning(docs) {
+  const odd = docs.filter((d) => d.stray);
+  if (!odd.length) return null;
+  const list = odd.length === 1 ? odd[0].name : `${odd.length} documents`;
+  return `${list} ${odd.length === 1 ? "has" : "have"} a signer saved in a role ${odd.length === 1 ? "it doesn't" : "they don't"} have, left from a document added to or removed from this packet. Real Signature doesn't show them on Edit details, and Dotted Line places nothing for them. Check Add Signees on Review before you send.`;
 }
