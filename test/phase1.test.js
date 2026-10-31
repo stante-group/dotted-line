@@ -281,9 +281,10 @@ test("signer counts follow the side represented, then the form names", () => {
 
   const offer = ["Residential Purchase Contract"];
   assert.deepEqual(signerCounts({ deal: deal("Buy Side Representation"), formNames: offer }).counts, { BUYER: 2, SELLER: 0 });
-  assert.deepEqual(signerCounts({ deal: deal("Listing Side Representation"), formNames: offer }).counts, { BUYER: 0, SELLER: 2 });
-  assert.deepEqual(signerCounts({ deal: deal("Dual Representation"), formNames: offer }).counts, { BUYER: 2, SELLER: 2 });
-  assert.deepEqual(signerCounts({ deal: deal("Dual Representation"), formNames: ["Exclusive Seller Representation Agreement"] }).counts, { BUYER: 0, SELLER: 2 });
+  assert.deepEqual(signerCounts({ deal: deal("Listing Side Representation"), formNames: offer }).counts, { BUYER: 0, SELLER: 1 });
+  // the deal names one seller, so 1 — not the minimum of 2 (2026-10-31)
+  assert.deepEqual(signerCounts({ deal: deal("Dual Representation"), formNames: offer }).counts, { BUYER: 2, SELLER: 1 });
+  assert.deepEqual(signerCounts({ deal: deal("Dual Representation"), formNames: ["Exclusive Seller Representation Agreement"] }).counts, { BUYER: 0, SELLER: 1 });
   assert.deepEqual(signerCounts({ deal: null, formNames: ["Buyer Representation Agreement"] }).counts, { BUYER: 2, SELLER: 0 });
   assert.deepEqual(signerCounts({ deal: null, formNames: ["Listing Agreement", "Property Disclosure Statement"] }).counts, { BUYER: 0, SELLER: 2 });
   assert.deepEqual(signerCounts({ deal: null, formNames: ["Seller's Acceptance of Buyer's Offer"] }).counts, { BUYER: 2, SELLER: 2 });
@@ -318,12 +319,17 @@ test("signer counts: the picked templates' slots raise the count and, without a 
   // a two-sided template gives no side clue; never fewer than 2
   assert.deepEqual(signerCounts({ deal: null, formNames: offer, templates: [both] }).counts, { BUYER: 2, SELLER: 2 });
   assert.deepEqual(signerCounts({ deal: null, formNames: offer, templates: [buyers1] }).counts, { BUYER: 2, SELLER: 0 });
-  // the deal's side wins over a template: a buy-side deal never asks the sellers
+  // the deal's side wins over a template: a buy-side deal never asks the sellers; and its
+  // one buyer is the count
   const buySide = { side: "BUYER", participants: [{ role: "BUYER" }] };
-  assert.deepEqual(signerCounts({ deal: buySide, formNames: offer, templates: [sellers3] }).counts, { BUYER: 2, SELLER: 0 });
-  // dual: template narrows it
+  assert.deepEqual(signerCounts({ deal: buySide, formNames: offer, templates: [sellers3] }).counts, { BUYER: 1, SELLER: 0 });
+  assert.match(signerCounts({ deal: buySide, formNames: offer }).why, /1 buyer on the reZEN deal/);
+  // dual: template narrows the side; the deal's one seller is the count
   const dual = { side: "DUAL", participants: [{ role: "BUYER" }, { role: "SELLER" }] };
-  assert.deepEqual(signerCounts({ deal: dual, formNames: offer, templates: [sellers3] }).counts, { BUYER: 0, SELLER: 3 });
+  assert.deepEqual(signerCounts({ deal: dual, formNames: offer, templates: [sellers3] }).counts, { BUYER: 0, SELLER: 1 });
+  // a deal with nobody on the side: the template's slots, never fewer than 2
+  const noSellers = { side: "DUAL", participants: [{ role: "BUYER" }] };
+  assert.deepEqual(signerCounts({ deal: noSellers, formNames: offer, templates: [sellers3] }).counts, { BUYER: 0, SELLER: 3 });
 });
 
 test("the agent's side from the WEBForms agent emails decides who signs when the deal can't", () => {

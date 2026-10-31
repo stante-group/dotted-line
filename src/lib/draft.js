@@ -98,9 +98,8 @@ export function signerCounts({ deal, formNames, templates = [], webforms = [], a
 
   // How many on a signing side: the names typed on the form when there are any (Dan,
   // 2026-10-14: "if we can read the number of buyers or sellers on the form, set to that
-  // number. if we can't read them, default to 2"). Only when the form names nobody on that
-  // side does the old rule apply: the most of the deal's people, the template's slots and
-  // MIN_SIGNERS.
+  // number. if we can't read them, default to 2"). Then the picked deal's own clients.
+  // Only when neither names anybody on that side: the template's slots or MIN_SIGNERS.
   const counts = {};
   const notes = [];
   for (const role of SIGNER_ROLES) {
@@ -112,8 +111,17 @@ export function signerCounts({ deal, formNames, templates = [], webforms = [], a
       notes.push(`${fromForms} ${who}${fromForms === 1 ? "" : "s"} named in WEBForms`);
       continue;
     }
+    // Next, the deal the agent picked: it lists its clients, so its count is better than a
+    // guess (Dan, 2026-10-31: a deal with one buyer, a commercial form whose names we can't
+    // read, and the panel said 2). A template with more slots loses the spare's blocks, as
+    // with names read off the form.
+    if (n[role] > 0) {
+      counts[role] = n[role];
+      notes.push(`${n[role]} ${who}${n[role] === 1 ? "" : "s"} on the reZEN deal`);
+      continue;
+    }
     const fromTemplates = Math.max(0, ...templates.map((x) => x[role] || 0));
-    const base = Math.max(MIN_SIGNERS, n[role]);
+    const base = MIN_SIGNERS;
     counts[role] = Math.max(base, fromTemplates);
     notes.push(fromTemplates > base ? `no ${who}s named in WEBForms, and your template has blocks for ${fromTemplates}`
       : `no ${who}s named in WEBForms, so ${counts[role]}`);
