@@ -216,7 +216,7 @@
       <li>In WEBForms, tick the forms on a deal, or open one form.</li>
       <li>Click the Dotted Line icon. You check the draft in Real Signature and send it yourself.</li>
     </ol>
-    <p class="note">Uploaded a PDF in Real Signature? Open that draft and Dotted Line places its blocks.</p>
+    <p class="note">Uploaded a PDF in Real Signature? Open that document from your Draft tab and Dotted Line places its blocks.</p>
   </section>
 
   <!-- A one-click draft, afterwards: what was chosen -->
@@ -228,12 +228,12 @@
 
   <!-- A draft the agent uploaded in Real Signature itself: Auto place its blocks -->
   <section id="dr" hidden>
-    <h2 id="dr-title" class="screen-title">Place blocks on this draft</h2>
+    <h2 id="dr-title" class="screen-title">Place blocks on this document</h2>
     <p id="dr-status" class="note"></p>
     <!-- A client signature line on a draft with buyers and sellers: whose is it? -->
     <div id="dr-ask" class="ask" hidden>
       <p><strong>Who signs as the client?</strong></p>
-      <p class="note">This form has a client signature line, and this draft has both buyers and sellers.</p>
+      <p class="note">This form has a client signature line, and this document has both buyers and sellers.</p>
       <div class="choices">
         <button id="dr-buyers" class="secondary" type="button"></button>
         <button id="dr-sellers" class="secondary" type="button"></button>
@@ -243,7 +243,7 @@
       <p id="dr-who"></p>
       <ul id="dr-docs" class="forms docs" hidden></ul>
       <p class="note">Places signature, initial and date blocks where the form's printed labels say, for the signers set in Edit details. Blocks already there stay.</p>
-      <button id="dr-go" class="primary" type="button">Auto place this draft</button>
+      <button id="dr-go" class="primary" type="button">Auto place this document</button>
       <p class="promise">Draft only. Nothing is sent.</p>
     </div>
   </section>
@@ -268,7 +268,7 @@
     </div>
     <ul id="wf-forms" class="forms docs"></ul>
     <div id="wf-title-wrap" hidden>
-      <label for="wf-title" id="wf-title-label">Draft name</label>
+      <label for="wf-title" id="wf-title-label">Document name</label>
       <input id="wf-title" type="text" maxlength="120">
     </div>
     <button id="wf-go" class="primary" disabled>Prepare in Real Signature</button>
@@ -277,7 +277,7 @@
 
   <!-- Step 2: Real Signature -->
   <section id="rs" hidden>
-    <h2 class="screen-title">Set up the draft</h2>
+    <h2 id="rs-screen-title" class="screen-title">Set up the document</h2>
     <p id="rs-status" class="note"></p>
     <div id="rs-form" hidden>
       <div id="rs-needs"></div>
@@ -312,7 +312,7 @@
         <select id="rs-agent-pick"></select>
       </div>
       <p class="note" id="rs-agent-who"></p>
-      <label for="rs-title" id="rs-title-label">Draft name</label>
+      <label for="rs-title" id="rs-title-label">Document name</label>
       <input id="rs-title" type="text" maxlength="120">
       <div id="rs-subject-wrap" hidden>
         <label for="rs-subject">Email subject <span id="rs-subject-count" class="count"></span></label>
