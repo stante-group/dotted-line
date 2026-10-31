@@ -294,6 +294,10 @@ test("signer counts follow the side represented, then the form names", () => {
   const three = summarizeDeal({ ...raw("Buy Side Representation"), participants: [1, 2, 3].map((i) => ({ participantRole: "BUYER", firstName: "B" + i, lastName: "Sample", emailAddress: "b" + i + "@example.com" })) });
   assert.deepEqual(signerCounts({ deal: three, formNames: offer }).counts, { BUYER: 3, SELLER: 0 });
   assert.equal(sideFromFormNames(offer), null);
+  // a lease's sides: tenant = buyer, landlord = seller; an offer to lease names neither
+  assert.equal(sideFromFormNames(["Commercial Exclusive Tenant Representation Agreement (designated agency)"]), "BUYER");
+  assert.equal(sideFromFormNames(["Commercial Exclusive Landlord Representation Agreement"]), "SELLER");
+  assert.equal(sideFromFormNames(["Commercial Offer to Lease"]), null);
   // a neutral form beside a seller's one doesn't cancel it (2026-10-15)
   const pair = ["Consumer Relationships Guide (Print Friendly)", "Exclusive Seller Representation Agreement (designated agency)"];
   assert.equal(sideFromFormNames(pair), "SELLER");

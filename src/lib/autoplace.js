@@ -50,6 +50,51 @@ export function toLines(items) {
 
 const xAt = (line, i) => (i < line.xs.length ? line.xs[i] : line.x1);
 
+// ---------------------------------------------------------------- lease forms
+
+// A lease's parties are the Tenant and the Landlord (Lessee, Lessor); Real Signature has
+// buyers and sellers, and the labels below are written for those. A deal is one or the
+// other (Dan, 2026-10-31), so the whole form decides: a form that says Tenant or Landlord
+// more often than Buyer or Seller is a lease, and on it each tenant word reads as Buyer and
+// each landlord word as Seller. A purchase contract that mentions the tenants of a rented
+// property says Buyer and Seller far more, so it stays a purchase contract.
+const LEASE_WORDS = /\b(?:tenant|landlord|lessee|lessor)s?\b/gi;
+const SALE_WORDS = /\b(?:buyer|seller|purchaser|vendor)s?\b/gi;
+const AS_SALE = { tenant: "buyer", lessee: "buyer", landlord: "seller", lessor: "seller" };
+
+// Labels only a lease has: "Signature of Tenant/Authorized Signing Officer" (AREA's
+// Commercial Exclusive Tenant Representation Agreement, which otherwise says "you" and mostly
+// talks about the landlord's side), "TENANT (CORPORATE NAME)" over a signing block.
+const LEASE_LABEL = /\b(?:Signature|Initials) of (?:the )?(?:Tenant|Landlord)\b|\b(?:Tenant|Landlord)['’]?s? (?:Signature|Initials)\b|^\s*(?:TENANT|LANDLORD) \(/m;
+
+/** Whether a form's pages (readPdfText) are a lease's: a lease's own signing label, or more
+ *  tenant and landlord words than buyer and seller ones. From whole lines: some forms print
+ *  one letter at a time. */
+export function isLease(pages) {
+  const text = (pages || []).flatMap((p) => toLines(p.items || []).map((l) => l.text)).join("\n");
+  if (LEASE_LABEL.test(text)) return true;
+  const lease = (text.match(LEASE_WORDS) || []).length, sale = (text.match(SALE_WORDS) || []).length;
+  return lease > sale;
+}
+
+/** One line with its tenant and landlord words as Buyer and Seller, case kept ("TENANT'S"
+ *  → "BUYER'S"). The replacement's letters share the word's width, so a match still
+ *  points at the right place on the page. */
+export function asSale(line) {
+  let text = "", xs = [], from = 0;
+  for (const m of line.text.matchAll(/\b(tenant|landlord|lessee|lessor)/gi)) {
+    const word = m[0], low = AS_SALE[word.toLowerCase()];
+    const out = word === word.toUpperCase() ? low.toUpperCase() : word[0] === word[0].toUpperCase() ? low[0].toUpperCase() + low.slice(1) : low;
+    text += line.text.slice(from, m.index); xs.push(...line.xs.slice(from, m.index));
+    const x0 = xAt(line, m.index), x1 = xAt(line, m.index + word.length);
+    for (let i = 0; i < out.length; i++) xs.push(x0 + ((x1 - x0) * i) / out.length);
+    text += out; from = m.index + word.length;
+  }
+  if (!from) return line;
+  text += line.text.slice(from); xs.push(...line.xs.slice(from));
+  return { ...line, text, xs };
+}
+
 /** Horizontal rules a signer writes on: stroked lines and hairline boxes, 30pt or longer. */
 function rulesOf(shapes) {
   return (shapes || []).filter((s) => {
@@ -105,7 +150,7 @@ const ROLE = (w) => {
     if (/seller/.test(s)) return "SELLERS_AGENT";
     return "AGENT";
   }
-  if (/buyer\/seller/.test(s)) return "CLIENT"; // AREA's Notice: whichever side gives it
+  if (/buyer\/seller|seller\/buyer/.test(s)) return "CLIENT"; // AREA's Notice: whichever side gives it; a lease's "Landlord/Tenant"
   if (/buyer/.test(s)) return "BUYER";
   if (/seller/.test(s)) return "SELLER";
   if (/consumer/.test(s)) return "CLIENT"; // the agent's own clients, whichever side (forClients)
@@ -141,6 +186,19 @@ const BARE_ROLES = /^(?:\s*(?:Buyer|Seller|Witness|Signature|Authori[sz]ed Broke
 // The names in such a row that sign. Saskatchewan: "WITNESS SELLER Authorized Brokerage
 // Representative" (Seller's MLS Brokerage Contract) and "Witness Signature" (Agency
 // Disclosure, signed by whichever client it's given to: CLIENT, as RECA's "Consumer").
+// A lease's signing rows (AREA's Commercial Offer to Lease and its Addendum, after asSale):
+// "Landlord/Tenant      Witness" under a line, whichever side signs, so the agent's client;
+// "TENANT (CORPORATE NAME)" names the side for the "Per: ____ / Authorized Signing Officer"
+// lines under it, until the next such heading. With no heading over them (the Addendum's
+// "If needed for commercial transactions") nobody can say whose they are: nothing goes there.
+// Only the row itself: "Landlord/Tenant (circle appropriate party)" under the Addendum's
+// Notice to: line is a choice, not a signing line.
+const CLIENT_ROW = /^\s*(Buyer\/Seller|Seller\/Buyer)(?:\s+Witness)?\s*$/;
+const PARTY_HEADING = /^\s*(BUYER|SELLER) \((?:CORPORATE )?NAME\)/;
+const SIGNING_OFFICER = /^\s*Authori[sz]ed Signing Officer(?:\(s\))?/;
+// The commercial Agency Relationships guide (RECA, the D-A version): "Your signature" under
+// a line, the consumer's, beside "Date".
+const YOUR_SIGNATURE = /^\s*Your signature\b/;
 const BARE_SIGNER = /\b(Buyer|Seller|Signature|Authori[sz]ed Brokerage Representative)\b/gi;
 const bareRole = (w) => (/^signature$/i.test(w) ? "CLIENT" : ROLE(w));
 // "Seller(s) Initials" under a line (Saskatchewan's Seller's MLS Brokerage Contract page
@@ -188,11 +246,11 @@ const INITIALS_OVAL = /\bINITIALS OF (BUYER|SELLER)\(S\):/g;
 // "at" is a place, not a time) and "Signed at ____ (on) mm ____ dd ____ yyyy ____".
 // BCREA: "SIGNED, SEALED, & DELIVERED THIS ____ DAY OF ____ YR. ____".
 // BCREA: "Confirmed and signed this ___ Day of ____ Year".
-const DATED = /\bsigned this(?![a-z]).*?day of(?![a-z])|\bsigned and dated\b.*?\bon(?![a-z])|\bsigned and sealed\b.*?\bday of\b|\bsigned, sealed,? (?:&|and) delivered\b.*?\bday of\b|^\s*Signed at\b.*?\bmm(?![a-ce-z])|^\s*Signed on\b|^\s*Date\b/i;
+const DATED = /\bsigned this(?![a-z]).*?day of(?![a-z])|\bsigned and dated\b.*?\bon(?![a-z])|\bsigned and sealed\b.*?\bday of\b|\bsigned, sealed,? (?:&|and) delivered\b.*?\bday of\b|^\s*Signed at\b.*?\bmm(?![a-ce-z])|^\s*Signed on\b|\bsigned in the presence of a witness, and dated\b.*?\bon(?![a-z])|^\s*Date\b/i;
 
 /** The blocks one page's labels point to: [{type, role, x, y (bottom), w, h, order}]. */
-export function pageBlocks(page) {
-  const lines = toLines(page.items || []);
+export function pageBlocks(page, { lease = false } = {}) {
+  const lines = toLines(page.items || []).map((l) => (lease ? asSale(l) : l));
   // Dotted or underscored lines typed as text are signing lines too (OREA prints its lines
   // as rows of dots).
   const typed = lines.flatMap((l) => [...l.text.matchAll(/[._]{12,}/g)]
@@ -220,7 +278,25 @@ export function pageBlocks(page) {
     out.push({ spec, role, x, y: bottom, ...extra, ...(fit < h ? { h: fit } : {}) });
   };
 
+  let party = null;
   for (const line of lines) {
+    const heading = PARTY_HEADING.exec(line.text);
+    if (heading) party = heading[1];
+    for (const [re, role] of [[CLIENT_ROW, "CLIENT"], [YOUR_SIGNATURE, "CLIENT"], [SIGNING_OFFICER, party]]) {
+      const m = re.exec(line.text);
+      if (!m || !role) continue;
+      const x = xAt(line, m.index), xEnd = xAt(line, m.index + m[0].length);
+      const r = ruleAbove(rules, x, xEnd, line.y, line.size);
+      if (!r) continue;
+      add(SIG, role, r.x1 + 2, r.y + 1, { sig: true });
+      const sig = out.at(-1);
+      // The guide's "Date" under its own line on the same row is that signer's.
+      const d = re === YOUR_SIGNATURE && /\bDate\b/.exec(line.text.slice(m[0].length));
+      if (d) {
+        const dx = xAt(line, m[0].length + d.index), dr = ruleAbove(rules, dx, dx + 20, line.y, line.size);
+        if (dr) add(DATE, role, dr.x1 + 2, dr.y + 1, { date: true, pair: sig });
+      }
+    }
     // Signature labels under a line.
     for (const m of line.text.matchAll(SIGNATURE_LABEL)) {
       const role = ROLE(m[1] || m[2]);
@@ -462,7 +538,8 @@ export function autoLayout(pages) {
   const documentFieldValidations = [];
   const most = {};
   const found = {};
-  const perPage = pages.map((page) => assignSlots(pageBlocks(page)));
+  const lease = isLease(pages);
+  const perPage = pages.map((page) => assignSlots(pageBlocks(page, { lease })));
   // "SIGNER" (BCREA footer initials): whoever signs this form, when its signature lines all
   // belong to one side (or the client); otherwise nobody can say, and they come off.
   const signers = new Set(perPage.flat().filter((b) => b.sig && ["BUYER", "SELLER", "CLIENT"].includes(b.role)).map((b) => b.role));

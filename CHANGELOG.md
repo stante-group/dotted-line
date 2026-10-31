@@ -27,6 +27,12 @@ Dotted Line by itself a few hours after a version is published.
   and three seller signature lines (printed as a picture, so found by where they sit), and the Disclosure of
   Multiple Offers Presented (sellers, the designated agent, and "Confirmed and signed
   this ___ Day of").
+- **Auto place: Alberta's commercial lease forms.** On a lease, the tenant signs where a
+  buyer would and the landlord where a seller would: the Commercial Offer to Lease (each
+  side's signing officers and its date and time), its Addendum, the Commercial Exclusive
+  Tenant Representation Agreement, and the commercial Agency Relationships guide. A form
+  is read as a lease only when it says tenant and landlord more than buyer and seller, so
+  a purchase contract that mentions tenants is unchanged.
 - **Fix:** with a deal picked, the number of buyers or sellers is the deal's own when the
   WEBForms forms don't name them (commercial forms, for one), not always at least 2.
 - **Fix:** on a numbered street ("120 9 Ave SE") the street's number counted as a house

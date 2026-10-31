@@ -16,8 +16,10 @@ export function countsFromDeal(deal) {
 // Forms that only one side ever signs, by WEBForms form name. Deliberately narrow: a
 // purchase contract, amendment or waiver can be signed by either side (or both, in dual),
 // so those give no clue and fall through to the deal.
-const SELLER_FORM = /\b(sellers?'?s?|vendors?'?s?|listing|property disclosure)\b/i;
-const BUYER_FORM = /\b(buyers?'?s?|purchasers?'?s?)\b/i;
+// A lease's tenant is the buyer's side and its landlord the seller's (Real Signature has only
+// buyers and sellers): "Commercial Exclusive Tenant Representation Agreement".
+const SELLER_FORM = /\b(sellers?'?s?|vendors?'?s?|listing|property disclosure|landlords?'?s?|lessors?'?s?)\b/i;
+const BUYER_FORM = /\b(buyers?'?s?|purchasers?'?s?|tenants?'?s?|lessees?'?s?)\b/i;
 
 /** "BUYER" / "SELLER" if the one-sided forms all point the same way, else null. A form that
  *  names neither side (a Consumer Relationships Guide) gives no clue and is skipped — it

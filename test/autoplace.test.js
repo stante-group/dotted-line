@@ -6,7 +6,7 @@ import { deflateSync } from "node:zlib";
 import { createHash } from "node:crypto";
 
 import { readPdfText, md5, rc4 } from "../src/lib/pdftext.js";
-import { pageBlocks, autoLayout, forAgent, forClients, withSigners, toLines } from "../src/lib/autoplace.js";
+import { pageBlocks, autoLayout, forAgent, forClients, withSigners, toLines, isLease } from "../src/lib/autoplace.js";
 import { placeOutcome } from "../src/lib/autoplace.js";
 
 const enc = (s) => new TextEncoder().encode(s);
@@ -421,4 +421,60 @@ test("BC multiple offers: (Seller's signature) and (Designated Agent's signature
   ], [rule(71, 281, 176), rule(319, 541, 176), rule(71, 281, 128), rule(319, 541, 128)]);
   const f = autoLayout([p]).layout.fieldDefinitions.map((d) => `${d.type} ${d.signeeType} ${d.signeeIndex}`);
   assert.deepEqual(f, ["SIGNED_DATE SELLER 0", "SIGNATURE SELLER 0", "SIGNATURE SELLER 1", "SIGNATURE AGENT 0"]);
+});
+
+// Lease forms (AREA's commercial ones, 2026-10-31): Tenant and Landlord are buyer and seller.
+const lines = (p) => toLines(p.items).map((l) => l.text);
+const labels = (layout) => layout.fieldDefinitions.map((f) => `${f.type} ${f.signeeType}${f.signeeIndex + 1}`);
+
+test("a lease: TENANT and LANDLORD headings name the side of the signing-officer lines under them", () => {
+  const p = page([
+    word("The tenant offers to lease the Premises to the landlord.", 38, 700),
+    word("TENANT (CORPORATE NAME)", 38, 600, 10),
+    word("Per:", 38, 560), word("Authorized Signing Officer", 54, 550), word("Witness", 324, 550),
+    word("Per:", 38, 500), word("Authorized Signing Officer", 54, 490), word("Witness", 324, 490),
+    word("LANDLORD (CORPORATE NAME)", 38, 400, 10),
+    word("Per:", 38, 360), word("Authorized Signing Officer", 54, 350), word("Witness", 324, 350),
+  ], [rule(54, 300, 560), rule(54, 300, 500), rule(54, 300, 360), rule(324, 570, 560)]);
+  assert.equal(isLease([p]), true);
+  const { layout } = autoLayout([p]);
+  assert.deepEqual(labels(layout), ["SIGNATURE BUYER1", "SIGNATURE BUYER2", "SIGNATURE SELLER1"]);
+  // the witness line beside each gets nothing
+  assert.equal(layout.fieldDefinitions.every((f) => f.fieldLocations[0].position[0] < 300), true);
+});
+
+test("a lease's Landlord/Tenant rows are the agent's client; a 'circle one' note isn't a signing line", () => {
+  const p = page([
+    word("Notice to:", 38, 700), word("Landlord/Tenant (circle appropriate party)", 300, 688, 6),
+    word("Landlord/Tenant", 38, 590), word("Witness", 330, 590),
+    word("Landlord/Tenant", 38, 560), word("Witness", 330, 560),
+  ], [rule(100, 560, 700), rule(38, 300, 600), rule(38, 300, 570), rule(330, 570, 600)]);
+  const { layout } = autoLayout([p]);
+  assert.deepEqual(labels(layout), ["SIGNATURE CLIENT1", "SIGNATURE CLIENT2"]);
+  assert.deepEqual(labels(forClients(layout, { BUYER: 1, SELLER: 0 })), ["SIGNATURE BUYER1"]);
+});
+
+test("a lease's own label decides even when the form says 'you' more than 'tenant'", () => {
+  const p = page([
+    word("You authorize us to ask the landlord's brokerage, and the landlord, for details.", 38, 700),
+    word("Signature of Tenant/Authorized Signing Officer", 38, 590),
+  ], [rule(38, 300, 600)]);
+  assert.equal(isLease([p]), true);
+  assert.deepEqual(labels(autoLayout([p]).layout), ["SIGNATURE BUYER1"]);
+});
+
+test("a purchase contract that mentions tenants stays a purchase contract", () => {
+  const p = page([
+    word("The seller will deliver the property free of tenants, and the tenant's lease ends before the buyer takes possession.", 38, 700, 7),
+    word("Buyer Signature", 38, 590), word("Seller Signature", 330, 590),
+  ], [rule(38, 300, 600), rule(330, 570, 600)]);
+  assert.equal(isLease([p]), false);
+  assert.deepEqual(labels(autoLayout([p]).layout), ["SIGNATURE BUYER1", "SIGNATURE SELLER1"]);
+  assert.deepEqual(lines(p)[0].includes("tenant"), true);
+});
+
+test("the commercial Agency Relationships guide: 'Your signature' and its Date on one row", () => {
+  const p = page([word("Your signature", 46, 424), word("Date", 369, 424)],
+    [rule(46, 300, 439), rule(365, 560, 439)]);
+  assert.deepEqual(labels(autoLayout([p]).layout), ["SIGNATURE CLIENT1", "SIGNED_DATE CLIENT1"]);
 });
