@@ -40,6 +40,9 @@ Dotted Line by itself a few hours after a version is published.
 - **When the forms and the deal disagree** on how many buyers or sellers, the panel says
   so under the numbers, with one click to use the deal's number instead (or back). A
   number you type is kept when you change a template.
+- **No more "Reload this tab once".** A WEBForms or Real Signature tab opened before
+  Dotted Line was installed or updated now gets Dotted Line added to it on the spot. This
+  was the error reported most often.
 - **Fix:** a name run on to a second line ("(operating as …)", "o/a", "aka", "trading as",
   "formerly …" under the name, on the form or in the Contacts) counted as a second buyer
   or seller, and a second line starting "& …" counted as two.
