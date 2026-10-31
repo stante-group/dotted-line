@@ -49,6 +49,8 @@ Dotted Line by itself a few hours after a version is published.
 - **No more "Reload this tab once".** A WEBForms or Real Signature tab opened before
   Dotted Line was installed or updated now gets Dotted Line added to it on the spot. This
   was the error reported most often.
+- **Fix:** Alberta's Commercial Purchase Contract got the seller's signature and date in
+  its REJECTION section too ("I/we do not accept this offer"). Nothing is placed there now.
 - **Fix:** a client entered in reZEN as a company (a company name, no first or last name)
   made Real Signature refuse the whole document ("name must not be blank"). The company's
   name is now the signer's name; a client with no name at all is left off and named in

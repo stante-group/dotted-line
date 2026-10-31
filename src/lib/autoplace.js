@@ -276,7 +276,15 @@ export function pageBlocks(page, { lease = false } = {}) {
     }
     return Math.max(12, top - bottom - 1);
   };
+  // AREA's purchase contracts end with "INFORMATION — The following is for information
+  // purposes and has no effect on the contract's terms: REJECTION, I/we do not accept this
+  // offer". Signing there declines the offer, so nothing goes in it, down to the next
+  // heading (CONVEYANCING INFORMATION). The residential forms' "Seller: ___" lines matched
+  // nothing anyway; the commercial one's "Signature of Seller or Authorized Signatory" got
+  // the seller's signature and a date under REJECTION (Dan, 2026-10-31).
+  let declining = false;
   const add = (spec, role, x, bottom, extra = {}) => {
+    if (declining) return;
     const h = extra.h ?? spec.h;
     const fit = spec !== INI ? roomAbove(x, extra.w ?? spec.w, bottom, h) : h; // initials are sized already
     out.push({ spec, role, x, y: bottom, ...extra, ...(fit < h ? { h: fit } : {}) });
@@ -284,6 +292,9 @@ export function pageBlocks(page, { lease = false } = {}) {
 
   let party = null;
   for (const line of lines) {
+    const words = line.text.trim();
+    if (/^REJECTION$/.test(words) || /has no effect on the contract['’]s terms/i.test(words)) declining = true;
+    else if (declining && /^[^a-z]*[A-Z]{4,}[^a-z]*$/.test(words)) declining = false; // the next heading
     const heading = PARTY_HEADING.exec(line.text);
     if (heading) party = heading[1];
     for (const [re, role] of [[CLIENT_ROW, "CLIENT"], [YOUR_SIGNATURE, "CLIENT"], [SIGNING_OFFICER, party]]) {
