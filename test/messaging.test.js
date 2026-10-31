@@ -42,13 +42,13 @@ test("a tab that answers is never given a second copy", async () => {
   assert.deepEqual(calls.inject, []);
 });
 
-test("when the script can't be added, the agent is still asked to reload", async () => {
+test("when the script can't be added, the agent is asked to save, then reload", async () => {
   fakeChrome({ injectOk: false });
-  await assert.rejects(sendToTab(7, { type: "x" }), /Reload this tab once/);
+  await assert.rejects(sendToTab(7, { type: "x" }), /^Error: Save your changes on this page, then reload this tab once/);
 });
 
 test("another site's tab gets nothing added", async () => {
   const calls = fakeChrome({ url: "https://example.com/" });
-  await assert.rejects(sendToTab(7, { type: "x" }), /Reload this tab once/);
+  await assert.rejects(sendToTab(7, { type: "x" }), /reload this tab once/);
   assert.deepEqual(calls.inject, []);
 });
