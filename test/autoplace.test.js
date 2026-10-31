@@ -356,6 +356,13 @@ test("BCFSA remuneration: fake bold read once; licensee and client lines, each w
   ]);
   const f = autoLayout([p]).layout.fieldDefinitions.map((d) => `${d.type} ${d.signeeType} ${d.signeeIndex}`);
   assert.deepEqual(f, ["SIGNED_DATE AGENT 0", "SIGNATURE AGENT 0", "SIGNED_DATE CLIENT 0", "SIGNATURE CLIENT 0"]);
+  // The real form's line is long: room for both clients side by side (one comes off with
+  // a single client, forClients).
+  const long = page([word(`Signature of person/persons to whom disclosure has been made: ${"_".repeat(70)}`, 41, 66, 8)]);
+  const both = autoLayout([long]).layout.fieldDefinitions;
+  assert.deepEqual(both.map((d) => `${d.signeeType} ${d.signeeIndex}`), ["CLIENT 0", "CLIENT 1"]);
+  const [a, b] = both.map((d) => d.fieldLocations[0].position);
+  assert.ok(a[2] < b[0] && a[1] === b[1], "side by side on the one line");
 });
 
 test("BCFSA disclosure of representation: each consumer initials and dates their line (optional on paper)", () => {

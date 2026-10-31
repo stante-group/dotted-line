@@ -373,7 +373,7 @@ async function placeDraft({ id, side = null }) {
   try { pages = await lib.readPdfText(bytes); } catch (e) { error = e; }
   const found = pages ? lib.autoLayout(pages).layout : null;
   const placed = lib.placeOnDraft(draft, found, pages?.length ?? lib.countPages(bytes), side);
-  if (placed.needSide) return { needSide: true };
+  if (placed.needSide) return { needSide: true, counts: lib.draftSigners(draft).counts };
   const { body, added, skipped } = placed;
   // Nothing new: no save, so a draft that can't be placed is left exactly as it was.
   if (added) await rs.putDraft(id, body);
