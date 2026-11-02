@@ -59,6 +59,13 @@ export const ENUMS = {
   // the three bands above.
   ctxForms: ["1", "2-3", "4+", "unknown"],
   signers: ["0", "1", "2", "3+"],
+  // Why Real Signature refused, as one fixed word read from its error message (the message
+  // itself can quote what was refused, so it never leaves). Added after an outside agent's
+  // account got 400 on the deal and template lists, which work for ours, and the report
+  // could say only "400" (2026-11-02). "none": Real sent no message; "status-text": only
+  // the HTTP phrase ("Bad Request"); "validation": a field and rule, also in field/rule.
+  reason: ["none", "status-text", "validation", "not-agent", "not-authorized", "not-found", "inactive",
+    "bad-id", "missing-param", "bad-param", "malformed", "session", "rate-limit", "server", "other"],
   slow: ["none", "realSignatureReady", "pdfDownload", "upload", "readBack", "save", "packet", "draftMade",
     "formDetails", "labels"],
 };
@@ -135,12 +142,39 @@ export function validationShape(why) {
   return { field: field && FIELD.test(field) ? field : null, rule };
 }
 
+// First match wins, so the narrow ones come first: "Agent not found" is about the account
+// not being an agent, which is the question these exist to answer, before plain "not found".
+const REASONS = [
+  [/\bnot an? (real )?agent\b|\bno agent\b|\bagent\b[^.]{0,40}\b(not found|does not exist|missing|invalid)|\bparticipant\b[^.]{0,40}\b(not found|invalid|does not exist)/i, "not-agent"],
+  [/inactive|deactivated|disabled|suspended|terminated|offboard/i, "inactive"],
+  [/not authori[sz]ed|unauthori[sz]ed|not allowed|permission|access (is )?denied|forbidden/i, "not-authorized"],
+  [/too many|rate limit|throttl/i, "rate-limit"],
+  [/token|expired|unauthenticated|session/i, "session"],
+  [/uuid|failed to convert|type mismatch|MethodArgumentTypeMismatch|NumberFormat|invalid (id|identifier)\b/i, "bad-id"],
+  [/required (request )?parameter|is not present|missing (request )?param/i, "missing-param"],
+  [/no enum constant|not one of|invalid (value|parameter|status|lifecycle|enum)|unknown (value|parameter)/i, "bad-param"],
+  [/json parse|malformed|cannot deserialize|unexpected (token|character|end)|required request body/i, "malformed"],
+  [/not found|does not exist|no such|could not find/i, "not-found"],
+  [/internal|unexpected error|exception|null ?pointer/i, "server"],
+];
+const STATUS_TEXT = /^(bad request|unauthorized|forbidden|not found|method not allowed|conflict|unprocessable entity|too many requests|internal server error|bad gateway|service unavailable|gateway timeout)\.?$/i;
+
+/** Real's refusal message → one word from ENUMS.reason, never the message. */
+export function reasonShape(why, { validation = false } = {}) {
+  const t = String(why || "").trim();
+  if (!t) return "none";
+  if (validation) return "validation";
+  if (STATUS_TEXT.test(t)) return "status-text";
+  for (const [re, reason] of REASONS) if (re.test(t)) return reason;
+  return "other";
+}
+
 /** An error (or its message, as it arrives from a content script) → the report's error
  *  fields. Classification only: nothing of the message is kept. */
 export function classifyError(error) {
   const message = String(error?.message ?? error ?? "");
   const name = error?.name || "Error";
-  const out = { cls: "ours", code: "unknown", site: "none", status: null, route: null, field: null, rule: null,
+  const out = { cls: "ours", code: "unknown", site: "none", status: null, route: null, field: null, rule: null, reason: null,
     err: pick(name, ENUMS.err, "other"), partial: /half-made/.test(message) };
   for (const [re, code] of OUR_CODES) if (re.test(message)) { out.code = code; break; }
 
@@ -155,6 +189,8 @@ export function classifyError(error) {
     out.route = routeShape(method, path);
     out.code = "http";
     Object.assign(out, validationShape(why));
+    // WEBForms' messages carry no text of Real's, so only Real Signature gets a reason.
+    if (rs) out.reason = reasonShape(why, { validation: !!out.field });
     out.cls = out.status === 401 ? "signed-out" : out.status === 403 ? "forbidden" : out.status === 404 ? "not-found"
       : out.status >= 500 ? "real-server" : "rejected";
   } else if (name === "NotSignedIn" || /sign-in expired|Not signed in|Sign in to Real Signature|Open Real Signature in a tab first/i.test(message)) {
@@ -254,6 +290,7 @@ export function sanitizeReport(r) {
       && r.route.split(" ")[1].split("/").slice(1).every((s) => s === "{id}" || ROUTE_WORDS.has(s)) ? r.route : null,
     field: typeof r.field === "string" && FIELD.test(r.field) ? r.field : null,
     rule: typeof r.rule === "string" && RULE.test(r.rule) ? r.rule : null,
+    reason: pick(r.reason, ENUMS.reason, null),
     partial: r.partial === true,
   });
   const c = r.ctx;

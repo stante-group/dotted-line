@@ -3,6 +3,13 @@
 What changed in each version, in plain words. The newest is at the top. Chrome updates
 Dotted Line by itself a few hours after a version is published.
 
+## Not released yet
+
+- **Clearer error reports when Real Signature refuses.** If you've said yes to error
+  reports, a report now says in one word why Real Signature refused (for example "not
+  authorized" or "not found"), so we can fix problems we can't reproduce on our own
+  account. Real Signature's message itself is never sent.
+
 ## 0.3.0 — 2026-10-31
 
 - **Auto place on a document you uploaded in Real Signature.** Upload a PDF to Send

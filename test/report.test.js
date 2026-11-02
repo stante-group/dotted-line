@@ -51,7 +51,7 @@ test("every other field is rebuilt from fixed choices: injected values and keys 
     local: { made: "Jordan", failed: 2, extra: "jordan@example.com" },
   });
   assert.deepEqual(leaks(r), []);
-  assert.deepEqual(Object.keys(r).sort(), ["chrome", "cls", "code", "ctx", "err", "field", "kind", "local", "partial", "route", "rule", "site", "status", "step", "v", "version"].sort());
+  assert.deepEqual(Object.keys(r).sort(), ["chrome", "cls", "code", "ctx", "err", "field", "kind", "local", "partial", "reason", "route", "rule", "site", "status", "step", "v", "version"].sort());
   assert.equal(r.version, "0.0.0");
   assert.equal(r.cls, "ours");
   assert.equal(r.partial, false);
@@ -335,4 +335,38 @@ test("a failure that never saw the ticked forms says the count is unknown, not 1
   assert.equal(sanitizeReport({ ...base, ctx: { path: "panel", forms: "1" } }).ctx.forms, "1");
   assert.equal(sanitizeReport({ ...base, ctx: { path: "panel", forms: "7 forms" } }).ctx.forms, "unknown");
   assert.equal(sanitizeReport({ kind: "ok", version: "0.1.2", day: "2026-10-28", forms: { unknown: 3 } }).forms.unknown, undefined);
+});
+
+test("why Real refused is one fixed word, never Real's message", async () => {
+  const { reasonShape, ENUMS } = await import("../src/lib/report.js");
+  const refuse = (why, route = "GET /transactions/participant/9f0c1d2e-1111-2222-3333-444455556666/listing-transactions/OPEN") =>
+    classifyError(new Error(`${route} → 400${why ? `: ${why}` : ""}`));
+  // The 2 Nov case: a 400 on the open-deals list, now with a word saying why.
+  assert.equal(refuse("").reason, "none");
+  assert.equal(refuse("Bad Request").reason, "status-text");
+  assert.equal(refuse("Agent not found for id 9f0c1d2e-1111-2222-3333-444455556666").reason, "not-agent");
+  assert.equal(refuse("Jordan Sample is not an agent").reason, "not-agent");
+  assert.equal(refuse("User is not authorized to view sent items of another user").reason, "not-authorized");
+  assert.equal(refuse("Account jordan@example.com is deactivated").reason, "inactive");
+  assert.equal(refuse("Invalid UUID string: A1234567").reason, "bad-id");
+  assert.equal(refuse("Required request parameter 'pageNumber' for method parameter type Integer is not present").reason, "missing-param");
+  assert.equal(refuse("No enum constant com.real.LifecycleGroup.OPENED").reason, "bad-param");
+  assert.equal(refuse("JSON parse error: Unexpected character").reason, "malformed");
+  assert.equal(refuse("Transaction does not exist").reason, "not-found");
+  assert.equal(refuse("Something about 120 Example Street").reason, "other");
+  // A refused field keeps field/rule, and says "validation".
+  const v = classifyError(new Error("PUT /document-templates/x → 400: defaults.emailSubject: size must be between 0 and 70"));
+  assert.equal(v.reason, "validation");
+  assert.equal(v.field, "defaults.emailSubject");
+  // WEBForms has no message of Real's, so no reason; nor does our own error.
+  assert.equal(classifyError(new Error("WEBForms answered 500 to GET /api/forms/single/1")).reason, null);
+  assert.equal(classifyError(new Error("no forms picked")).reason, null);
+  // Through the report: the word survives, the message never does.
+  const r = errorReport({ error: new Error("GET /document-templates → 400: Jordan Sample (jordan@example.com, 555-0100) not allowed"),
+    step: "context", version: "0.3.1", chrome: "141" });
+  assert.equal(r.reason, "not-authorized");
+  assert.deepEqual(leaks(r), []);
+  assert.equal(sanitizeReport({ kind: "error", version: "0.3.1", reason: "Jordan Sample" }).reason, null);
+  for (const w of ENUMS.reason) assert.equal(sanitizeReport({ kind: "error", version: "0.3.1", reason: w }).reason, w);
+  assert.equal(reasonShape("  "), "none");
 });

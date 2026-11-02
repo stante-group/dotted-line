@@ -1,6 +1,6 @@
 # Dotted Line — privacy policy
 
-Last updated: October 30, 2026
+Last updated: November 2, 2026
 
 Dotted Line is a free, open-source browser extension made by the Deal Dates team. It
 turns forms you filled in CREA WEBForms into a draft in Real Signature.
@@ -60,7 +60,11 @@ out, network, refused by Real Signature or WEBForms, not found, their server, a 
 response, interrupted, or a fault in Dotted Line); a code for Dotted Line's own messages;
 which site answered; the HTTP status; the address it called with every ID removed (for
 example `PUT /document-templates/{id}`); the name of the field Real Signature refused and
-the rule it broke (for example `defaults.emailSubject`, "at most 70 characters"); whether a
+the rule it broke (for example `defaults.emailSubject`, "at most 70 characters"); why Real
+Signature refused, as one word from a fixed list (no message, only "Bad Request", a refused
+field, not an agent's account, not authorized, not found, account inactive, a malformed ID,
+a missing or wrong setting, a malformed request, sign-in, too many requests, their server, or
+other), read from its message and never the message itself; whether a
 half-made draft may be left; and, about the draft, one click, the side panel, or a draft uploaded in Real Signature, acting as
 an agent or not, how the two sign-ins compare (same person, the agent's own corporation,
 different, or can't tell), how the deal was matched (address, buyer name, picked by hand,
