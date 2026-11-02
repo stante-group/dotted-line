@@ -464,14 +464,21 @@ async function goToRealSignature(tabId, needsYou = false) {
   try {
     await go();
   } catch {
-    const b = el("button", "Go to Real Signature");
+    // The side panel only opens on Real Signature, so a tab that isn't there any more is
+    // the usual reason it didn't: signed out, Real sends the tab to its own sign-in page on
+    // another site, whose address Chrome doesn't give us. "Your forms are ready" was
+    // wrong there; nothing is in Real Signature yet. The forms wait in that tab for an hour.
+    const onRs = String((await chrome.tabs.get(tabId).catch(() => null))?.url || "").startsWith(RS);
+    const b = el("button", onRs ? "Go to Real Signature" : "Go to sign in");
     b.addEventListener("click", () => go().catch(async () => {
       await chrome.tabs.update(tabId, { active: true });
       window.close();
     }));
-    $("msg").replaceChildren(el("div", needsYou
+    $("msg").replaceChildren(el("div", !onRs
+      ? "Real Signature wants you to sign in first. Sign in in the tab that opened, then click the Dotted Line icon there: your forms are waiting."
+      : needsYou
       ? "Your forms are in Real Signature, with a choice or two to make before the draft."
-      : "Your forms are ready in Real Signature.", needsYou ? "warn" : "ok"), b);
+      : "Your forms are ready in Real Signature.", !onRs || needsYou ? "warn" : "ok"), b);
   }
 }
 

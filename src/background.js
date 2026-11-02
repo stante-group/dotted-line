@@ -374,6 +374,10 @@ async function autoCreateOnce(id) {
     await recordError({ error: e, step: "one-click", ctx: contextFromDraft({ path: "one-click", c: c?.signedIn ? c : null,
       job: withoutPdfs(job), dealId: plan?.dealId, dealBy: plan?.dealBy, templateIds: plan?.templateIds || [],
       counts: plan?.counts, timings }) }).catch(() => {});
+    // Signed out (the tab went to Real's sign-in page): like !c.signedIn above, the job is
+    // left as it was. A stored "Couldn't make the draft" would still sit on top of the panel
+    // after the agent signs in and comes back, when nothing is wrong any more.
+    if (e?.name === "NotSignedIn") return { done: false };
     return stop([why], why);
   }
 }

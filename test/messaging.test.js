@@ -47,8 +47,27 @@ test("when the script can't be added, the agent is asked to save, then reload", 
   await assert.rejects(sendToTab(7, { type: "x" }), /^Error: Save your changes on this page, then reload this tab once/);
 });
 
-test("another site's tab gets nothing added", async () => {
+test("another site's tab gets nothing added, and no advice to reload", async () => {
   const calls = fakeChrome({ url: "https://example.com/" });
-  await assert.rejects(sendToTab(7, { type: "x" }), /reload this tab once/);
+  await assert.rejects(sendToTab(7, { type: "webforms:zip" }), (e) => /has left WEBForms/.test(e.message) && !/reload/.test(e.message));
   assert.deepEqual(calls.inject, []);
+});
+
+// Signed out, Real Signature's tab goes to Real's sign-in page on another site, whose
+// address Chrome doesn't give us (no url). One click then hit "reload this tab once"
+// (0.3.0, 2026-11-01). It's a sign-in, and says so.
+test("a Real Signature tab that went to sign in says sign in, as NotSignedIn", async () => {
+  const calls = fakeChrome({ url: null });
+  await assert.rejects(sendToTab(7, { type: "rs:context" }), (e) =>
+    e.name === "NotSignedIn" && /Sign in to Real Signature/.test(e.message) && !/reload/.test(e.message));
+  assert.deepEqual(calls.inject, []);
+});
+
+test("a signed-out tab's error is reported as signed-out, not a stale tab", async () => {
+  fakeChrome({ url: null });
+  const e = await sendToTab(7, { type: "rs:context" }).catch((x) => x);
+  const { errorReport } = await import("../src/lib/report.js");
+  const r = errorReport({ error: e, step: "one-click", version: "0.3.1", chrome: "130" });
+  assert.equal(r.cls, "signed-out");
+  assert.notEqual(r.code, "stale-tab");
 });
