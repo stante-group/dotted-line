@@ -544,6 +544,8 @@ async function showRealsig(tab, job) {
     $("rs-status").textContent = "Sign in to Real Signature in this tab, then click the extension again.";
     return;
   }
+  // Seen now, by someone signed in: the icon's waiting dot can go (background job:seen).
+  if (job?.id && !uploaded(job)) chrome.runtime.sendMessage({ type: "job:seen", id: job.id }).catch(() => {});
   const remembered = (await chrome.storage.local.get("templateFor")).templateFor || {};
   const { agentMode = "one" } = await chrome.storage.local.get("agentMode");
   rsState = { tab, job, c, remembered, agentMode };

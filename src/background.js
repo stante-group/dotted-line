@@ -489,13 +489,18 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
       const cutoff = Date.now() - JOB_TTL_MS;
       const j = (await allJobs()).filter((x) => x.tabId === msg.tabId && x.createdAt >= cutoff)
         .sort((a, b) => b.createdAt - a.createdAt)[0];
-      // The panel is showing these forms now: the waiting dot has done its job.
-      if (j && !j.seen) {
-        await tx("readwrite", (s) => s.put({ ...j, seen: true }));
-        const { madeFor = {} } = await chrome.storage.session.get("madeFor");
-        if (!madeFor[msg.tabId]) await clearMadeBadge(msg.tabId);
-      }
       return withoutPdfs(j) || null;
+    }
+    // The panel has SHOWN these forms to a signed-in agent: the waiting dot has done its
+    // job. Not on job:forTab — signed out, the popup opens the panel on the new tab for a
+    // moment before Real sends it to sign in, and that fetch marked the forms seen, so no
+    // dot came back after signing in (Dan's test 79, 2026-11-02).
+    if (msg.type === "job:seen") {
+      const j = await tx("readonly", (s) => s.get(msg.id));
+      if (j && !j.seen) await tx("readwrite", (s) => s.put({ ...j, seen: true }));
+      const { madeFor = {} } = await chrome.storage.session.get("madeFor");
+      if (j && !madeFor[j.tabId]) await clearMadeBadge(j.tabId);
+      return { ok: true };
     }
     if (msg.type === "job:get") {
       const j = await tx("readonly", (s) => s.get(msg.id));
