@@ -23,11 +23,25 @@ export async function sendToTab(tabId, msg) {
     await new Promise((ok) => setTimeout(ok, 500));
     r = await ask();
   }
-  if (NOT_LISTENING.test(r?.error || "") && await addContentScript(tabId)) {
+  const added = NOT_LISTENING.test(r?.error || "") ? await addContentScript(tabId) : null;
+  if (added === "added") {
     for (let i = 0; i < 6 && NOT_LISTENING.test(r?.error || ""); i++) {
       await new Promise((ok) => setTimeout(ok, 250));
       r = await ask();
     }
+  }
+  // The tab isn't on either site any more. Signed out, Real Signature sends its tab to
+  // Real's own sign-in page on another site (bolt.therealbrokerage.com/login, checked
+  // 2026-11-02), where Dotted Line has no script and Chrome won't say the address. One
+  // click opens a fresh tab, so a signed-out agent got "reload this tab once" — wrong
+  // advice, reported as a stale tab (0.3.0, 2026-11-01). Say what helps instead.
+  if (added === "elsewhere" && NOT_LISTENING.test(r?.error || "")) {
+    const rs = String(msg?.type || "").startsWith("rs:");
+    const e = new Error(rs
+      ? "This tab has left Real Signature, usually for Real's sign-in page. Sign in to Real Signature there, then click the Dotted Line icon on Real Signature."
+      : "This tab has left WEBForms, usually to sign in. Sign in there, go back to your forms, then try again.");
+    if (rs) e.name = "NotSignedIn";
+    throw e;
   }
   if (r?.error) {
     throw new Error(NOT_LISTENING.test(r.error)
@@ -37,14 +51,17 @@ export async function sendToTab(tabId, msg) {
   return r;
 }
 
-/** The manifest's content script for this tab's site, added to the tab now. → true if added. */
+/** The manifest's content script for this tab's site, added to the tab now.
+ *  → "added", "failed", or "elsewhere" (the tab is on neither site: Chrome gives no URL
+ *  for other sites without the "tabs" permission, so an empty one means elsewhere too). */
 async function addContentScript(tabId) {
   const tab = await chrome.tabs.get(tabId).catch(() => null);
-  const url = String(tab?.url || "");
+  if (!tab) return "failed"; // closed: nothing to say about where it went
+  const url = String(tab.url || "");
   const cs = (chrome.runtime.getManifest().content_scripts || [])
     .find((c) => c.matches.some((m) => url.startsWith(m.replace(/\*$/, ""))));
-  if (!cs) return false;
-  return chrome.scripting.executeScript({ target: { tabId }, files: cs.js }).then(() => true, () => false);
+  if (!cs) return "elsewhere";
+  return chrome.scripting.executeScript({ target: { tabId }, files: cs.js }).then(() => "added", () => "failed");
 }
 
 /** Ask every open tab of one site, most recently used first, until one answers. Asking
