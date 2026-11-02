@@ -52,6 +52,7 @@ async function placeUi(tabId, url) {
 chrome.tabs.onUpdated.addListener((tabId, info, tab) => {
   if (info.url || info.status === "loading") placeUi(tabId, tab.url);
   if (info.url || info.status === "complete") madeBadge(tabId, tab.url).catch(() => {});
+  if (info.status === "complete") waitingBadge(tabId, tab.url).catch(() => {});
 });
 chrome.tabs.onRemoved.addListener((tabId) => forgetMade(tabId).catch(() => {}));
 
@@ -123,6 +124,21 @@ async function madeBadge(tabId, url) {
   await chrome.action.setTitle({ tabId, title: `Dotted Line made this draft with ${chose}. Click to see what it chose.` }).catch(() => {});
 }
 chrome.tabs.query({}).then((tabs) => tabs.forEach((t) => placeUi(t.id, t.url))).catch(() => {});
+
+// Forms waiting on this Real Signature tab that nobody has opened the panel for. Signed
+// out, the tab goes to Real's sign-in page and comes back to Real Signature's home page
+// with the forms waiting and nothing on the page to say so (Dan's test 78, 2026-11-02).
+// The side panel can't open by itself (Chrome wants a click), so the icon carries the
+// same amber dot as a draft one click made: "look at the panel". Gone once the panel has
+// shown the forms (job:forTab marks the job seen) or when the job ends.
+async function waitingBadge(tabId, url) {
+  if (!String(url || "").startsWith(RS)) return;
+  const cutoff = Date.now() - JOB_TTL_MS;
+  const j = (await allJobs()).find((x) => x.tabId === tabId && x.createdAt >= cutoff && !x.seen && !autoRunning.has(x.id));
+  if (!j) return;
+  await chrome.action.setIcon({ tabId, path: DOT_ICON }).catch(iconFailed);
+  await chrome.action.setTitle({ tabId, title: "Your forms from WEBForms are waiting here. Click to finish the draft." }).catch(() => {});
+}
 
 function db() {
   return new Promise((resolve, reject) => {
@@ -473,6 +489,12 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
       const cutoff = Date.now() - JOB_TTL_MS;
       const j = (await allJobs()).filter((x) => x.tabId === msg.tabId && x.createdAt >= cutoff)
         .sort((a, b) => b.createdAt - a.createdAt)[0];
+      // The panel is showing these forms now: the waiting dot has done its job.
+      if (j && !j.seen) {
+        await tx("readwrite", (s) => s.put({ ...j, seen: true }));
+        const { madeFor = {} } = await chrome.storage.session.get("madeFor");
+        if (!madeFor[msg.tabId]) await clearMadeBadge(msg.tabId);
+      }
       return withoutPdfs(j) || null;
     }
     if (msg.type === "job:get") {
