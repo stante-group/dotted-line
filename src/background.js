@@ -118,10 +118,13 @@ async function madeBadge(tabId, url) {
     await madeSeen(tabId); // a later step of the same draft
     return;
   }
-  if (!made?.guessed || made.seen) return;
+  // Lines left for the agent (a customer form naming no side) earn the dot too: nothing on
+  // the draft shows a line that has no block.
+  if (!(made?.guessed || made?.notes?.length) || made.seen) return;
   const chose = [!made.deal && "No deal", made.forms.some((f) => f.how === "labels" && !f.chosen) && "auto placed blocks"].filter(Boolean).join(" and ");
   await chrome.action.setIcon({ tabId, path: DOT_ICON }).catch(iconFailed);
-  await chrome.action.setTitle({ tabId, title: `Dotted Line made this draft with ${chose}. Click to see what it chose.` }).catch(() => {});
+  await chrome.action.setTitle({ tabId, title: chose ? `Dotted Line made this draft with ${chose}. Click to see what it chose.`
+    : "Dotted Line left some signature lines on this draft for you to place. Click to see which." }).catch(() => {});
 }
 chrome.tabs.query({}).then((tabs) => tabs.forEach((t) => placeUi(t.id, t.url))).catch(() => {});
 
@@ -377,7 +380,7 @@ async function autoCreateOnce(id) {
     Object.assign(timings, r.timings || {});
     await tx("readwrite", (s) => s.delete(id));
     await chrome.tabs.update(job.tabId, { url: new URL(r.url, RS).toString(), active: true });
-    await showMade(job.tabId, { ...madeSummary({ plan, job: withoutPdfs(job), c }), draft: draftKey(r.url) });
+    await showMade(job.tabId, { ...madeSummary({ plan, job: withoutPdfs(job), c }), draft: draftKey(r.url), notes: r.notes || [] });
     lap("oneClickTotal", t0);
     await keep();
     const labels = plan.templateIds.includes("auto");

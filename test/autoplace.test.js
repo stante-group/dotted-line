@@ -7,7 +7,7 @@ import { createHash } from "node:crypto";
 
 import { readPdfText, md5, rc4 } from "../src/lib/pdftext.js";
 import { pageBlocks, autoLayout, forAgent, forClients, withSigners, toLines, isLease } from "../src/lib/autoplace.js";
-import { placeOutcome, assignSlots } from "../src/lib/autoplace.js";
+import { placeOutcome, assignSlots, clientsLeft, leftNote } from "../src/lib/autoplace.js";
 
 const enc = (s) => new TextEncoder().encode(s);
 const latin = (u8) => new TextDecoder("latin1").decode(u8);
@@ -245,6 +245,65 @@ test("Consumer Relationships Guide: lines that run on from the label, for the si
   assert.deepEqual(sellers.signeeConfigs, [{ signeeType: "SELLER", minNum: 0, maxNum: 1 }]);
   // Both sides signing: nothing says whose guide it is, so the agent places them.
   assert.equal(forClients(layout, { BUYER: 2, SELLER: 2 }).fieldDefinitions.length, 0);
+});
+
+test("Referral Fee Consent: the referred client signs, whichever side they are", () => {
+  const p = page([
+    word("SIGNED AND DATED on ______________________________, 20_____.", 36, 196, 10),
+    word("Signature of Referred Client", 60, 167, 9), word("Signature of Referred Client", 330, 167, 9),
+    word("Signature of Witness", 60, 113, 9), word("Signature of Witness", 330, 113, 9),
+  ], [rule(36, 280, 176), rule(320, 571, 176), rule(36, 280, 122), rule(320, 571, 122)]);
+  const { layout } = autoLayout([p]);
+  const got = layout.fieldDefinitions.map((f) => `${f.type} ${f.signeeType}${f.signeeIndex + 1}`);
+  assert.deepEqual(got.filter((g) => g.startsWith("SIGNATURE")), ["SIGNATURE CLIENT1", "SIGNATURE CLIENT2"]);
+  assert.ok(!got.some((g) => /WITNESS/.test(g)), "witness lines are left for the agent");
+  const buyer = forClients(layout, { BUYER: 1, SELLER: 0 });
+  assert.ok(buyer.fieldDefinitions.length > 0 && buyer.fieldDefinitions.every((f) => f.signeeType === "BUYER" && f.signeeIndex === 0));
+});
+
+test("customer forms: the title names the customer's side, or nobody's lines are placed", () => {
+  // A customer is someone the agent does NOT represent, on either side, so only the form says.
+  const lines = (title, label) => page([
+    word(title, 60, 740, 12),
+    word("SIGNED AND DATED on ______________________________, 20_____.", 36, 196, 10),
+    word(`${label}       ${label}`, 60, 167, 9),
+    word("Signature of Real Estate Brokerage Representative", 60, 100, 9),
+  ], [rule(36, 260, 176), rule(300, 540, 176), rule(36, 300, 109)]);
+  const placed = (pg) => (autoLayout([pg]).layout?.fieldDefinitions || []).map((f) => `${f.type} ${f.signeeType}${f.signeeIndex + 1}`);
+  assert.deepEqual(placed(lines("COMMERCIAL TENANT CUSTOMER DISCLOSURE ACKNOWLEDGMENT", "Signature of Customer")),
+    ["SIGNED_DATE BUYER1", "SIGNATURE BUYER1", "SIGNATURE BUYER2", "SIGNATURE AGENT1"]);
+  assert.deepEqual(placed(lines("SELLER CUSTOMER STATUS ACKNOWLEDGMENT AND FEE AGREEMENT", "Signature of Customer")),
+    ["SIGNED_DATE SELLER1", "SIGNATURE SELLER1", "SIGNATURE SELLER2", "SIGNATURE AGENT1"]);
+  // No side named: only the agent's own line; the customers' lines and their date are left.
+  assert.deepEqual(placed(lines("CUSTOMER ACKNOWLEDGEMENT", "Signature of Seller/Buyer")), ["SIGNATURE AGENT1"]);
+  const footer = page([word("CUSTOMER ACKNOWLEDGEMENT", 60, 740, 12),
+    word("Seller’s/Buyer’s Initials ______ ______ Brokerage Representative’s Initials ______", 200, 54, 8)]);
+  assert.deepEqual(placed(footer), ["INITIALS AGENT1"]);
+  // What's left is counted, for the panel's note.
+  assert.deepEqual(autoLayout([lines("CUSTOMER ACKNOWLEDGEMENT", "Signature of Seller/Buyer")]).left, { customer: 2 });
+  assert.deepEqual(autoLayout([lines("SELLER CUSTOMER STATUS ACKNOWLEDGMENT AND FEE AGREEMENT", "Signature of Customer")]).left, { customer: 0 });
+  // Off a customer form, a "Signature of Customer" line is nobody's.
+  assert.deepEqual(placed(lines("SOME OTHER FORM", "Signature of Customer")).filter((g) => g.startsWith("SIGNATURE ")), ["SIGNATURE AGENT1"]);
+});
+
+test("a seller representation agreement's bare signing-officer lines are the seller's", () => {
+  const p = page([
+    word("COMMERCIAL EXCLUSIVE SELLER REPRESENTATION AGREEMENT", 60, 740, 12),
+    word("Authorized Signing Officer(s)            Witness", 60, 300, 9),
+    word("Signature of Brokerage Representative", 60, 200, 9),
+  ], [rule(36, 260, 309), rule(36, 260, 209)]);
+  const got = autoLayout([p]).layout.fieldDefinitions.map((f) => `${f.signeeType}${f.signeeIndex + 1}`);
+  assert.deepEqual(got, ["SELLER1", "AGENT1"]);
+});
+
+test("a row of possessive signature labels, and the Fee Disclosure's client initials", () => {
+  const p = page([
+    word("Seller’s Signature                        Buyer’s Signature", 60, 167, 9),
+    word("Date and Buyer’s Signature", 60, 400, 9), // a heading, not a line to sign on
+    word("Client: Initial here to show you have received a copy of this Disclosure ________", 36, 100, 9),
+  ], [rule(36, 200, 176), rule(240, 420, 176), rule(36, 200, 409)]);
+  const got = autoLayout([p]).layout.fieldDefinitions.map((f) => `${f.type} ${f.signeeType}${f.signeeIndex + 1}`);
+  assert.deepEqual(got.sort(), ["INITIALS CLIENT1", "SIGNATURE BUYER1", "SIGNATURE SELLER1"]);
 });
 
 test("dates and times are required too: Real Signature only stamps one the signer clicks", () => {
@@ -565,4 +624,14 @@ test("nothing in a purchase contract's REJECTION section: signing there declines
   const f = autoLayout([p]).layout.fieldDefinitions;
   assert.equal(f.every((d) => d.fieldLocations[0].position[1] > 600), true, "nothing below the INFORMATION heading");
   assert.ok(f.some((d) => d.type === "SIGNATURE"), "the acceptance still gets its signature");
+});
+
+test("lines left for the agent: counted and said plainly", () => {
+  const layout = { fieldDefinitions: [{ type: "SIGNATURE", signeeType: "CLIENT" }, { type: "SIGNATURE", signeeType: "CLIENT" },
+    { type: "SIGNED_DATE", signeeType: "CLIENT" }, { type: "SIGNATURE", signeeType: "AGENT" }] };
+  assert.equal(clientsLeft(layout, { BUYER: 1, SELLER: 0 }), 0, "one side signing: they're that side's");
+  assert.equal(clientsLeft(layout, { BUYER: 2, SELLER: 1 }), 2);
+  assert.equal(leftNote({ customer: 0, clients: 0 }), "");
+  assert.equal(leftNote({ customer: 2 }), "2 customer signature lines weren't placed: the form doesn't say which side the customer is on. Place them in Real Signature.");
+  assert.equal(leftNote({ clients: 1 }), "1 client signature line wasn't placed: both sides are signing, and the form doesn't say whose it is. Place it in Real Signature.");
 });
