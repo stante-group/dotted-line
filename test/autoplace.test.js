@@ -635,3 +635,15 @@ test("lines left for the agent: counted and said plainly", () => {
   assert.equal(leftNote({ customer: 2 }), "2 customer signature lines weren't placed: the form doesn't say which side the customer is on. Place them in Real Signature.");
   assert.equal(leftNote({ clients: 1 }), "1 client signature line wasn't placed: both sides are signing, and the form doesn't say whose it is. Place it in Real Signature.");
 });
+
+test("SREC Form 910: Witness beside a possessive label, lines to its right, and a Dated at … day of date", () => {
+  const p = page([
+    word("Dated at ________________ this ______ day of _____________________, 20___", 36, 107, 9),
+    word("Witness                                   Buyer's Signature", 36, 85, 10),
+    word("Witness                                   Buyer's Signature", 36, 67, 10),
+  ], [rule(72, 240, 81.3), rule(333, 520, 81.3), rule(72, 240, 62.6), rule(333, 520, 62.6)]); // label ends at x331
+  const got = autoLayout([p]).layout.fieldDefinitions.map((f) => `${f.type} ${f.signeeType}${f.signeeIndex + 1} x${f.fieldLocations[0].position[0]}`);
+  // One Date block (the "at" is a place, not a time), and each buyer on the line right of the label.
+  assert.deepEqual(got.map((g) => g.replace(/ x[\d.]+$/, "")), ["SIGNED_DATE BUYER1", "SIGNATURE BUYER1", "SIGNATURE BUYER2"]);
+  assert.ok(got.slice(1).every((g) => / x335(\.\d+)?$/.test(g)), got.join());
+});
