@@ -83,3 +83,20 @@ test("a TC acting for an agent: cookie read, X-Agent-Context sent", async () => 
   assert.equal(seen[0]["X-Agent-Context"], id);
   assert.ok(!("X-Agent-Context" in seen[1]), "an agent's own calls carry no agent context");
 });
+
+test("a 403 from an expired sign-in counts as signed out; a real refusal stays a 403", async () => {
+  const answer = (map) => async (url) => {
+    const k = Object.keys(map).find((x) => url.includes(x));
+    return { ok: false, status: map[k], text: async () => "" };
+  };
+  // The profile itself refused: signed out.
+  await assert.rejects(new RealSignature({ getToken: () => "t", fetchImpl: answer({ "/users/me": 403 }) }).me(), NotSignedIn);
+  // A draft refused, and the profile too: signed out.
+  await assert.rejects(new RealSignature({ getToken: () => "t", fetchImpl: answer({ "/document-templates/": 403, "/users/me": 403 }) }).getTemplate("x"), NotSignedIn);
+  // A draft refused, but the profile reads fine: a genuine 403, reported as before.
+  const ok = async (url) => (url.includes("/users/me") ? { ok: true, status: 200, text: async () => "{}" } : { ok: false, status: 403, text: async () => "" });
+  await assert.rejects(new RealSignature({ getToken: () => "t", fetchImpl: ok }).getTemplate("x"), (e) => !(e instanceof NotSignedIn) && /→ 403/.test(e.message));
+  // A TC acting for an agent: the profile is 404, so the draft's 403 stands.
+  await assert.rejects(new RealSignature({ getToken: () => "t", getActingAs: () => "a1", fetchImpl: answer({ "/document-templates/": 403, "/users/me": 404 }) }).getTemplate("x"),
+    (e) => !(e instanceof NotSignedIn));
+});

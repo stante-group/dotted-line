@@ -74,6 +74,12 @@ export class RealSignature {
     if (form) body = form;
     const r = await this.fetch(url.toString(), { method, headers, body });
     if (r.status === 401) throw new NotSignedIn("Real Signature sign-in expired");
+    // An expired sign-in can answer 403 with an empty body, not 401, for a few minutes before
+    // the page drops its cookie (Dan's test copy, 2026-11-03: /users/me, then a draft and a
+    // packet, all 403 with no message). Reading your own profile is never refused to someone
+    // signed in (a TC acting for an agent gets 404 there, not 403), so a 403 on it is a
+    // sign-out, and on any other call one look at it says which kind of 403 this is.
+    if (r.status === 403 && (await this.signedOut(base, path, headers))) throw new NotSignedIn("Real Signature sign-in expired");
     if (!r.ok) {
       // A bare "→ 400" can't be diagnosed. Real answers with a problem+json body whose
       // detail/message says which field it refused; keep a short, single-line copy.
@@ -170,6 +176,17 @@ export class RealSignature {
 
   // ---- who is signed in (the same calls Real Signature's own app makes) ----
   me() { return this.request("GET", "/users/me", { base: YENTA }); }
+
+  /** After a 403: whether it's because the sign-in has gone (see request). */
+  async signedOut(base, path, headers) {
+    if (base === YENTA && path === "/users/me") return true;
+    try {
+      const p = await this.fetch(`${YENTA}/users/me`, { method: "GET", headers });
+      return p.status === 401 || p.status === 403;
+    } catch {
+      return false; // can't tell: the 403 stands as it is
+    }
+  }
   async roles() {
     const k = await this.request("GET", "/keymaker/myself", { base: KEYMAKER });
     return (k?.activeRoles || []).map((r) => (typeof r === "string" ? r : r?.role || r?.name)).filter(Boolean);
