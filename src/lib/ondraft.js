@@ -117,11 +117,14 @@ export function packetPlacedSummary(results) {
   if (added) parts.push(`Placed ${n(added, "block")} on ${n(results.filter((r) => r.added).length, "document")}.`);
   if (full.length) parts.push(full.length === results.length ? "Every block Dotted Line would place is already on this packet."
     : `${n(full.length, "document")} already ${full.length === 1 ? "has" : "have"} every block Dotted Line would place.`);
+  // Lines a document had that nobody could be given (a customer form naming no side).
+  const notes = results.filter((r) => r.note).map((r) => `${r.name}: ${r.note}`);
   for (const r of none) {
     parts.push(r.outcome ? `${r.name} ${WHY_NONE[r.outcome] || "got no blocks"}: place its blocks in Real Signature if it needs any.`
       : `${r.name}: its signature lines are for signers who aren't on it. Check Edit details.`);
   }
-  return { text: parts.join(" "), level: added ? "ok" : "warn" };
+  parts.push(...notes);
+  return { text: parts.join(" "), level: added && !notes.length ? "ok" : "warn" };
 }
 
 /** A packet's documents on different reZEN deals (Dan, 2026-10-31: a lease document made

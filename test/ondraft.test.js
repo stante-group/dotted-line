@@ -250,6 +250,10 @@ test("Auto place on a packet is summed up document by document", async () => {
   assert.equal(packetPlacedSummary([{ name: "A.pdf", added: 0, skipped: 3 }, { name: "B.pdf", added: 0, skipped: 1 }]).text,
     "Every block Dotted Line would place is already on this packet.");
   assert.match(packetPlacedSummary([{ name: "A.pdf", added: 0, skipped: 0, outcome: null }]).text, /^A\.pdf: its signature lines are for signers who aren't on it/);
+  // Lines left for the agent (a customer form naming no side): said per document, in amber.
+  const left = packetPlacedSummary([{ name: "Customer Acknowledgement.pdf", added: 3, skipped: 0, note: "2 customer signature lines weren't placed: x." }]);
+  assert.equal(left.level, "warn");
+  assert.match(left.text, /^Placed 3 blocks on 1 document\. Customer Acknowledgement\.pdf: 2 customer signature lines weren't placed/);
 });
 
 test("a packet with documents on different reZEN deals is said, by name", async () => {

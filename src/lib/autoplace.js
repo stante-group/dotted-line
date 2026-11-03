@@ -329,7 +329,8 @@ export function pageBlocks(page, { lease = false, sides = { party: null } } = {}
     if ("customer" in sides && sides.customer === null && spec === DATE) return;
     if (role === "CUSTOMER" || (role === "CLIENT" && "customer" in sides)) {
       role = sides.customer ?? null;
-      if (!role) return;
+      // Left for the agent, and counted so the panel can say so (Dan, 2026-11-03).
+      if (!role) { if (extra.sig) out.left = (out.left || 0) + 1; return; }
     }
     const h = extra.h ?? spec.h;
     const fit = spec !== INI ? roomAbove(x, extra.w ?? spec.w, bottom, h) : h; // initials are sized already
@@ -635,7 +636,10 @@ export function autoLayout(pages) {
   const found = {};
   const lease = isLease(pages);
   const sides = formSides(pages);
-  const perPage = pages.map((page) => assignSlots(pageBlocks(page, { lease, sides })));
+  const raw = pages.map((page) => pageBlocks(page, { lease, sides }));
+  // Customer lines no side could be given to (pageBlocks): for the panel's note.
+  const left = { customer: raw.reduce((n, b) => n + (b.left || 0), 0) };
+  const perPage = raw.map(assignSlots);
   // "SIGNER" (BCREA footer initials): whoever signs this form, when its signature lines all
   // belong to one side (or the client); otherwise nobody can say, and they come off.
   const signers = new Set(perPage.flat().filter((b) => b.sig && ["BUYER", "SELLER", "CLIENT"].includes(b.role)).map((b) => b.role));
@@ -665,7 +669,7 @@ export function autoLayout(pages) {
       found[b.spec.type] = (found[b.spec.type] || 0) + 1;
     }
   });
-  if (!fieldDefinitions.length) return { layout: null, found };
+  if (!fieldDefinitions.length) return { layout: null, found, left };
   return {
     layout: {
       pagesCount: pages.length,
@@ -674,6 +678,7 @@ export function autoLayout(pages) {
       signeeConfigs: Object.entries(most).map(([signeeType, maxNum]) => ({ signeeType, minNum: 0, maxNum })),
     },
     found,
+    left,
   };
 }
 
@@ -713,6 +718,25 @@ export function withSigners(layout, counts) {
     configs.set(type, c ? { ...c, maxNum: Math.max(c.maxNum ?? 0, n) } : { signeeType: type, minNum: 0, maxNum: n });
   }
   return { ...layout, signeeConfigs: [...configs.values()] };
+}
+
+/** How many client signature lines forClients takes off because nobody can say whose they
+ *  are (both sides signing, or neither): for the panel's note. */
+export function clientsLeft(layout, counts) {
+  const sides = ["BUYER", "SELLER"].filter((s) => (counts?.[s] ?? 0) > 0);
+  if (sides.length === 1) return 0;
+  return (layout?.fieldDefinitions || []).filter((f) => f.signeeType === "CLIENT" && f.type === "SIGNATURE").length;
+}
+
+/** Lines left for the agent, as one sentence per reason, or "" when none. left:
+ *  {customer, clients} counts (autoLayout's left, clientsLeft). */
+export function leftNote(left) {
+  const n = (k, w) => `${k} ${w} signature line${k === 1 ? "" : "s"} ${k === 1 ? "wasn't" : "weren't"} placed`;
+  const it = (k) => (k === 1 ? "it" : "them");
+  const out = [];
+  if (left?.customer) out.push(`${n(left.customer, "customer")}: the form doesn't say which side the customer is on. Place ${it(left.customer)} in Real Signature.`);
+  if (left?.clients) out.push(`${n(left.clients, "client")}: both sides are signing, and the form doesn't say whose it is. Place ${it(left.clients)} in Real Signature.`);
+  return out.join(" ");
 }
 
 /** "Consumer" lines (RECA's Consumer Relationships Guide) belong to the agent's own clients:
