@@ -261,6 +261,48 @@ test("Referral Fee Consent: the referred client signs, whichever side they are",
   assert.ok(buyer.fieldDefinitions.length > 0 && buyer.fieldDefinitions.every((f) => f.signeeType === "BUYER" && f.signeeIndex === 0));
 });
 
+test("customer forms: the title names the customer's side, or nobody's lines are placed", () => {
+  // A customer is someone the agent does NOT represent, on either side, so only the form says.
+  const lines = (title, label) => page([
+    word(title, 60, 740, 12),
+    word("SIGNED AND DATED on ______________________________, 20_____.", 36, 196, 10),
+    word(`${label}       ${label}`, 60, 167, 9),
+    word("Signature of Real Estate Brokerage Representative", 60, 100, 9),
+  ], [rule(36, 260, 176), rule(300, 540, 176), rule(36, 300, 109)]);
+  const placed = (pg) => (autoLayout([pg]).layout?.fieldDefinitions || []).map((f) => `${f.type} ${f.signeeType}${f.signeeIndex + 1}`);
+  assert.deepEqual(placed(lines("COMMERCIAL TENANT CUSTOMER DISCLOSURE ACKNOWLEDGMENT", "Signature of Customer")),
+    ["SIGNED_DATE BUYER1", "SIGNATURE BUYER1", "SIGNATURE BUYER2", "SIGNATURE AGENT1"]);
+  assert.deepEqual(placed(lines("SELLER CUSTOMER STATUS ACKNOWLEDGMENT AND FEE AGREEMENT", "Signature of Customer")),
+    ["SIGNED_DATE SELLER1", "SIGNATURE SELLER1", "SIGNATURE SELLER2", "SIGNATURE AGENT1"]);
+  // No side named: only the agent's own line; the customers' lines and their date are left.
+  assert.deepEqual(placed(lines("CUSTOMER ACKNOWLEDGEMENT", "Signature of Seller/Buyer")), ["SIGNATURE AGENT1"]);
+  const footer = page([word("CUSTOMER ACKNOWLEDGEMENT", 60, 740, 12),
+    word("Seller’s/Buyer’s Initials ______ ______ Brokerage Representative’s Initials ______", 200, 54, 8)]);
+  assert.deepEqual(placed(footer), ["INITIALS AGENT1"]);
+  // Off a customer form, a "Signature of Customer" line is nobody's.
+  assert.deepEqual(placed(lines("SOME OTHER FORM", "Signature of Customer")).filter((g) => g.startsWith("SIGNATURE ")), ["SIGNATURE AGENT1"]);
+});
+
+test("a seller representation agreement's bare signing-officer lines are the seller's", () => {
+  const p = page([
+    word("COMMERCIAL EXCLUSIVE SELLER REPRESENTATION AGREEMENT", 60, 740, 12),
+    word("Authorized Signing Officer(s)            Witness", 60, 300, 9),
+    word("Signature of Brokerage Representative", 60, 200, 9),
+  ], [rule(36, 260, 309), rule(36, 260, 209)]);
+  const got = autoLayout([p]).layout.fieldDefinitions.map((f) => `${f.signeeType}${f.signeeIndex + 1}`);
+  assert.deepEqual(got, ["SELLER1", "AGENT1"]);
+});
+
+test("a row of possessive signature labels, and the Fee Disclosure's client initials", () => {
+  const p = page([
+    word("Seller’s Signature                        Buyer’s Signature", 60, 167, 9),
+    word("Date and Buyer’s Signature", 60, 400, 9), // a heading, not a line to sign on
+    word("Client: Initial here to show you have received a copy of this Disclosure ________", 36, 100, 9),
+  ], [rule(36, 200, 176), rule(240, 420, 176), rule(36, 200, 409)]);
+  const got = autoLayout([p]).layout.fieldDefinitions.map((f) => `${f.type} ${f.signeeType}${f.signeeIndex + 1}`);
+  assert.deepEqual(got.sort(), ["INITIALS CLIENT1", "SIGNATURE BUYER1", "SIGNATURE SELLER1"]);
+});
+
 test("dates and times are required too: Real Signature only stamps one the signer clicks", () => {
   const p = page([
     word("Signed and dated at ________. m. on ____________________, 20___.", 36, 653),
