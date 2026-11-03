@@ -8,7 +8,8 @@ Dotted Line by itself a few hours after a version is published.
 - **Signed out of Real Signature? Dotted Line now waits while you sign in.** It used to
   say "reload this tab once", which didn't help. Now it says to sign in, keeps your forms
   from WEBForms waiting, and once you're signed in the icon shows an amber dot: click it
-  to finish the draft.
+  to finish the draft. This now also works in the few minutes when Real Signature has
+  ended your sign-in but the page hasn't caught up yet.
 - **Auto place knows more Alberta forms.** The Referral Fee Consent, the customer
   disclosure and acknowledgement forms, the commercial and agricultural seller
   representation appendices, the Country Residential income schedule and the Fee
