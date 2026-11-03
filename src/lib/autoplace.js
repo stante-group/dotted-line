@@ -192,7 +192,9 @@ const SIGNATURE_UNDER = /^\s*(?:(Seller|Buyer)['’]s signature|Listing (Brokera
 // AREA's Country Residential PC Income Schedule: "Seller’s Signature      Buyer’s Signature"
 // under lines. Mixed case with the possessive is also a heading ("Date and Buyer's
 // Signature"), so only as a row of nothing but these labels, each with a line over it.
-const POSSESSIVE_ROW = /^(?:\s*(?:Seller|Buyer)['’]s Signature)+\s*$/;
+// SREC's Ancillary Services (Form 910, SRAR0104): "Witness        Buyer's Signature" — a
+// witness beside it has no role, as everywhere (found by an error report, 2026-11-03).
+const POSSESSIVE_ROW = /^(?:\s*(?:Witness|(?:Seller|Buyer)['’]s Signature))+\s*$/;
 const POSSESSIVE = /\b(Seller|Buyer)['’]s Signature\b/g;
 // AREA's Fee Disclosure: "Client: Initial here to show you have received a copy … ____".
 const CLIENT_INITIAL_HERE = /\bClient: Initial here\b[^_]*(_{4,})/;
@@ -267,7 +269,8 @@ const INITIALS_OVAL = /\bINITIALS OF (BUYER|SELLER)\(S\):/g;
 // "at" is a place, not a time) and "Signed at ____ (on) mm ____ dd ____ yyyy ____".
 // BCREA: "SIGNED, SEALED, & DELIVERED THIS ____ DAY OF ____ YR. ____".
 // BCREA: "Confirmed and signed this ___ Day of ____ Year".
-const DATED = /\bsigned this(?![a-z]).*?day of(?![a-z])|\bsigned and dated\b.*?\bon(?![a-z])|\bsigned and sealed\b.*?\bday of\b|\bsigned, sealed,? (?:&|and) delivered\b.*?\bday of\b|^\s*Signed at\b.*?\bmm(?![a-ce-z])|^\s*Signed on\b|\bsigned in the presence of a witness, and dated\b.*?\bon(?![a-z])|^\s*Date\b/i;
+// SREC's Form 910: "Dated at ____ this ____ day of ____, 20__".
+const DATED = /\bsigned this(?![a-z]).*?day of(?![a-z])|^\s*Dated at\b.*?\bday of\b|\bsigned and dated\b.*?\bon(?![a-z])|\bsigned and sealed\b.*?\bday of\b|\bsigned, sealed,? (?:&|and) delivered\b.*?\bday of\b|^\s*Signed at\b.*?\bmm(?![a-ce-z])|^\s*Signed on\b|\bsigned in the presence of a witness, and dated\b.*?\bon(?![a-z])|^\s*Date\b/i;
 
 // A form's title, in capitals near the top of page 1, can name a side the labels don't:
 // "COMMERCIAL TENANT CUSTOMER DISCLOSURE ACKNOWLEDGMENT" (customer = the tenant), "CUSTOMER
@@ -383,7 +386,11 @@ export function pageBlocks(page, { lease = false, sides = { party: null } } = {}
     if (POSSESSIVE_ROW.test(line.text)) {
       for (const m of line.text.matchAll(POSSESSIVE)) {
         const x = xAt(line, m.index), xEnd = xAt(line, m.index + m[0].length);
-        const r = ruleAbove(rules, x, xEnd, line.y, line.size);
+        // Form 910 draws its lines to the right of the label ("Buyer's Signature ______"), 3.7pt
+        // under the words: further down than ruleRight allows, so up to 5pt below, here only.
+        const r = ruleRight(rules, xEnd, line.y)
+          || rules.find((u) => u.y <= line.y && line.y - u.y <= 5 && u.x1 >= xEnd - 4 && u.x1 <= xEnd + 30)
+          || ruleAbove(rules, x, xEnd, line.y, line.size);
         if (r) add(SIG, ROLE(m[1]), r.x1 + 2, r.y + 1, { sig: true });
       }
     }
@@ -564,7 +571,9 @@ export function pageBlocks(page, { lease = false, sides = { party: null } } = {}
       // underscores to go by), or "at", a typed blank, then ". m.": AREA's Commercial Offer
       // to Lease Addendum says "SIGNED in the presence of a witness, and DATED at ____ ___. m.
       // on" and got one block when only "signed and dated at" counted (Dan, 2026-10-31).
-      const at = /\bdated\s+at\b|\bat(?=\s*_{3,}[\s_]*\.?\s*m\.)/i.exec(line.text);
+      // SREC's Form 910 says "Dated at ____ this ____ day of": there the "at" is a place, as on
+      // Saskatchewan's "SIGNED AND SEALED … at", and one Date block goes after "day of".
+      const at = !/\bthis\b.*\bday of\b/i.test(line.text) && /\bdated\s+at\b|\bat(?=\s*_{3,}[\s_]*\.?\s*m\.)/i.exec(line.text);
       if (at) {
         const atEnd = at.index + at[0].length;
         const tRun = /^\s*_{3,}/.exec(line.text.slice(atEnd));
