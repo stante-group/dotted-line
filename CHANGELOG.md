@@ -9,6 +9,16 @@ Dotted Line by itself a few hours after a version is published.
   say "reload this tab once", which didn't help. Now it says to sign in, keeps your forms
   from WEBForms waiting, and once you're signed in the icon shows an amber dot: click it
   to finish the draft.
+- **Auto place knows more Alberta forms.** The Referral Fee Consent, the customer
+  disclosure and acknowledgement forms, the commercial and agricultural seller
+  representation appendices, the Country Residential income schedule and the Fee
+  Disclosure now get their blocks. A customer is someone you don't represent, on either
+  side, so a customer's lines go to the side the form's title names. The general Customer
+  Acknowledgement names no side: it used to place blocks for both buyer and seller, and
+  now places only yours.
+- **Dotted Line says when it leaves a signature line for you.** If it can't tell whose a
+  line is (the Customer Acknowledgement, or a Consumer Relationships Guide with both sides
+  signing), it says which form, how many lines and why, instead of leaving them quietly.
 - **Clearer error reports when Real Signature refuses.** If you've said yes to error
   reports, a report now says in one word why Real Signature refused (for example "not
   authorized" or "not found"), so we can fix problems we can't reproduce on our own
