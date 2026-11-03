@@ -17,6 +17,9 @@ Dotted Line by itself a few hours after a version is published.
   side, so a customer's lines go to the side the form's title names. The general Customer
   Acknowledgement names no side: it used to place blocks for both buyer and seller, and
   now places only yours.
+- **Auto place now knows Saskatchewan's Ancillary Services form (Form 910).** It places
+  the date and both buyers' signatures. The "Initial here" box beside each service is the
+  buyer's own choice, so it's left for them.
 - **Dotted Line says when it leaves a signature line for you.** If it can't tell whose a
   line is (the Customer Acknowledgement, or a Consumer Relationships Guide with both sides
   signing), it says which form, how many lines and why, instead of leaving them quietly.
