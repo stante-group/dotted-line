@@ -150,10 +150,12 @@ const ROLE = (w) => {
     if (/seller/.test(s)) return "SELLERS_AGENT";
     return "AGENT";
   }
-  if (/buyer\/seller|seller\/buyer/.test(s)) return "CLIENT"; // AREA's Notice: whichever side gives it; a lease's "Landlord/Tenant"
+  if (/buyer(?:['’]s)?\/seller|seller(?:['’]s)?\/buyer/.test(s)) return "CLIENT"; // AREA's Notice: whichever side gives it; a lease's "Landlord/Tenant"
   if (/buyer/.test(s)) return "BUYER";
   if (/seller/.test(s)) return "SELLER";
   if (/consumer/.test(s)) return "CLIENT"; // the agent's own clients, whichever side (forClients)
+  if (/^customer$/.test(s)) return "CUSTOMER"; // only on a customer form, as the side it names (formSides)
+  if (/referred client/.test(s)) return "CLIENT"; // AREA's Referral Fee Consent: the agent's own client
   return null;
 };
 
@@ -163,12 +165,19 @@ const ROLE = (w) => {
 // Case matters: a sentence ("the seller's signature") or a heading ("Date and Buyer's
 // Signature") isn't a line to sign on, and neither is Manitoba's deposit receipt ("Signature
 // of brokerage representative"), signed only when cash changes hands.
+// AREA's Referral Fee Consent (AREA0276): "Signature of Referred Client", two side by side,
+// signed by the agent's own client like the Consumer lines (found by an error report, 2026-11-03).
+// AREA's customer forms: "Signature of Customer" (Commercial Tenant Customer Disclosure
+// Acknowledgment), "Signature of Seller/Buyer" (Customer Acknowledgement), and "Signature of
+// Real Estate Brokerage Representative" for the agent. A customer is someone the agent does
+// NOT represent, on either side, so the deal can't say whose line it is: only the form's
+// own title can (formSides), and with none, those lines are left for the agent (Dan, 2026-11-03).
 // Ontario's "(Signature of Seller or Buyer)" confirms acceptance — whoever accepted last.
 // BCFSA's Disclosure of Remuneration: "Signature of Licensee", and "Signature of
 // person/persons to whom disclosure has been made" (the client). AREA's Notice (waiver or
 // satisfaction of conditions): "Buyer/Seller Signature", whichever side gives notice — the
 // agent's own client, as on the Consumer Relationships Guide (it read as Seller before).
-const SIGNATURE_LABEL = /\bSignature of (?:the )?(Seller|Buyer|Brokerage Representative|Licensee|person\/persons to whom disclosure(?: has been made:?)?)\b(?! or\b)|\b(Buyer\/Seller|Buyer|Seller|Consumer) Signature\b/g;
+const SIGNATURE_LABEL = /\bSignature of (?:the )?(Seller\/Buyer|Buyer\/Seller|Seller|Buyer|(?:Real Estate )?Brokerage Representative|Licensee|Referred Client|Customer|person\/persons to whom disclosure(?: has been made:?)?)\b(?! or\b)|\b(Buyer\/Seller|Buyer|Seller|Consumer) Signature\b/g;
 // Saskatchewan (SREC purchase contract) prints them in capitals, one with a stray
 // apostrophe: "BUYER' SIGNATURE_____", "SELLER'S SIGNATURE_____". Capitals are a heading
 // as often as a line, so these count only with a line to sign on.
@@ -180,8 +189,16 @@ const SIGNATURE_CAPS = /\b(BUYER|SELLER|DESIGNATED AGENT)['’]?S?['’]? SIGNAT
 // representative" each alone under a line, small type. Lower case, so only as the whole
 // line and with a line to sign on: in a sentence it's just words.
 const SIGNATURE_UNDER = /^\s*(?:(Seller|Buyer)['’]s signature|Listing (Brokerage['’]s representative))\s*$/;
+// AREA's Country Residential PC Income Schedule: "Seller’s Signature      Buyer’s Signature"
+// under lines. Mixed case with the possessive is also a heading ("Date and Buyer's
+// Signature"), so only as a row of nothing but these labels, each with a line over it.
+const POSSESSIVE_ROW = /^(?:\s*(?:Seller|Buyer)['’]s Signature)+\s*$/;
+const POSSESSIVE = /\b(Seller|Buyer)['’]s Signature\b/g;
+// AREA's Fee Disclosure: "Client: Initial here to show you have received a copy … ____".
+const CLIENT_INITIAL_HERE = /\bClient: Initial here\b[^_]*(_{4,})/;
 // "Seller's Initials ____ ____ Buyer's Initials ____ ____" (AREA page footers and schedules).
-const INITIALS_RUNS = /\b(Seller|Buyer|Brokerage Representative)['’]?s? Initials\s*((?:_{4,}\s*)+)/gi;
+// "Seller’s/Buyer’s Initials" (AREA's Customer Acknowledgement): either side's, so the client's.
+const INITIALS_RUNS = /\b(Seller['’]s\/Buyer|Buyer['’]s\/Seller|Seller|Buyer|Brokerage Representative)['’]?s? Initials\s*((?:_{4,}\s*)+)/gi;
 // "Initials (Buyer)" beside a drawn box (MREA offer, page 1).
 const INITIALS_BOX = /\bInitials \((Buyer|Seller|Buyer['’]s brokerage representative|Seller['’]s brokerage representative)\)/gi;
 // A line that is nothing but signers' names under their lines: "Buyer Buyer", "Witness
@@ -252,8 +269,26 @@ const INITIALS_OVAL = /\bINITIALS OF (BUYER|SELLER)\(S\):/g;
 // BCREA: "Confirmed and signed this ___ Day of ____ Year".
 const DATED = /\bsigned this(?![a-z]).*?day of(?![a-z])|\bsigned and dated\b.*?\bon(?![a-z])|\bsigned and sealed\b.*?\bday of\b|\bsigned, sealed,? (?:&|and) delivered\b.*?\bday of\b|^\s*Signed at\b.*?\bmm(?![a-ce-z])|^\s*Signed on\b|\bsigned in the presence of a witness, and dated\b.*?\bon(?![a-z])|^\s*Date\b/i;
 
+// A form's title, in capitals near the top of page 1, can name a side the labels don't:
+// "COMMERCIAL TENANT CUSTOMER DISCLOSURE ACKNOWLEDGMENT" (customer = the tenant), "CUSTOMER
+// ACKNOWLEDGEMENT" (a customer, no side: nobody can say), "AGRICULTURAL EXCLUSIVE SELLER
+// REPRESENTATION AGREEMENT" (its bare "Authorized Signing Officer(s)" lines are the seller's).
+const TITLE_CUSTOMER = /\b(?:(BUYER|SELLER|TENANT|LANDLORD) )?CUSTOMER (?:DISCLOSURE |STATUS )?ACKNOWLEDG/;
+const TITLE_REPRESENTS = /\bEXCLUSIVE (BUYER|SELLER|TENANT|LANDLORD) REPRESENTATION AGREEMENT\b/;
+const SIDE = { BUYER: "BUYER", SELLER: "SELLER", TENANT: "BUYER", LANDLORD: "SELLER" };
+
+/** What a form's title says about its signers: {customer: undefined (not a customer form) |
+ *  "BUYER" | "SELLER" | null (a customer form naming no side), party: "BUYER" | "SELLER" | null}. */
+export function formSides(pages) {
+  const p = (pages || [])[0];
+  if (!p) return { party: null };
+  const title = toLines(p.items || []).filter((l) => l.y > p.height * 0.75).map((l) => l.text).join("\n");
+  const c = TITLE_CUSTOMER.exec(title), r = TITLE_REPRESENTS.exec(title);
+  return { ...(c ? { customer: c[1] ? SIDE[c[1]] : null } : {}), party: r ? SIDE[r[1]] : null };
+}
+
 /** The blocks one page's labels point to: [{type, role, x, y (bottom), w, h, order}]. */
-export function pageBlocks(page, { lease = false } = {}) {
+export function pageBlocks(page, { lease = false, sides = { party: null } } = {}) {
   const lines = toLines(page.items || []).map((l) => (lease ? asSale(l) : l));
   // Dotted or underscored lines typed as text are signing lines too (OREA prints its lines
   // as rows of dots).
@@ -287,12 +322,22 @@ export function pageBlocks(page, { lease = false } = {}) {
   let declining = false;
   const add = (spec, role, x, bottom, extra = {}) => {
     if (declining) return;
+    // On a customer form the client lines are the customer's: the side its title names, or
+    // nobody's. Off one, a "Customer" line belongs to nobody.
+    // (A date's role is null until it's paired with its signature: those pass through.)
+    // Its "SIGNED AND DATED" line is the customers' too, so with no side it goes as well.
+    if ("customer" in sides && sides.customer === null && spec === DATE) return;
+    if (role === "CUSTOMER" || (role === "CLIENT" && "customer" in sides)) {
+      role = sides.customer ?? null;
+      // Left for the agent, and counted so the panel can say so (Dan, 2026-11-03).
+      if (!role) { if (extra.sig) out.left = (out.left || 0) + 1; return; }
+    }
     const h = extra.h ?? spec.h;
     const fit = spec !== INI ? roomAbove(x, extra.w ?? spec.w, bottom, h) : h; // initials are sized already
     out.push({ spec, role, x, y: bottom, ...extra, ...(fit < h ? { h: fit } : {}) });
   };
 
-  let party = null;
+  let party = sides.party;
   for (const line of lines) {
     const words = line.text.trim();
     if (/^REJECTION$/.test(words) || /has no effect on the contract['’]s terms/i.test(words)) declining = true;
@@ -334,6 +379,19 @@ export function pageBlocks(page, { lease = false } = {}) {
         }
       }
       add(SIG, role, r ? r.x1 + 2 : x, r ? r.y + 1 : line.y + line.size + 2, { sig: true });
+    }
+    if (POSSESSIVE_ROW.test(line.text)) {
+      for (const m of line.text.matchAll(POSSESSIVE)) {
+        const x = xAt(line, m.index), xEnd = xAt(line, m.index + m[0].length);
+        const r = ruleAbove(rules, x, xEnd, line.y, line.size);
+        if (r) add(SIG, ROLE(m[1]), r.x1 + 2, r.y + 1, { sig: true });
+      }
+    }
+    const ini = CLIENT_INITIAL_HERE.exec(line.text);
+    if (ini) {
+      const at = ini.index + ini[0].length - ini[1].length;
+      const x = xAt(line, at), xEnd = xAt(line, at + ini[1].length);
+      add(INI, "CLIENT", x + Math.max(0, (xEnd - x - INI.w) / 2), line.y - 1, { index: 0 });
     }
     const under = SIGNATURE_UNDER.exec(line.text);
     if (under) {
@@ -577,7 +635,11 @@ export function autoLayout(pages) {
   const most = {};
   const found = {};
   const lease = isLease(pages);
-  const perPage = pages.map((page) => assignSlots(pageBlocks(page, { lease })));
+  const sides = formSides(pages);
+  const raw = pages.map((page) => pageBlocks(page, { lease, sides }));
+  // Customer lines no side could be given to (pageBlocks): for the panel's note.
+  const left = { customer: raw.reduce((n, b) => n + (b.left || 0), 0) };
+  const perPage = raw.map(assignSlots);
   // "SIGNER" (BCREA footer initials): whoever signs this form, when its signature lines all
   // belong to one side (or the client); otherwise nobody can say, and they come off.
   const signers = new Set(perPage.flat().filter((b) => b.sig && ["BUYER", "SELLER", "CLIENT"].includes(b.role)).map((b) => b.role));
@@ -607,7 +669,7 @@ export function autoLayout(pages) {
       found[b.spec.type] = (found[b.spec.type] || 0) + 1;
     }
   });
-  if (!fieldDefinitions.length) return { layout: null, found };
+  if (!fieldDefinitions.length) return { layout: null, found, left };
   return {
     layout: {
       pagesCount: pages.length,
@@ -616,6 +678,7 @@ export function autoLayout(pages) {
       signeeConfigs: Object.entries(most).map(([signeeType, maxNum]) => ({ signeeType, minNum: 0, maxNum })),
     },
     found,
+    left,
   };
 }
 
@@ -655,6 +718,25 @@ export function withSigners(layout, counts) {
     configs.set(type, c ? { ...c, maxNum: Math.max(c.maxNum ?? 0, n) } : { signeeType: type, minNum: 0, maxNum: n });
   }
   return { ...layout, signeeConfigs: [...configs.values()] };
+}
+
+/** How many client signature lines forClients takes off because nobody can say whose they
+ *  are (both sides signing, or neither): for the panel's note. */
+export function clientsLeft(layout, counts) {
+  const sides = ["BUYER", "SELLER"].filter((s) => (counts?.[s] ?? 0) > 0);
+  if (sides.length === 1) return 0;
+  return (layout?.fieldDefinitions || []).filter((f) => f.signeeType === "CLIENT" && f.type === "SIGNATURE").length;
+}
+
+/** Lines left for the agent, as one sentence per reason, or "" when none. left:
+ *  {customer, clients} counts (autoLayout's left, clientsLeft). */
+export function leftNote(left) {
+  const n = (k, w) => `${k} ${w} signature line${k === 1 ? "" : "s"} ${k === 1 ? "wasn't" : "weren't"} placed`;
+  const it = (k) => (k === 1 ? "it" : "them");
+  const out = [];
+  if (left?.customer) out.push(`${n(left.customer, "customer")}: the form doesn't say which side the customer is on. Place ${it(left.customer)} in Real Signature.`);
+  if (left?.clients) out.push(`${n(left.clients, "client")}: both sides are signing, and the form doesn't say whose it is. Place ${it(left.clients)} in Real Signature.`);
+  return out.join(" ");
 }
 
 /** "Consumer" lines (RECA's Consumer Relationships Guide) belong to the agent's own clients:

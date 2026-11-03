@@ -140,15 +140,17 @@ async function setup() {
  *  signers and the agent. The same for a form from WEBForms and for a PDF the agent uploaded
  *  in Real Signature (setupDraft), so both make the same draft. */
 async function formBody(c, { draft, bytes, templateId, counts, agentChoice, deal, agentSide = null,
-  webformsUserName = null, webformsUserEmail = null, name, pageCount, signees, sender, emailSubject }) {
+  webformsUserName = null, webformsUserEmail = null, name, pageCount, signees, sender, emailSubject, notes = null }) {
   const { rs, lib } = c;
   let layout = null;
+  const left = { customer: 0, clients: 0 }; // lines left for the agent, said in the panel (notes)
   // "auto": blocks from the form's printed labels. Nothing recognised → no blocks, as
   // with No template; the agent places them in Real Signature.
   const auto = templateId === "auto";
   if (auto) {
-    const found = lib.autoLayout(await lib.readPdfText(bytes).catch(() => [])).layout;
-    if (found) layout = lib.dropUnusedSlots(found, counts);
+    const read = lib.autoLayout(await lib.readPdfText(bytes).catch(() => []));
+    left.customer = read.left?.customer || 0;
+    if (read.layout) layout = lib.dropUnusedSlots(read.layout, counts);
   } else if (templateId) {
     const t = c.templates.get(templateId)?.t || (await rs.getTemplate(templateId));
     layout = lib.dropUnusedSlots(lib.stripTemplate(t), counts);
@@ -168,9 +170,12 @@ async function formBody(c, { draft, bytes, templateId, counts, agentChoice, deal
   // Placed blocks: the signing agent's lines stay, the other side's agent lines go, and
   // every signer the counts ask for is set up even where the form had no line for them.
   if (auto && layout) {
+    left.clients = lib.clientsLeft(layout, counts);
     layout = lib.withSigners(lib.forAgent(lib.forClients(layout, counts), agents?.signeeType ?? null), counts);
     if (!layout.fieldDefinitions.length) layout = null;
   }
+  const note = lib.leftNote(left);
+  if (note && notes) notes.push(`${String(name).replace(/\.pdf$/i, "")}: ${note}`);
   return lib.buildDraftBody({
     draft, layout, name,
     // A Buyer Record gives the buyers; whether a draft can be attached to one is untested.
@@ -200,6 +205,7 @@ async function create({ jobId, title, dealId, templateIds, counts, agentChoice =
   const created = [];
   let packetId = null;
   const unfilled = new Set(); // signer roles left for the agent to fill (see unfilledRoles)
+  const notes = []; // lines left for the agent, one sentence per form (formBody)
   // Seconds per step, summed over the forms (numbers only, for "Check my setup").
   const timings = { upload: 0, readBack: 0, save: 0 };
   const timed = async (k, p) => { const s = Date.now(); try { return await p; } finally { timings[k] = Math.round(((timings[k] || 0) + (Date.now() - s) / 1000) * 10) / 10; } };
@@ -214,7 +220,8 @@ async function create({ jobId, title, dealId, templateIds, counts, agentChoice =
         draft, bytes: lib.fromBase64(form.pdfBase64), templateId: templateIds[i], counts, agentChoice, deal,
         agentSide: job.agentSide, webformsUserName: job.webformsUserName, webformsUserEmail: job.webformsUserEmail,
         name: job.forms.length > 1 ? String(form.name).replace(/\.pdf$/i, "") : title,
-        pageCount: form.pageCount, signees, sender, emailSubject,
+        pageCount: form.pageCount, signees, sender, emailSubject, notes,
+        // (named by the form even in a packet of one, so the note says which form)
       });
       for (const r of lib.unfilledRoles(body)) unfilled.add(r);
       await timed("save", rs.putDraft(up.id, body));
@@ -227,12 +234,12 @@ async function create({ jobId, title, dealId, templateIds, counts, agentChoice =
       const p = await timed("packet", rs.createPacketDraft(title, created));
       if (!p?.id) throw Object.assign(new Error("Real Signature's packet answer changed shape"), { leftover: true });
       packetId = p.id;
-      return { url: `/one-time-documents/packet/${packetId}`, drafts: created.length, packet: true, unfilled: [...unfilled], timings };
+      return { url: `/one-time-documents/packet/${packetId}`, drafts: created.length, packet: true, unfilled: [...unfilled], timings, notes };
     }
     // The page Real's own Drafts pencil opens: Transaction → Edit details (signers, names,
     // emails) → Prepare → Review. /prepare/{id} jumped past the first two, so an agent
     // couldn't see who the draft was going to (2026-10-12).
-    return { url: `/one-time-documents/document/${created[0]}`, drafts: 1, packet: false, timings };
+    return { url: `/one-time-documents/document/${created[0]}`, drafts: 1, packet: false, timings, notes };
   } catch (e) {
     // Clean up what this run made, and say so when that can't be vouched for (outside
     // review, 2026-10-15): a delete that fails, or an answer with no id — Real may have made
@@ -350,7 +357,7 @@ async function recentUploads() {
 /** One uploaded document saved whole: deal, signers, agent, blocks, subject. title: its
  *  name, or null to keep the one it has (a packet's documents keep theirs). → the body's
  *  unfilled roles. */
-async function setUpDocument(c, deal, { id, title = null, templateId, counts, agentChoice = null, emailSubject = null }) {
+async function setUpDocument(c, deal, { id, title = null, templateId, counts, agentChoice = null, emailSubject = null, notes = null }) {
   const { rs, lib } = c;
   const draft = await rs.getTemplate(id);
   if (lib.draftSigners(draft) || blockCount(draft)) {
@@ -361,7 +368,7 @@ async function setUpDocument(c, deal, { id, title = null, templateId, counts, ag
   const body = await formBody(c, {
     draft, bytes, templateId, counts, agentChoice, deal, name: title || draft.name,
     pageCount: draft.pagesCount ?? lib.countPages(bytes) ?? null,
-    signees: lib.signeesFromDeal(deal || { participants: [] }, counts), sender: lib.senderFor(c.me, deal), emailSubject,
+    signees: lib.signeesFromDeal(deal || { participants: [] }, counts), sender: lib.senderFor(c.me, deal), emailSubject, notes,
   });
   const unfilled = lib.unfilledRoles(body);
   await rs.putDraft(id, body);
@@ -383,30 +390,31 @@ async function dealFor(c, dealId) {
 async function setupPacket({ id, dealId, docs, counts, agentChoice = null, emailSubject = null }) {
   const c = await context();
   const deal = await dealFor(c, dealId);
-  const unfilled = new Set();
+  const unfilled = new Set(), notes = [];
   for (const [i, d] of docs.entries()) {
     try {
-      for (const r of await setUpDocument(c, deal, { id: d.id, templateId: d.templateId, counts, agentChoice, emailSubject })) unfilled.add(r);
+      for (const r of await setUpDocument(c, deal, { id: d.id, templateId: d.templateId, counts, agentChoice, emailSubject, notes })) unfilled.add(r);
     } catch (e) {
       throw new Error(i ? `${i} of ${docs.length} documents are set up; the next one failed: ${e.message}` : e.message);
     }
   }
-  return { url: `/one-time-documents/packet/${id}`, drafts: docs.length, packet: true, unfilled: [...unfilled] };
+  return { url: `/one-time-documents/packet/${id}`, drafts: docs.length, packet: true, unfilled: [...unfilled], notes };
 }
 
 async function setupDraft({ id, title, dealId, templateId, counts, agentChoice = null, emailSubject = null }) {
   const c = await context();
   const deal = await dealFor(c, dealId);
-  const unfilled = await setUpDocument(c, deal, { id, title, templateId, counts, agentChoice, emailSubject });
+  const notes = [];
+  const unfilled = await setUpDocument(c, deal, { id, title, templateId, counts, agentChoice, emailSubject, notes });
   const { rs } = c;
   // A role nobody fills: a packet of one, as rs:create does — a single document's Edit
   // details would delete that role's blocks (see create()).
   if (unfilled.length) {
     const p = await rs.createPacketDraft(title, [id]);
     if (!p?.id) throw new Error("Real Signature's packet answer changed shape. Check your Drafts: the draft is set up, but may not be in a packet");
-    return { url: `/one-time-documents/packet/${p.id}`, drafts: 1, packet: true, unfilled };
+    return { url: `/one-time-documents/packet/${p.id}`, drafts: 1, packet: true, unfilled, notes };
   }
-  return { url: `/one-time-documents/document/${id}`, drafts: 1, packet: false };
+  return { url: `/one-time-documents/document/${id}`, drafts: 1, packet: false, notes };
 }
 
 async function placeDraft({ id, side = null }) {
@@ -418,13 +426,16 @@ async function placeDraft({ id, side = null }) {
   if (!lib.isPdf(bytes)) throw new Error("the draft's file isn't a PDF");
   let pages = null, error = null;
   try { pages = await lib.readPdfText(bytes); } catch (e) { error = e; }
-  const found = pages ? lib.autoLayout(pages).layout : null;
+  const read = pages ? lib.autoLayout(pages) : null;
+  const found = read?.layout || null;
   const placed = lib.placeOnDraft(draft, found, pages?.length ?? lib.countPages(bytes), side);
   if (placed.needSide) return { needSide: true, counts: lib.draftSigners(draft).counts };
   const { body, added, skipped } = placed;
   // Nothing new: no save, so a draft that can't be placed is left exactly as it was.
   if (added) await rs.putDraft(id, body);
-  return { added, skipped, outcome: lib.placeOutcome({ pages, error, blocks: found?.fieldDefinitions?.length || 0 }) };
+  // Client lines aren't left here: with both sides on the draft, the panel asks whose (needSide).
+  return { added, skipped, outcome: lib.placeOutcome({ pages, error, blocks: found?.fieldDefinitions?.length || 0 }),
+    note: lib.leftNote(read?.left) };
 }
 
 /** Open Real's own "Acting as" menu (bottom left), so the TC can pick another agent. Opens

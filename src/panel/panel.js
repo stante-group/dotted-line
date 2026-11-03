@@ -69,6 +69,12 @@ function say(text, kind = "note") {
   else if (!$("report").hidden) showReport().catch(() => {});
 }
 
+/** Lines a draft's forms had that Dotted Line left for the agent (formBody's notes), as
+ *  text to follow the result: " Form: 2 customer signature lines weren't placed: …". */
+function leftText(r) {
+  return r?.notes?.length ? ` ${r.notes.join(" ")}` : "";
+}
+
 /** The button just pressed says what it's doing, with a spinner, and can't be pressed
  *  twice: the eye is on it, not on a line elsewhere (Dan, 2026-10-30). done() puts its
  *  words back; whoever called it decides whether it's pressable again. */
@@ -1052,14 +1058,15 @@ $("rs-go").addEventListener("click", async () => {
     chrome.runtime.sendMessage({ type: "report:ok", path: "panel", forms: job.forms.length, labels: templateIds.includes("auto") }).catch(() => {});
     await chrome.tabs.update(tab.id, { url: new URL(r.url, RS).toString() });
     done();
-    say(r.packet && r.drafts === 1 ? `Packet ready. Add the ${roleWords(r.unfilled)} in Add Signees.`
-      : r.packet ? `Packet ready, with ${r.drafts} documents.` : "Document ready.", "ok");
+    say((r.packet && r.drafts === 1 ? `Packet ready. Add the ${roleWords(r.unfilled)} in Add Signees.`
+      : r.packet ? `Packet ready, with ${r.drafts} documents.` : "Document ready.") + leftText(r), r.notes?.length ? "warn" : "ok");
     $("rs-form").hidden = true;
     rsState = null;
     // Done: the agent is on the draft, and the panel would only cover it. Leave the message
     // up long enough to read, then close. sidePanel.close() is newer Chrome (141+);
     // window.close() closes a side panel on older versions. Failures stay open (catch below).
-    setTimeout(() => {
+    // With lines left for the agent, the panel stays open: the note is the one thing to read.
+    if (!r.notes?.length) setTimeout(() => {
       Promise.resolve(chrome.sidePanel?.close?.({ tabId: tab.id }))
         .catch(() => {}).finally(() => window.close());
     }, 1500);
@@ -1100,11 +1107,12 @@ async function finishDraft(templateId, counts) {
     // The same address reloads: Real's steps show the deal, signers and blocks just saved.
     await chrome.tabs.update(tab.id, { url: new URL(r.url, RS).toString() });
     done();
-    say(r.packet ? `Packet ready. Add the ${roleWords(r.unfilled)} in Add Signees.` : "Document ready. Check it in Real Signature before you send.", "ok");
+    say((r.packet ? `Packet ready. Add the ${roleWords(r.unfilled)} in Add Signees.` : "Document ready. Check it in Real Signature before you send.") + leftText(r), r.notes?.length ? "warn" : "ok");
     $("rs-form").hidden = true;
     // Done, as after a WEBForms draft: the panel would only cover the steps. (The packet of
     // one this can make would also have shown "packets aren't set up yet" under it.)
-    setTimeout(() => {
+    // With lines left for the agent, the panel stays open: the note is the one thing to read.
+    if (!r.notes?.length) setTimeout(() => {
       Promise.resolve(chrome.sidePanel?.close?.({ tabId: tab.id }))
         .catch(() => {}).finally(() => window.close());
     }, 1500);
@@ -1140,9 +1148,10 @@ async function finishPacket(templateIds, counts) {
     rsState = null;
     await chrome.tabs.update(tab.id, { url: new URL(r.url, RS).toString() });
     done();
-    say(r.unfilled?.length ? `Packet ready. Add the ${roleWords(r.unfilled)} in Add Signees.` : `Packet ready, with ${r.drafts} documents. Check it in Real Signature before you send.`, "ok");
+    say((r.unfilled?.length ? `Packet ready. Add the ${roleWords(r.unfilled)} in Add Signees.` : `Packet ready, with ${r.drafts} documents. Check it in Real Signature before you send.`) + leftText(r), r.notes?.length ? "warn" : "ok");
     $("rs-form").hidden = true;
-    setTimeout(() => {
+    // With lines left for the agent, the panel stays open: the note is the one thing to read.
+    if (!r.notes?.length) setTimeout(() => {
       Promise.resolve(chrome.sidePanel?.close?.({ tabId: tab.id }))
         .catch(() => {}).finally(() => window.close());
     }, 1500);
@@ -1199,6 +1208,7 @@ function showMade(made) {
   const fixes = [];
   if (!made.deal) fixes.push("If there is a deal, choose it in Real Signature's Transaction step.");
   if (made.forms.some((f) => f.how === "labels")) fixes.push("Check the auto placed blocks in Prepare.");
+  fixes.push(...(made.notes || []));
   $("made-note").textContent = fixes.join(" ");
   if (!$("msg").querySelector(".ok")) say("");
   show("made");
@@ -1365,7 +1375,7 @@ async function placeDraft(tab, id, side = null) {
     $("dr-status").textContent = "";
     chrome.runtime.sendMessage({ type: "report:placed", outcome: r.added ? null : r.outcome, added: r.added }).catch(() => {});
     if (r.added) {
-      say(`Placed ${r.added} block${r.added > 1 ? "s" : ""}. Real Signature reloads to show them: check every block on Prepare before you send.`, "ok");
+      say(`Placed ${r.added} block${r.added > 1 ? "s" : ""}. Real Signature reloads to show them: check every block on Prepare before you send.${r.note ? ` ${r.note}` : ""}`, r.note ? "warn" : "ok");
       // Real's editor holds the draft as it loaded it; a reload shows the new blocks, and
       // stops its next save from writing back the draft without them.
       await chrome.tabs.reload(tab.id);
@@ -1469,14 +1479,14 @@ async function placePacket(tab, ids, side = null, names = []) {
       }
       added += r.added;
       if (!r.added) outcome ||= r.outcome;
-      results.push({ name: names.at(results.length) || "A document", added: r.added, skipped: r.skipped, outcome: r.outcome || null });
+      results.push({ name: names.at(results.length) || "A document", added: r.added, skipped: r.skipped, outcome: r.outcome || null, note: r.note || "" });
     }
     $("dr-status").className = "note";
     $("dr-status").textContent = "";
     chrome.runtime.sendMessage({ type: "report:placed", outcome: added ? null : outcome, added }).catch(() => {});
     const sum = packetPlacedSummary(results);
     if (added) {
-      say(`${sum.text} Real Signature reloads to show them: check every block on Prepare before you send.`, "ok");
+      say(`${sum.text} Real Signature reloads to show them: check every block on Prepare before you send.`, sum.level);
       await chrome.tabs.reload(tab.id);
     } else {
       say(sum.text, "warn");

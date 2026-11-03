@@ -47,6 +47,11 @@ scores 0, and the first is picked.
 Only the agent's own clients sign through them; the other side signs with their own agent
 (`signerCounts`).
 
+Placing from a form's own labels never uses the deal to decide a **customer's** side
+(Alberta: someone the agent does not represent, on either side). On a customer form the
+customer's lines go to the side its title names ("Tenant Customer…" is the buyer slot), and
+with no side named they are left for the agent (`formSides`, 2026-11-03).
+
 ```mermaid
 flowchart TD
   A(["Deal picked, or No deal"]) --> D{"Is the deal buy side or<br/>listing side in reZEN?"}
