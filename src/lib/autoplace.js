@@ -154,6 +154,7 @@ const ROLE = (w) => {
   if (/buyer/.test(s)) return "BUYER";
   if (/seller/.test(s)) return "SELLER";
   if (/consumer/.test(s)) return "CLIENT"; // the agent's own clients, whichever side (forClients)
+  if (/referred client/.test(s)) return "CLIENT"; // AREA's Referral Fee Consent: the agent's own client
   return null;
 };
 
@@ -163,12 +164,14 @@ const ROLE = (w) => {
 // Case matters: a sentence ("the seller's signature") or a heading ("Date and Buyer's
 // Signature") isn't a line to sign on, and neither is Manitoba's deposit receipt ("Signature
 // of brokerage representative"), signed only when cash changes hands.
+// AREA's Referral Fee Consent (AREA0276): "Signature of Referred Client", two side by side,
+// signed by the agent's own client like the Consumer lines (found by an error report, 2026-11-03).
 // Ontario's "(Signature of Seller or Buyer)" confirms acceptance — whoever accepted last.
 // BCFSA's Disclosure of Remuneration: "Signature of Licensee", and "Signature of
 // person/persons to whom disclosure has been made" (the client). AREA's Notice (waiver or
 // satisfaction of conditions): "Buyer/Seller Signature", whichever side gives notice — the
 // agent's own client, as on the Consumer Relationships Guide (it read as Seller before).
-const SIGNATURE_LABEL = /\bSignature of (?:the )?(Seller|Buyer|Brokerage Representative|Licensee|person\/persons to whom disclosure(?: has been made:?)?)\b(?! or\b)|\b(Buyer\/Seller|Buyer|Seller|Consumer) Signature\b/g;
+const SIGNATURE_LABEL = /\bSignature of (?:the )?(Seller|Buyer|Brokerage Representative|Licensee|Referred Client|person\/persons to whom disclosure(?: has been made:?)?)\b(?! or\b)|\b(Buyer\/Seller|Buyer|Seller|Consumer) Signature\b/g;
 // Saskatchewan (SREC purchase contract) prints them in capitals, one with a stray
 // apostrophe: "BUYER' SIGNATURE_____", "SELLER'S SIGNATURE_____". Capitals are a heading
 // as often as a line, so these count only with a line to sign on.

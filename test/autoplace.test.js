@@ -247,6 +247,20 @@ test("Consumer Relationships Guide: lines that run on from the label, for the si
   assert.equal(forClients(layout, { BUYER: 2, SELLER: 2 }).fieldDefinitions.length, 0);
 });
 
+test("Referral Fee Consent: the referred client signs, whichever side they are", () => {
+  const p = page([
+    word("SIGNED AND DATED on ______________________________, 20_____.", 36, 196, 10),
+    word("Signature of Referred Client", 60, 167, 9), word("Signature of Referred Client", 330, 167, 9),
+    word("Signature of Witness", 60, 113, 9), word("Signature of Witness", 330, 113, 9),
+  ], [rule(36, 280, 176), rule(320, 571, 176), rule(36, 280, 122), rule(320, 571, 122)]);
+  const { layout } = autoLayout([p]);
+  const got = layout.fieldDefinitions.map((f) => `${f.type} ${f.signeeType}${f.signeeIndex + 1}`);
+  assert.deepEqual(got.filter((g) => g.startsWith("SIGNATURE")), ["SIGNATURE CLIENT1", "SIGNATURE CLIENT2"]);
+  assert.ok(!got.some((g) => /WITNESS/.test(g)), "witness lines are left for the agent");
+  const buyer = forClients(layout, { BUYER: 1, SELLER: 0 });
+  assert.ok(buyer.fieldDefinitions.length > 0 && buyer.fieldDefinitions.every((f) => f.signeeType === "BUYER" && f.signeeIndex === 0));
+});
+
 test("dates and times are required too: Real Signature only stamps one the signer clicks", () => {
   const p = page([
     word("Signed and dated at ________. m. on ____________________, 20___.", 36, 653),
