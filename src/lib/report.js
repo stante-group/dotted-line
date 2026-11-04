@@ -108,7 +108,7 @@ const OUR_CODES = [
   // Chrome's own words when the Real Signature tab went away while Dotted Line was talking
   // to it: closed, reloaded, or bounced to sign-in mid-draft. A one-click error with none of
   // our codes could only say "unknown" (an outside agent, 2026-11-04).
-  [/Receiving end does not exist|message (?:port|channel) closed|No tab with id|Extension context invalidated|Frame with ID \d+ (?:was removed|is showing error page)|tab was closed/i, "tab-gone"],
+  [/Receiving end does not exist|message (?:port|channel) closed|No tab with id|Extension context invalidated|Frame with ID \d+ (?:was removed|is showing error page)|tab was closed|This tab has left WEBForms/i, "tab-gone"],
 ];
 
 // The words in the routes this extension calls (realsig-api.js, webforms-api.js). Any other
@@ -155,11 +155,12 @@ const REASONS = [
   [/inactive|deactivated|disabled|suspended|terminated|offboard/i, "inactive"],
   [/not authori[sz]ed|unauthori[sz]ed|not allowed|permission|access (is )?denied|forbidden/i, "not-authorized"],
   [/too many|rate limit|throttl/i, "rate-limit"],
+  // Before "session": "Unexpected token < in JSON" is a malformed body, not a sign-in.
+  [/json parse|malformed|cannot deserialize|unexpected (token|character|end)|required request body/i, "malformed"],
   [/token|expired|unauthenticated|session/i, "session"],
   [/uuid|failed to convert|type mismatch|MethodArgumentTypeMismatch|NumberFormat|invalid (id|identifier)\b/i, "bad-id"],
   [/required (request )?parameter|is not present|missing (request )?param/i, "missing-param"],
   [/no enum constant|not one of|invalid (value|parameter|status|lifecycle|enum)|unknown (value|parameter)/i, "bad-param"],
-  [/json parse|malformed|cannot deserialize|unexpected (token|character|end)|required request body/i, "malformed"],
   [/not found|does not exist|no such|could not find/i, "not-found"],
   [/internal|unexpected error|exception|null ?pointer/i, "server"],
 ];

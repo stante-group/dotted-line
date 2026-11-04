@@ -71,6 +71,7 @@ test("our own messages become codes — the form and template names in them don'
     ["The message port closed before a response was received.", "tab-gone", "interrupted"],
     ["No tab with id: 1234567.", "tab-gone", "interrupted"],
     ["Extension context invalidated.", "tab-gone", "interrupted"],
+    ["This tab has left WEBForms, usually to sign in. Sign in there, go back to your forms, then try again.", "tab-gone", "interrupted"],
     ["Save your changes on this page, then reload this tab once (the extension was installed or updated after it opened).", "stale-tab", "interrupted"],
     ["reZEN's deal list changed shape", "changed-shape", "changed-shape"],
     ["Real Signature sign-in expired", "unknown", "signed-out"],
@@ -374,4 +375,5 @@ test("why Real refused is one fixed word, never Real's message", async () => {
   assert.equal(sanitizeReport({ kind: "error", version: "0.3.1", reason: "Jordan Sample" }).reason, null);
   for (const w of ENUMS.reason) assert.equal(sanitizeReport({ kind: "error", version: "0.3.1", reason: w }).reason, w);
   assert.equal(reasonShape("  "), "none");
+  assert.equal(reasonShape("Unexpected token < in JSON at position 0"), "malformed"); // not a sign-in
 });
