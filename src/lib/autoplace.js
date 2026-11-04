@@ -279,23 +279,34 @@ const DATED = /\bsigned this(?![a-z]).*?day of(?![a-z])|^\s*Dated at\b.*?\bday o
 const TITLE_CUSTOMER = /\b(?:(BUYER|SELLER|TENANT|LANDLORD) )?CUSTOMER (?:DISCLOSURE |STATUS )?ACKNOWLEDG/;
 const TITLE_REPRESENTS = /\bEXCLUSIVE (BUYER|SELLER|TENANT|LANDLORD) REPRESENTATION AGREEMENT\b/;
 const SIDE = { BUYER: "BUYER", SELLER: "SELLER", TENANT: "BUYER", LANDLORD: "SELLER" };
+// CREA's national forms sign on a bare "Signed: ____", and only the title says whose it is:
+// the seller declining MLS® on the REALTOR® Cooperation Disclosure and Consent Form
+// (CREA0024, found by an error report, 2026-11-04), the buyer on the Certificate and Consent
+// of Purchaser (individual, or a corporation's representative).
+const TITLE_SIGNER = [
+  [/\bCooperation Disclosure and Consent\b/i, "SELLER"],
+  [/\bCertificate and Consent of Purchaser\b/i, "BUYER"],
+];
+const BARE_SIGNED = /^\s*Signed:/i;
 
 /** What a form's title says about its signers: {customer: undefined (not a customer form) |
- *  "BUYER" | "SELLER" | null (a customer form naming no side), party: "BUYER" | "SELLER" | null}. */
+ *  "BUYER" | "SELLER" | null (a customer form naming no side), party: "BUYER" | "SELLER" | null,
+ *  signer: whose a bare "Signed:" line is, "BUYER" | "SELLER" | null}. */
 export function formSides(pages) {
   const p = (pages || [])[0];
   if (!p) return { party: null };
   const title = toLines(p.items || []).filter((l) => l.y > p.height * 0.75).map((l) => l.text).join("\n");
   const c = TITLE_CUSTOMER.exec(title), r = TITLE_REPRESENTS.exec(title);
-  return { ...(c ? { customer: c[1] ? SIDE[c[1]] : null } : {}), party: r ? SIDE[r[1]] : null };
+  const signer = TITLE_SIGNER.find(([re]) => re.test(title))?.[1] ?? null;
+  return { ...(c ? { customer: c[1] ? SIDE[c[1]] : null } : {}), party: r ? SIDE[r[1]] : null, signer };
 }
 
 /** The blocks one page's labels point to: [{type, role, x, y (bottom), w, h, order}]. */
 export function pageBlocks(page, { lease = false, sides = { party: null } } = {}) {
   const lines = toLines(page.items || []).map((l) => (lease ? asSale(l) : l));
   // Dotted or underscored lines typed as text are signing lines too (OREA prints its lines
-  // as rows of dots).
-  const typed = lines.flatMap((l) => [...l.text.matchAll(/[._]{12,}/g)]
+  // as rows of dots; CREA's certificates as dots with spaces between, ". . . .").
+  const typed = lines.flatMap((l) => [...l.text.matchAll(/[._]{12,}|(?:\. ){8,}\.?/g)]
     .map((m) => ({ x1: xAt(l, m.index), x2: xAt(l, m.index + m[0].length), y: l.y })));
   const rules = [...rulesOf(page.shapes), ...typed];
   const boxes = boxesOf(page.shapes);
@@ -341,6 +352,7 @@ export function pageBlocks(page, { lease = false, sides = { party: null } } = {}
   };
 
   let party = sides.party;
+  let bare = null; // the last "Signed:" signature, for the "Date:" under it
   for (const line of lines) {
     const words = line.text.trim();
     if (/^REJECTION$/.test(words) || /has no effect on the contract['’]s terms/i.test(words)) declining = true;
@@ -361,6 +373,11 @@ export function pageBlocks(page, { lease = false, sides = { party: null } } = {}
         const dx = xAt(line, m[0].length + d.index), dr = ruleAbove(rules, dx, dx + 20, line.y, line.size);
         if (dr) add(DATE, role, dr.x1 + 2, dr.y + 1, { date: true, pair: sig });
       }
+    }
+    const signed = sides.signer && BARE_SIGNED.exec(line.text);
+    if (signed) {
+      const r = ruleRight(rules, xAt(line, signed[0].length), line.y);
+      if (r) { add(SIG, sides.signer, r.x1 + 2, r.y + 1, { sig: true }); bare = out.at(-1); }
     }
     // Signature labels under a line.
     for (const m of line.text.matchAll(SIGNATURE_LABEL)) {
@@ -555,7 +572,7 @@ export function pageBlocks(page, { lease = false, sides = { party: null } } = {}
     }
     // Dates: on the underscores after "on" / "Date", else just after the word.
     const d = DATED.exec(line.text);
-    const run = d && /_{4,}/.exec(line.text.slice(d.index + d[0].length));
+    const run = d && /_{4,}|(?:\. ){4,}/.exec(line.text.slice(d.index + d[0].length));
     // "Date" alone starts a heading too ("Date and Buyer's Signature"); only with a blank.
     if (d && (run || !/^\s*Date$/i.test(d[0]) || /^\s*Date\s*,\s*20/i.test(line.text))) {
       const after = d.index + d[0].length;
@@ -580,7 +597,12 @@ export function pageBlocks(page, { lease = false, sides = { party: null } } = {}
         const tx = tRun ? xAt(line, atEnd + tRun[0].indexOf("_")) + 1 : xAt(line, atEnd) + 4;
         add(TIME, null, tx, line.y - 1, { date: true });
         add(DATE_ONLY, null, x, line.y - 1, { date: true });
-      } else add(DATE, null, x, line.y - 1, { date: true });
+      } else {
+        // "Date:" under a bare "Signed:" (CREA) is that signer's: there's no line below it
+        // to pair it with, the way other forms' dates go.
+        const pair = bare && bare.y > line.y && bare.y - line.y < 80 ? { pair: bare } : {};
+        add(DATE, null, x, line.y - 1, { date: true, ...pair });
+      }
     }
   }
   return out;
