@@ -143,8 +143,20 @@ export function subjectFor(settings, values, title) {
   if (s.subjectMode !== "pattern") return title || null;
   const subject = fillPattern(s.subjectPattern, { ...values, title });
   if (!subject) return title || null;
-  return title && subject === fillPattern(s.subjectPattern, {}) ? `${subject}: ${title}` : subject;
+  // Only when the pattern HAS words and they all came out empty. A pattern with none,
+  // "Please review and sign", is the agent's own fixed subject: never add to it (review,
+  // 2026-11-04). And what we add is ours, so it is cut to fit the 70 Real allows; the
+  // agent's own words are never cut.
+  const words = (String(s.subjectPattern ?? "").match(/\{(\w+)\}/g) || []).some((m) => WORDS.some(([w]) => w === m.slice(1, -1).toLowerCase()));
+  if (!title || !words || subject !== fillPattern(s.subjectPattern, {})) return subject;
+  const room = SUBJECT_ROOM - subject.length - 2;
+  if (room < 12) return subject;
+  return `${subject}: ${title.length > room ? title.slice(0, room - 1).trimEnd() + "…" : title}`;
 }
+
+// Real Signature's limit on the email subject (draft.js SUBJECT_MAX; not imported, so
+// pattern.js stays free of draft.js).
+const SUBJECT_ROOM = 70;
 
 /** Sample values for the Settings preview — invented, never a real deal. */
 export const SAMPLE_VALUES = {

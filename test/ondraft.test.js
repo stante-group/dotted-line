@@ -202,6 +202,13 @@ test("an uploaded draft's title and subject: the form from the file name, the pl
   // No deal: the form still says what to sign — not a bare "Please sign".
   const none = draftTitleValues({ fileName: "Residential Purchase Contract.pdf", now });
   assert.equal(subjectFor(pattern, none, draftTitle(none)), "Please sign: Residential Purchase Contract");
+  // The agent's own fixed subject, with no words to fill, is never added to.
+  const fixed = { ...DEFAULT_SETTINGS, subjectMode: "pattern", subjectPattern: "Please review and sign" };
+  assert.equal(subjectFor(fixed, v, draftTitle(v)), "Please review and sign");
+  // What we add is cut to fit Real Signature's 70; it never makes one click stop.
+  const long = "Agreement to Represent Both Seller and Buyer + Addendum - Purchase Contract";
+  const s = subjectFor(pattern, {}, long);
+  assert.ok(s.startsWith("Please sign: Agreement") && s.endsWith("…") && s.length <= 70, s);
   assert.equal(draftTitle(none), "Residential Purchase Contract");
 });
 
