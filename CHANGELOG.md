@@ -3,7 +3,7 @@
 What changed in each version, in plain words. The newest is at the top. Chrome updates
 Dotted Line by itself a few hours after a version is published.
 
-## Not released yet
+## 0.3.1 — 2026-11-04
 
 - **Signed out of Real Signature? Dotted Line now waits while you sign in.** It used to
   say "reload this tab once", which didn't help. Now it says to sign in, keeps your forms

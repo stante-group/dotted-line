@@ -51,7 +51,7 @@ If an agent has given you Real Signature access in reZEN, pick them under "Actin
 
 Free and open source (MIT): https://github.com/stante-group/dotted-line
 
-What's new in 0.3.0: Auto place and set-up for PDFs you upload to Real Signature, alone or combined into a packet. Alberta's commercial lease forms, Manitoba's Listing Contract and more BC forms get their blocks. A clearer panel that says when the forms and the reZEN deal count the signers differently, or when a packet mixes deals. No more "reload this tab" after an update. Fixes for company clients, numbered streets and names that run on to a second line. Every version's changes: https://github.com/stante-group/dotted-line/blob/main/CHANGELOG.md
+What's new in 0.3.1: Auto place knows more forms: Alberta's customer forms, Referral Fee Consent, Fee Disclosure and more, Saskatchewan's Ancillary Services (Form 910), and CREA's Cooperation Disclosure and Certificate of Purchaser. Signed out of Real Signature, or an assistant who hasn't picked an agent yet? Your forms now wait for you instead of stopping with an error. No more spinning when Real Signature doesn't answer, and the email subject is never just "Please sign". Every version's changes: https://github.com/stante-group/dotted-line/blob/main/CHANGELOG.md
 
 Made by the Deal Dates team — your deal deadlines in your inbox at 6am (dealdates.app).
 Dotted Line is an independent tool. It is not made, endorsed or supported by Lone Wolf Technologies, CREA or Real Broker. WEBForms, reZEN and Real Signature are their owners' trademarks.
