@@ -20,6 +20,9 @@ Dotted Line by itself a few hours after a version is published.
 - **Auto place now knows Saskatchewan's Ancillary Services form (Form 910).** It places
   the date and both buyers' signatures. The "Initial here" box beside each service is the
   buyer's own choice, so it's left for them.
+- **Auto place now knows CREA's REALTOR® Cooperation Disclosure and Consent Form** (the
+  seller's signature and date) and both Certificate and Consent of Purchaser forms (the
+  buyer's).
 - **Dotted Line says when it leaves a signature line for you.** If it can't tell whose a
   line is (the Customer Acknowledgement, or a Consumer Relationships Guide with both sides
   signing), it says which form, how many lines and why, instead of leaving them quietly.

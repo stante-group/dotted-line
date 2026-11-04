@@ -52,6 +52,11 @@ Placing from a form's own labels never uses the deal to decide a **customer's** 
 customer's lines go to the side its title names ("Tenant Customer…" is the buyer slot), and
 with no side named they are left for the agent (`formSides`, 2026-11-03).
 
+CREA's national forms sign on a bare "Signed:" line, and the title alone says whose it is:
+the seller on the REALTOR® Cooperation Disclosure and Consent Form, the buyer on the
+Certificate and Consent of Purchaser. Its "Date:" under it is that signer's. On any other
+form a bare "Signed:" is nobody's and nothing is placed (`formSides`, 2026-11-04).
+
 ```mermaid
 flowchart TD
   A(["Deal picked, or No deal"]) --> D{"Is the deal buy side or<br/>listing side in reZEN?"}
