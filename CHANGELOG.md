@@ -30,6 +30,8 @@ Dotted Line by itself a few hours after a version is published.
   reports, a report now says in one word why Real Signature refused (for example "not
   authorized" or "not found"), so we can fix problems we can't reproduce on our own
   account. Real Signature's message itself is never sent.
+  A report also says when Chrome lost the Real Signature tab partway through a draft
+  (closed, reloaded, or sent back to sign in), instead of "unknown".
 
 ## 0.3.0 — 2026-10-31
 
