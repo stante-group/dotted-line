@@ -248,7 +248,7 @@ async function create({ jobId, title, dealId, templateIds, counts, agentChoice =
     if (packetId) await rs.deletePacketDraft(packetId).catch(() => { failed++; });
     for (const id of created) await rs.deleteDraft(id).catch(() => { failed++; });
     if (failed || e?.leftover) {
-      throw new Error(`${String(e?.message || e)}. Check your Real Signature Drafts for a half-made draft and delete it.`);
+      throw new Error(`${String(e?.message || e)}. Check the Draft tab in Real Signature for a half-made copy and delete it.`);
     }
     throw e;
   }

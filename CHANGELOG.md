@@ -28,6 +28,10 @@ Dotted Line by itself a few hours after a version is published.
   to fill in. The form's name now goes after it, as it already did for uploads.
 - **Only the sellers sign the REALTOR® Cooperation Disclosure and Consent Form.** With no
   deal, the panel used to suggest 2 buyers and 2 sellers.
+- **No more spinning for minutes when Real Signature doesn't answer.** Dotted Line stops
+  waiting after a minute (two for an upload) and says it couldn't reach Real Signature,
+  instead of a bare "Failed to fetch". If the draft may have been made anyway, it says to
+  check the Draft tab for a half-made copy.
 - **Dotted Line says when it leaves a signature line for you.** If it can't tell whose a
   line is (the Customer Acknowledgement, or a Consumer Relationships Guide with both sides
   signing), it says which form, how many lines and why, instead of leaving them quietly.
