@@ -136,3 +136,10 @@ test("no answer from Real Signature: a plain message, network in reports, and a 
   assert.equal(looks.length, 2);
   assert.ok(looks.every(Boolean), "the sign-in check can't spin either");
 });
+
+test("a TC with no agent picked: /users/me is a 404 in the shape content.js waits on", async () => {
+  // realsig/content.js turns exactly this message into "pick whose documents", not an error.
+  const rs = new RealSignature({ getToken: () => "t", fetchImpl: async () => ({ ok: false, status: 404, text: async () => "" }) });
+  const e = await rs.me().catch((x) => x);
+  assert.match(e.message, /^GET \/users\/me → 404\b/);
+});
