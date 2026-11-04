@@ -10,6 +10,10 @@ Dotted Line by itself a few hours after a version is published.
   from WEBForms waiting, and once you're signed in the icon shows an amber dot: click it
   to finish the draft. This now also works in the few minutes when Real Signature has
   ended your sign-in but the page hasn't caught up yet.
+- **Assistants acting for an agent: no more error before you pick the agent.** When
+  Real Signature opens on "Whose documents would you like to access?", Dotted Line used to
+  stop with an error. Now the panel asks you to pick, your forms wait, and they load as soon
+  as you have.
 - **Auto place knows more Alberta forms.** The Referral Fee Consent, the customer
   disclosure and acknowledgement forms, the commercial and agricultural seller
   representation appendices, the Country Residential income schedule and the Fee

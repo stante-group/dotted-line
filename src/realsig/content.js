@@ -29,7 +29,16 @@ async function context({ fresh = false } = {}) {
   // reZEN profile of her own (/users/me → 404) and may not read the agent's (/users/{id} →
   // 403), so the agent's name and email come from the agent's own deals (2026-10-15).
   const actingAs = lib.readActingAs(document.cookie);
-  const own = actingAs ? null : lib.meFromYenta(await rs.me());
+  let own = null;
+  if (!actingAs) {
+    // A TC who hasn't picked an agent yet: Real Signature opens on "Whose documents would you
+    // like to access?" and her own profile is a 404 (Dan's assistant, 2026-11-04, reported as
+    // an error). Not an error: the forms wait, and the pick reloads the page (see below).
+    try { own = lib.meFromYenta(await rs.me()); } catch (e) {
+      if (/^GET \/users\/me → 404\b/.test(String(e?.message))) throw Object.assign(new Error("No agent picked in Real Signature yet"), { name: "NoAgentPicked" });
+      throw e;
+    }
+  }
   const id = actingAs || own.id;
   const [mine, shared, deals, listings, buyers] = await Promise.all([
     rs.allTemplates(),
@@ -62,6 +71,7 @@ async function summary() {
   try {
     c = await context({ fresh: true });
   } catch (e) {
+    if (e?.name === "NoAgentPicked") return { signedIn: false, noAgent: true };
     if (e?.name === "NotSignedIn" || /sign-in|Not signed in/i.test(String(e?.message))) return { signedIn: false };
     throw e;
   }
