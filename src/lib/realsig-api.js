@@ -111,7 +111,16 @@ export class RealSignature {
       throw new Error(`${method} ${path} → ${r.status}${why ? `: ${why}` : ""}`);
     }
     if (r.status === 204) return null;
-    const text = await r.text();
+    // The time limit runs on until the body is read, so a body that stalls throws here, after
+    // Real Signature said yes: a write was made, so it's flagged too (review, 2026-11-04).
+    let text;
+    try {
+      text = await r.text();
+    } catch (e) {
+      const timedOut = e?.name === "TimeoutError" || e?.name === "AbortError";
+      throw Object.assign(new Error(timedOut ? `Real Signature didn't answer in ${wait} seconds. Try again in a minute`
+        : "Couldn't reach Real Signature: the connection dropped. Check your internet and try again"), { leftover: method !== "GET" });
+    }
     return text ? JSON.parse(text) : null;
   }
 
@@ -194,7 +203,8 @@ export class RealSignature {
   async signedOut(base, path, headers) {
     if (base === YENTA && path === "/users/me") return true;
     try {
-      const p = await this.fetch(`${YENTA}/users/me`, { method: "GET", headers });
+      // Its own time limit: a look that never answered would spin as the 403 never did.
+      const p = await this.fetch(`${YENTA}/users/me`, { method: "GET", headers, signal: AbortSignal.timeout(15000) });
       return p.status === 401 || p.status === 403;
     } catch {
       return false; // can't tell: the 403 stands as it is

@@ -119,4 +119,20 @@ test("no answer from Real Signature: a plain message, network in reports, and a 
   assert.equal(classifyError(e3).cls, "network");
   const e4 = await slow.request("POST", "/document-templates", { form: new FormData() }).catch((e) => e);
   assert.match(e4.message, /didn't answer in 120 seconds/); // an upload carries the PDF
+  // The limit runs on while the body is read: Real Signature said yes, then stalled.
+  const stall = new RealSignature({ getToken: () => "t", fetchImpl: async () => ({ ok: true, status: 200,
+    text: async () => { throw new DOMException("signal timed out", "TimeoutError"); } }) });
+  const e5 = await stall.request("POST", "/document-templates", { form: new FormData() }).catch((e) => e);
+  assert.match(e5.message, /didn't answer in 120 seconds/);
+  assert.equal(e5.leftover, true); // it was probably made
+  assert.equal(classifyError(e5).cls, "network");
+  // After a 403, the one look at /users/me has a time limit of its own.
+  const looks = [];
+  const check = new RealSignature({ getToken: () => "t", fetchImpl: async (url, o) => {
+    looks.push(o.signal);
+    return { ok: false, status: String(url).includes("/users/me") ? 404 : 403, text: async () => "" };
+  } });
+  await check.getTemplate("x").catch(() => {});
+  assert.equal(looks.length, 2);
+  assert.ok(looks.every(Boolean), "the sign-in check can't spin either");
 });
