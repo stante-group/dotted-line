@@ -23,6 +23,11 @@ Dotted Line by itself a few hours after a version is published.
 - **Auto place now knows CREA's REALTOR® Cooperation Disclosure and Consent Form** (the
   seller's signature and date) and both Certificate and Consent of Purchaser forms (the
   buyer's).
+- **The email subject is never just "Please sign".** A standalone WEBForms form with no
+  deal and no address left a subject like "Please sign: {deal} – {address}" with nothing
+  to fill in. The form's name now goes after it, as it already did for uploads.
+- **Only the sellers sign the REALTOR® Cooperation Disclosure and Consent Form.** With no
+  deal, the panel used to suggest 2 buyers and 2 sellers.
 - **Dotted Line says when it leaves a signature line for you.** If it can't tell whose a
   line is (the Customer Acknowledgement, or a Consumer Relationships Guide with both sides
   signing), it says which form, how many lines and why, instead of leaving them quietly.

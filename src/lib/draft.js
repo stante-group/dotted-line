@@ -18,7 +18,9 @@ export function countsFromDeal(deal) {
 // so those give no clue and fall through to the deal.
 // A lease's tenant is the buyer's side and its landlord the seller's (Real Signature has only
 // buyers and sellers): "Commercial Exclusive Tenant Representation Agreement".
-const SELLER_FORM = /\b(sellers?'?s?|vendors?'?s?|listing|property disclosure|landlords?'?s?|lessors?'?s?)\b/i;
+// CREA's REALTOR® Cooperation Disclosure and Consent Form is the seller's (declining MLS®)
+// and names no side: by its name, as Auto place goes by its title (2026-11-04).
+const SELLER_FORM = /\b(sellers?'?s?|vendors?'?s?|listing|property disclosure|landlords?'?s?|lessors?'?s?|cooperation disclosure)\b/i;
 const BUYER_FORM = /\b(buyers?'?s?|purchasers?'?s?|tenants?'?s?|lessees?'?s?)\b/i;
 
 /** "BUYER" / "SELLER" if the one-sided forms all point the same way, else null. A form that
