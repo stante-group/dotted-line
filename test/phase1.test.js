@@ -297,6 +297,8 @@ test("signer counts follow the side represented, then the form names", () => {
   // a lease's sides: tenant = buyer, landlord = seller; an offer to lease names neither
   assert.equal(sideFromFormNames(["Commercial Exclusive Tenant Representation Agreement (designated agency)"]), "BUYER");
   assert.equal(sideFromFormNames(["Commercial Exclusive Landlord Representation Agreement"]), "SELLER");
+  assert.equal(sideFromFormNames(["REALTOR® Cooperation Disclosure and Consent Form"]), "SELLER");
+  assert.equal(sideFromFormNames(["Certificate and Consent of Purchaser - Individual"]), "BUYER");
   assert.equal(sideFromFormNames(["Commercial Offer to Lease"]), null);
   // a neutral form beside a seller's one doesn't cancel it (2026-10-15)
   const pair = ["Consumer Relationships Guide (Print Friendly)", "Exclusive Seller Representation Agreement (designated agency)"];

@@ -235,6 +235,11 @@ test("a subject pattern whose words are all empty on an upload gets the title, n
   // The title as subject, and Real Signature's own, as before.
   assert.equal(draftSubject({ ...DEFAULT_SETTINGS }, v, "T"), "T");
   assert.equal(draftSubject({ ...DEFAULT_SETTINGS, subjectMode: "real" }, v, "T"), null);
+  // A standalone WEBForms form (no WEBForms deal, no address) gets the same fallback.
+  const { subjectFor } = await import("../src/lib/pattern.js");
+  assert.equal(subjectFor(own, { deal: "", address: "", forms: "REALTOR® Cooperation Disclosure and Consent Form" }, "REALTOR® Cooperation Disclosure and Consent Form"),
+    "Please sign: REALTOR® Cooperation Disclosure and Consent Form");
+  assert.equal(subjectFor(own, { deal: "Offer - Jordan Sample", address: "120 Example Street NW" }, "T"), "Please sign: Offer - Jordan Sample – 120 Example Street NW");
 });
 
 test("Auto place on a packet is summed up document by document", async () => {
