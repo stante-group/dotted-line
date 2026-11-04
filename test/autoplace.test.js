@@ -647,3 +647,17 @@ test("SREC Form 910: Witness beside a possessive label, lines to its right, and 
   assert.deepEqual(got.map((g) => g.replace(/ x[\d.]+$/, "")), ["SIGNED_DATE BUYER1", "SIGNATURE BUYER1", "SIGNATURE BUYER2"]);
   assert.ok(got.slice(1).every((g) => / x335(\.\d+)?$/.test(g)), got.join());
 });
+
+test("CREA's bare 'Signed:' lines: whose they are comes from the title, and the Date under it is theirs", () => {
+  const form = (title, rows) => [page([word(title, 36, 740, 14), ...rows.map(([t, y]) => word(t, 36, y, 10))], [])];
+  const seller = form("REALTOR® Cooperation Disclosure and Consent Form",
+    [["Signed: ______________________________", 197], ["Name:  ______________________________", 168], ["Date:  ______________________________", 139]]);
+  const dots = ". ".repeat(30);
+  const buyer = form("Certificate and Consent of Purchaser - Individual",
+    [[`SIGNED:   ${dots}`, 360], [`NAME: ${dots}`, 342], [`DATE:   ${dots}`, 324]]);
+  const kinds = (pages) => autoLayout(pages).layout.fieldDefinitions.map((f) => `${f.type} ${f.signeeType}${f.signeeIndex + 1}`);
+  assert.deepEqual(kinds(seller), ["SIGNATURE SELLER1", "SIGNED_DATE SELLER1"]);
+  assert.deepEqual(kinds(buyer), ["SIGNATURE BUYER1", "SIGNED_DATE BUYER1"]);
+  // Any other form's bare "Signed:" is nobody's: nothing is guessed.
+  assert.equal(autoLayout(form("SOME OTHER FORM", [["Signed: ______________________________", 197]])).layout, null);
+});
