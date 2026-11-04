@@ -109,15 +109,9 @@ export function draftTitleValues({ fileName, fileNames = null, deal = null, now 
   };
 }
 
-/** An uploaded draft's subject: the agent's own, but never the pattern's fixed words alone.
- *  "Please sign: {deal} – {address}" with no WEBForms deal and no reZEN deal came out as a
- *  bare "Please sign" (Dan's test, 2026-10-30): then the title goes after it, "Please sign:
- *  BCFSA - Disclosure of Remuneration". */
+/** An uploaded draft's subject: as any other (subjectFor, which now does the fallback). */
 export function draftSubject(settings, values, title) {
-  const s = { ...DEFAULT_SETTINGS, ...settings };
-  const subject = subjectFor(s, values, title);
-  if (s.subjectMode !== "pattern" || !subject || !title || subject !== fillPattern(s.subjectPattern, {})) return subject;
-  return `${subject}: ${title}`;
+  return subjectFor(settings, values, title);
 }
 
 /** The suggested title for an uploaded draft: "120 Example Street NW – Residential Purchase
@@ -138,12 +132,18 @@ export function titleFor(settings, values, suggested) {
   return suggested;
 }
 
-/** The signers' email subject, or null to leave Real Signature's own. */
+/** The signers' email subject, or null to leave Real Signature's own. Never the pattern's
+ *  fixed words alone: "Please sign: {deal} – {address}" with no WEBForms deal and no reZEN
+ *  deal came out as a bare "Please sign", first on uploaded drafts (Dan's test, 2026-10-30),
+ *  then on a standalone WEBForms form (2026-11-04). Then the title goes after it, "Please
+ *  sign: BCFSA - Disclosure of Remuneration". */
 export function subjectFor(settings, values, title) {
   const s = { ...DEFAULT_SETTINGS, ...settings };
   if (s.subjectMode === "real") return null;
-  if (s.subjectMode === "pattern") return fillPattern(s.subjectPattern, { ...values, title }) || title || null;
-  return title || null;
+  if (s.subjectMode !== "pattern") return title || null;
+  const subject = fillPattern(s.subjectPattern, { ...values, title });
+  if (!subject) return title || null;
+  return title && subject === fillPattern(s.subjectPattern, {}) ? `${subject}: ${title}` : subject;
 }
 
 /** Sample values for the Settings preview — invented, never a real deal. */

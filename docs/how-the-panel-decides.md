@@ -65,7 +65,7 @@ flowchart TD
   E -- yes --> E1["That side signs<br/>(both, if on both)"]
   E -- no --> TP{"Do the picked templates have<br/>blocks for one side only?"}
   TP -- yes --> T1["That side signs"]
-  TP -- no --> FN{"Do the form names point one way?<br/>Listing, Buyer, Seller, Tenant, Landlord"}
+  TP -- no --> FN{"Do the form names point one way?<br/>Listing, Buyer, Seller, Purchaser, Tenant, Landlord,<br/>Cooperation Disclosure (seller)"}
   FN -- yes --> F1["That side signs"]
   FN -- no --> BOTH["Buyers and sellers both sign"]
 
