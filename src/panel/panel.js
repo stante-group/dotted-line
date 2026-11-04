@@ -547,7 +547,10 @@ async function showRealsig(tab, job) {
   // clear it — otherwise the error stays on screen above a panel that loaded fine.
   say("");
   if (!c.signedIn) {
-    $("rs-status").textContent = "Sign in to Real Signature in this tab, then click the extension again.";
+    // A TC's pick reloads the page, and the reload redraws the panel by itself.
+    $("rs-status").textContent = c.noAgent
+      ? "Pick whose documents you're working on: Real Signature asks \u201cWhose documents would you like to access?\u201d Your forms load here once you have."
+      : "Sign in to Real Signature in this tab, then click the extension again.";
     return;
   }
   // Seen now, by someone signed in: the icon's waiting dot can go (background job:seen).
