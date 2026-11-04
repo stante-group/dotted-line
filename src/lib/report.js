@@ -39,6 +39,8 @@ export const ENUMS = {
   code: ["not-pdf", "fillable-pdf", "handoff-expired", "stale-tab", "deal-gone", "template-missing",
     "acting-no-deals", "page-count", "same-signer", "block-off-page", "zip", "duplicate-names",
     "no-forms", "refused-route", "changed-shape", "http", "unknown",
+    // Chrome lost the tab mid-draft (it closed, reloaded or moved pages), not one of ours.
+    "tab-gone",
     // step "labels" only: why the form got no blocks.
     "pdf-locked", "pdf-unreadable", "no-text", "fonts", "no-labels"],
   site: ["real-signature", "webforms", "none"],
@@ -103,6 +105,10 @@ const OUR_CODES = [
   [/no forms picked/, "no-forms"],
   [/^refused:/, "refused-route"],
   [/changed shape/, "changed-shape"],
+  // Chrome's own words when the Real Signature tab went away while Dotted Line was talking
+  // to it: closed, reloaded, or bounced to sign-in mid-draft. A one-click error with none of
+  // our codes could only say "unknown" (an outside agent, 2026-11-04).
+  [/Receiving end does not exist|message (?:port|channel) closed|No tab with id|Extension context invalidated|Frame with ID \d+ (?:was removed|is showing error page)|tab was closed/i, "tab-gone"],
 ];
 
 // The words in the routes this extension calls (realsig-api.js, webforms-api.js). Any other
@@ -199,7 +205,7 @@ export function classifyError(error) {
     out.cls = "network";
   } else if (out.code === "changed-shape") {
     out.cls = "changed-shape";
-  } else if (out.code === "stale-tab" || out.code === "handoff-expired") {
+  } else if (out.code === "stale-tab" || out.code === "handoff-expired" || out.code === "tab-gone") {
     out.cls = "interrupted";
   }
   return out;
