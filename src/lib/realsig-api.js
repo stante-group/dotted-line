@@ -72,7 +72,20 @@ export class RealSignature {
     let body;
     if (json !== undefined) { headers["Content-Type"] = "application/json"; body = JSON.stringify(json); }
     if (form) body = form;
-    const r = await this.fetch(url.toString(), { method, headers, body });
+    // A request Real Signature never answers used to leave the panel spinning for minutes
+    // before Chrome gave up with a bare "Failed to fetch" (Dan's test, 2026-11-04; an outside
+    // agent the same morning). Now it stops after a minute (two for an upload, which carries
+    // the PDF) and says what happened in words. A write that got no answer may still have
+    // been made, so it's flagged: create() then tells the agent to check their Drafts.
+    const wait = form ? 120 : 60;
+    let r;
+    try {
+      r = await this.fetch(url.toString(), { method, headers, body, signal: AbortSignal.timeout(wait * 1000) });
+    } catch (e) {
+      const timedOut = e?.name === "TimeoutError" || e?.name === "AbortError";
+      throw Object.assign(new Error(timedOut ? `Real Signature didn't answer in ${wait} seconds. Try again in a minute`
+        : "Couldn't reach Real Signature: the connection dropped. Check your internet and try again"), { leftover: method !== "GET" });
+    }
     if (r.status === 401) throw new NotSignedIn("Real Signature sign-in expired");
     // An expired sign-in can answer 403 with an empty body, not 401, for a few minutes before
     // the page drops its cookie (Dan's test copy, 2026-11-03: /users/me, then a draft and a

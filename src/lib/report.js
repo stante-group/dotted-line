@@ -201,7 +201,7 @@ export function classifyError(error) {
       : out.status >= 500 ? "real-server" : "rejected";
   } else if (name === "NotSignedIn" || /sign-in expired|Not signed in|Sign in to Real Signature|Open Real Signature in a tab first/i.test(message)) {
     out.cls = "signed-out";
-  } else if (/Failed to fetch|NetworkError|Load failed|network error|ERR_INTERNET|ERR_NETWORK/i.test(message)) {
+  } else if (/Failed to fetch|NetworkError|Load failed|network error|ERR_INTERNET|ERR_NETWORK|Couldn't reach Real Signature|didn't answer in \d+ seconds/i.test(message)) {
     out.cls = "network";
   } else if (out.code === "changed-shape") {
     out.cls = "changed-shape";

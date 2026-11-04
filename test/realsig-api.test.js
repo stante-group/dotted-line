@@ -100,3 +100,23 @@ test("a 403 from an expired sign-in counts as signed out; a real refusal stays a
   await assert.rejects(new RealSignature({ getToken: () => "t", getActingAs: () => "a1", fetchImpl: answer({ "/document-templates/": 403, "/users/me": 404 }) }).getTemplate("x"),
     (e) => !(e instanceof NotSignedIn));
 });
+
+test("no answer from Real Signature: a plain message, network in reports, and a write flagged as maybe made", async () => {
+  const { classifyError } = await import("../src/lib/report.js");
+  const dropped = new RealSignature({ getToken: () => "t", fetchImpl: async () => { throw new TypeError("Failed to fetch"); } });
+  const e1 = await dropped.request("POST", "/document-templates", { form: new FormData() }).catch((e) => e);
+  assert.match(e1.message, /^Couldn't reach Real Signature/);
+  assert.equal(e1.leftover, true);
+  assert.equal(classifyError(e1).cls, "network");
+  const e2 = await dropped.request("GET", "/users/me").catch((e) => e);
+  assert.equal(e2.leftover, false); // a read leaves nothing behind
+  const slow = new RealSignature({ getToken: () => "t", fetchImpl: async (_, o) => {
+    assert.ok(o.signal, "every request has a time limit");
+    throw new DOMException("signal timed out", "TimeoutError");
+  } });
+  const e3 = await slow.request("PUT", "/document-templates/abc", { json: {} }).catch((e) => e);
+  assert.match(e3.message, /didn't answer in 60 seconds/);
+  assert.equal(classifyError(e3).cls, "network");
+  const e4 = await slow.request("POST", "/document-templates", { form: new FormData() }).catch((e) => e);
+  assert.match(e4.message, /didn't answer in 120 seconds/); // an upload carries the PDF
+});
