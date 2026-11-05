@@ -213,7 +213,9 @@ const BARE_ROLES = /^(?:\s*(?:Buyer|Seller|Witness|Signature|Authori[sz]ed Broke
 // "Landlord/Tenant      Witness" under a line, whichever side signs, so the agent's client;
 // "TENANT (CORPORATE NAME)" names the side for the "Per: ____ / Authorized Signing Officer"
 // lines under it, until the next such heading. With no heading over them (the Addendum's
-// "If needed for commercial transactions") nobody can say whose they are: nothing goes there.
+// "If needed for commercial transactions", the Commercial Purchase Contract notices) they
+// are the client's when the client is a company (autoLayout's company); otherwise nobody
+// can say whose they are, and nothing goes there.
 // Only the row itself: "Landlord/Tenant (circle appropriate party)" under the Addendum's
 // Notice to: line is a choice, not a signing line.
 const CLIENT_ROW = /^\s*(Buyer\/Seller|Seller\/Buyer)(?:\s+Witness)?\s*$/;
@@ -302,7 +304,7 @@ export function formSides(pages) {
 }
 
 /** The blocks one page's labels point to: [{type, role, x, y (bottom), w, h, order}]. */
-export function pageBlocks(page, { lease = false, sides = { party: null } } = {}) {
+export function pageBlocks(page, { lease = false, sides = { party: null }, officers = false } = {}) {
   const lines = toLines(page.items || []).map((l) => (lease ? asSale(l) : l));
   // Dotted or underscored lines typed as text are signing lines too (OREA prints its lines
   // as rows of dots; CREA's certificates as dots with spaces between, ". . . .").
@@ -359,7 +361,10 @@ export function pageBlocks(page, { lease = false, sides = { party: null } } = {}
     else if (declining && /^CONVEYANCING\b/.test(words)) declining = false;
     const heading = PARTY_HEADING.exec(line.text);
     if (heading) party = heading[1];
-    for (const [re, role] of [[CLIENT_ROW, "CLIENT"], [YOUR_SIGNATURE, "CLIENT"], [SIGNING_OFFICER, party]]) {
+    // A company client signs by its officer, on the "Per:" lines: their "Seller/Buyer" lines
+    // stay blank, and Per lines with no party heading over them are the client's
+    // (officers: autoLayout).
+    for (const [re, role] of [[CLIENT_ROW, officers ? null : "CLIENT"], [YOUR_SIGNATURE, "CLIENT"], [SIGNING_OFFICER, party ?? (officers ? "CLIENT" : null)]]) {
       const m = re.exec(line.text);
       if (!m || !role) continue;
       const x = xAt(line, m.index), xEnd = xAt(line, m.index + m[0].length);
@@ -659,15 +664,25 @@ export function assignSlots(blocks) {
 
 /** A form's pages (readPdfText) → {layout, found} for layout.js, or {layout: null} when no
  *  label was recognised. AGENT is a placeholder for "the agent, whichever side": resolve it
- *  with forAgent() before applying. */
-export function autoLayout(pages) {
+ *  with forAgent() before applying.
+ *  company: every client who signs is a company (companyClients). */
+export function autoLayout(pages, { company = false } = {}) {
   const fieldDefinitions = [];
   const documentFieldValidations = [];
   const most = {};
   const found = {};
   const lease = isLease(pages);
   const sides = formSides(pages);
-  const raw = pages.map((page) => pageBlocks(page, { lease, sides }));
+  // A company signs by its officer, on the "Per: ____ / Authorized Signing Officer(s)" lines
+  // (AREA's Commercial Purchase Contract notices: Dan, 2026-11-03), and then the
+  // "Seller/Buyer" lines above them stay blank. Only on a form that has Per lines: a form
+  // without them still has the company's officer sign the Seller/Buyer line.
+  const officers = company && pages.some((page) => toLines(page.items || []).some((l) => SIGNING_OFFICER.test(l.text)));
+  let raw = pages.map((page) => pageBlocks(page, { lease, sides, officers }));
+  // Per lines whose drawn line can't be found would leave the company with no signature at
+  // all: then its officer signs the Seller/Buyer lines, as before.
+  const clientSigs = (r) => r.flat().some((b) => b.sig && ["CLIENT", "BUYER", "SELLER"].includes(b.role));
+  if (officers && !clientSigs(raw)) raw = pages.map((page) => pageBlocks(page, { lease, sides }));
   // Customer lines no side could be given to (pageBlocks): for the panel's note.
   const left = { customer: raw.reduce((n, b) => n + (b.left || 0), 0) };
   const perPage = raw.map(assignSlots);

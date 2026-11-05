@@ -661,3 +661,48 @@ test("CREA's bare 'Signed:' lines: whose they are comes from the title, and the 
   // Any other form's bare "Signed:" is nobody's: nothing is guessed.
   assert.equal(autoLayout(form("SOME OTHER FORM", [["Signed: ______________________________", 197]])).layout, null);
 });
+
+test("a company client signs on the Per lines, and its Seller/Buyer lines stay blank", () => {
+  // AREA's Commercial Purchase Contract notices: two Seller/Buyer lines, then two Per lines
+  // with no party heading over them (Dan, 2026-11-03).
+  const p = page([
+    word("SIGNED in the presence of a witness, and DATED at ________. m. on ____________________, 20___.", 36, 273),
+    word("Seller/Buyer", 36, 228), word("Witness", 315, 228),
+    word("Seller/Buyer", 36, 201), word("Witness", 315, 201),
+    word("Per:", 36, 141), word("Authorized Signing Officer(s)", 54, 131), word("Witness", 324, 131),
+    word("Per:", 36, 113), word("Authorized Signing Officer(s)", 54, 103), word("Witness", 324, 103),
+  ], [rule(36, 190, 237), rule(36, 190, 210), rule(54, 200, 140), rule(54, 200, 112), rule(315, 500, 237)]);
+  const sigs = (layout) => layout.fieldDefinitions.filter((f) => f.type === "SIGNATURE")
+    .map((f) => [`${f.signeeType}${f.signeeIndex + 1}`, f.fieldLocations[0].position[1]]);
+  // A person, or No deal: the Seller/Buyer lines, as before; the unheaded Per lines get nothing.
+  assert.deepEqual(sigs(autoLayout([p]).layout), [["CLIENT1", 238], ["CLIENT2", 211]]);
+  // A company: its officers on the Per lines, nothing on Seller/Buyer, and the date stays.
+  const { layout } = autoLayout([p], { company: true });
+  assert.deepEqual(sigs(layout), [["CLIENT1", 141], ["CLIENT2", 113]]);
+  assert.equal(layout.fieldDefinitions.filter((f) => f.type === "SIGNED_DATE_ONLY").length, 1);
+  assert.deepEqual(labels(forClients(layout, { BUYER: 0, SELLER: 1 })).filter((l) => l.startsWith("SIGNATURE")), ["SIGNATURE SELLER1"]);
+});
+
+test("a company on a form without Per lines still signs its Seller/Buyer line", () => {
+  const p = page([word("Seller/Buyer", 36, 228), word("Witness", 315, 228)], [rule(36, 190, 237)]);
+  assert.deepEqual(labels(autoLayout([p], { company: true }).layout), ["SIGNATURE CLIENT1"]);
+});
+
+test("a company on a lease: Per lines under a party heading stay that party's", () => {
+  const p = page([
+    word("The tenant offers to lease the Premises to the landlord.", 38, 700),
+    word("Landlord/Tenant", 38, 640), word("Witness", 330, 640),
+    word("TENANT (CORPORATE NAME)", 38, 600, 10),
+    word("Per:", 38, 560), word("Authorized Signing Officer", 54, 550), word("Witness", 324, 550),
+  ], [rule(38, 300, 650), rule(54, 300, 560)]);
+  assert.deepEqual(labels(autoLayout([p]).layout), ["SIGNATURE CLIENT1", "SIGNATURE BUYER1"]);
+  assert.deepEqual(labels(autoLayout([p], { company: true }).layout), ["SIGNATURE BUYER1"]);
+});
+
+test("a company whose Per lines have no line drawn above them signs the Seller/Buyer line", () => {
+  const p = page([
+    word("Seller/Buyer", 36, 228), word("Witness", 315, 228),
+    word("Per:", 36, 141), word("Authorized Signing Officer(s)", 54, 131),
+  ], [rule(36, 190, 237)]);
+  assert.deepEqual(labels(autoLayout([p], { company: true }).layout), ["SIGNATURE CLIENT1"]);
+});

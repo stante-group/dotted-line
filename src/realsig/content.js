@@ -158,7 +158,7 @@ async function formBody(c, { draft, bytes, templateId, counts, agentChoice, deal
   // with No template; the agent places them in Real Signature.
   const auto = templateId === "auto";
   if (auto) {
-    const read = lib.autoLayout(await lib.readPdfText(bytes).catch(() => []));
+    const read = lib.autoLayout(await lib.readPdfText(bytes).catch(() => []), { company: lib.companyClients(deal, counts) });
     left.customer = read.left?.customer || 0;
     if (read.layout) layout = lib.dropUnusedSlots(read.layout, counts);
   } else if (templateId) {
