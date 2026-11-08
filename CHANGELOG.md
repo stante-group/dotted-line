@@ -3,6 +3,12 @@
 What changed in each version, in plain words. The newest is at the top. Chrome updates
 Dotted Line by itself a few hours after a version is published.
 
+## Not released yet
+
+- **Signing in partway through no longer shows an error.** If Real Signature sent you
+  to sign in just as one click was starting, the panel showed a red "message channel
+  closed" error. Now your forms wait while you sign in, the same as any other sign-in.
+
 ## 0.3.1 — 2026-11-04
 
 - **Signed out of Real Signature? Dotted Line now waits while you sign in.** It used to

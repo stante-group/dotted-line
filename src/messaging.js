@@ -11,6 +11,12 @@
 // agent asked to reload.
 
 const NOT_LISTENING = /Receiving end does not exist|Could not establish connection/;
+// The tab's page went away while its script was still working on an answer. Signed out,
+// Real Signature loads, its script takes the question, and THEN Real sends the tab to sign
+// in: Chrome says "message channel closed before a response was received". One click showed
+// that as a red error and reported it as a lost tab, when the agent only had to sign in
+// (Dan's test, 0.3.1 store copy, 2026-11-08, report 66).
+const CHANNEL_CLOSED = /message (?:channel|port) closed/i;
 
 export async function sendToTab(tabId, msg) {
   const ask = () => chrome.tabs.sendMessage(tabId, msg).catch((e) => ({ error: String(e?.message || e) }));
@@ -35,7 +41,11 @@ export async function sendToTab(tabId, msg) {
   // 2026-11-02), where Dotted Line has no script and Chrome won't say the address. One
   // click opens a fresh tab, so a signed-out agent got "reload this tab once" — wrong
   // advice, reported as a stale tab (0.3.0, 2026-11-01). Say what helps instead.
-  if (added === "elsewhere" && NOT_LISTENING.test(r?.error || "")) {
+  const left = added === "elsewhere" && NOT_LISTENING.test(r?.error || "")
+    // Not while making the draft: a sign-in mid-create could leave half of one in Real
+    // Signature, and that the agent must be told about, not asked to sign in.
+    || CHANNEL_CLOSED.test(r?.error || "") && msg?.type !== "rs:create" && (await siteOf(tabId)) === "elsewhere";
+  if (left) {
     const rs = String(msg?.type || "").startsWith("rs:");
     const e = new Error(rs
       ? "This tab has left Real Signature, usually for Real's sign-in page. Sign in to Real Signature there, then click the Dotted Line icon on Real Signature."
@@ -55,13 +65,19 @@ export async function sendToTab(tabId, msg) {
  *  → "added", "failed", or "elsewhere" (the tab is on neither site: Chrome gives no URL
  *  for other sites without the "tabs" permission, so an empty one means elsewhere too). */
 async function addContentScript(tabId) {
-  const tab = await chrome.tabs.get(tabId).catch(() => null);
-  if (!tab) return "failed"; // closed: nothing to say about where it went
-  const url = String(tab.url || "");
-  const cs = (chrome.runtime.getManifest().content_scripts || [])
-    .find((c) => c.matches.some((m) => url.startsWith(m.replace(/\*$/, ""))));
-  if (!cs) return "elsewhere";
+  const cs = await siteOf(tabId);
+  if (typeof cs === "string") return cs === "gone" ? "failed" : cs; // closed: nothing to say about where it went
   return chrome.scripting.executeScript({ target: { tabId }, files: cs.js }).then(() => "added", () => "failed");
+}
+
+/** Which of our sites the tab is on now: the manifest's content script for it, "elsewhere"
+ *  (no URL for other sites without the "tabs" permission, so an empty one counts), or "gone". */
+async function siteOf(tabId) {
+  const tab = await chrome.tabs.get(tabId).catch(() => null);
+  if (!tab) return "gone";
+  const url = String(tab.url || "");
+  return (chrome.runtime.getManifest().content_scripts || [])
+    .find((c) => c.matches.some((m) => url.startsWith(m.replace(/\*$/, "")))) || "elsewhere";
 }
 
 /** Ask every open tab of one site, most recently used first, until one answers. Asking
