@@ -71,3 +71,39 @@ test("a signed-out tab's error is reported as signed-out, not a stale tab", asyn
   assert.equal(r.cls, "signed-out");
   assert.notEqual(r.code, "stale-tab");
 });
+
+// Signed out, Real Signature's script took the question and THEN the page went to sign in:
+// Chrome's "message channel closed" (Dan's test, 0.3.1 store copy, 2026-11-08, report 66).
+function closedChannel(url, { gone = false } = {}) {
+  globalThis.chrome = {
+    tabs: {
+      sendMessage: async () => { throw new Error("A listener indicated an asynchronous response by returning true, but the message channel closed before a response was received"); },
+      get: async () => (gone ? Promise.reject(new Error("No tab with id: 7")) : { id: 7, url, status: "complete" }),
+    },
+    runtime: { getManifest: () => ({ content_scripts: [
+      { matches: ["https://signature.therealbrokerage.com/*"], js: ["src/realsig/content.js"] },
+    ] }) },
+    scripting: { executeScript: async () => { throw new Error("should not inject"); } },
+  };
+}
+
+test("a tab sent to sign in mid-answer says sign in, as NotSignedIn, reported as signed-out", async () => {
+  closedChannel(null);
+  const e = await sendToTab(7, { type: "rs:context" }).catch((x) => x);
+  assert.equal(e.name, "NotSignedIn");
+  assert.match(e.message, /Sign in to Real Signature/);
+  const { errorReport } = await import("../src/lib/report.js");
+  assert.equal(errorReport({ error: e, step: "one-click", version: "0.3.1", chrome: "157" }).cls, "signed-out");
+});
+
+test("a closed channel on a tab still on Real Signature, or closed, keeps Chrome's error", async () => {
+  closedChannel("https://signature.therealbrokerage.com/home/draft");
+  await assert.rejects(sendToTab(7, { type: "rs:context" }), (e) => e.name !== "NotSignedIn" && /channel closed/.test(e.message));
+  closedChannel(null, { gone: true });
+  await assert.rejects(sendToTab(7, { type: "rs:context" }), (e) => e.name !== "NotSignedIn" && /channel closed/.test(e.message));
+});
+
+test("a closed channel while making the draft is never taken for a sign-in", async () => {
+  closedChannel(null);
+  await assert.rejects(sendToTab(7, { type: "rs:create" }), (e) => e.name !== "NotSignedIn" && /channel closed/.test(e.message));
+});
