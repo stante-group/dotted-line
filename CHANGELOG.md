@@ -5,6 +5,11 @@ Dotted Line by itself a few hours after a version is published.
 
 ## Not released yet
 
+- **Packets you haven't set up now show on Real Signature's home page too.** The panel
+  already listed single documents you'd uploaded but not set up, each with a Set up
+  button. Now packets are in the same list, newest first. A packet with some documents
+  set up and some not shows how many are left, and Set up does only those.
+
 - **Signing in partway through no longer shows an error.** If Real Signature sent you
   to sign in just as one click was starting, the panel showed a red "message channel
   closed" error. Now your forms wait while you sign in, the same as any other sign-in.

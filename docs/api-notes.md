@@ -50,6 +50,20 @@ Real's UI has no "packet" choice at upload: each PDF uploads as its own one-time
   are trying to send is associated with a packet. Please send the packet instead."
 - Clicking a packet's name on the Drafts list opens `/view/packet/{id}?oneTimeUse=true`,
   which has no actions; its **Edit** opens the steps at `/one-time-documents/packet/{id}`.
+- **Packets on the home page's list (0.4.0, ASSUMED, not yet seen live):** the panel lists
+  packets not set up beside single uploads, from two GETs it already makes elsewhere:
+  `GET /one-time-templates` (the Drafts tab's list), then `GET /packet-templates/{id}` for
+  each of the newest five packet rows from the last week. Assumed: a packet row's `type`
+  is anything but `"DOCUMENT"` (its own word hasn't been recorded), it carries `id` and a
+  numeric `createdAt` like a document row, and that `id` is the packet's
+  `/packet-templates/{id}` id (the one in `/one-time-documents/packet/{id}`). A packet row
+  with no `id` or `createdAt`, a packet read without `documentTemplates[]`, or one that
+  comes back with another `id`, throws "changed shape" and is reported (step `on-draft`);
+  a row that isn't a packet at all would 404 on the packet read and be reported the same
+  way. "Not set up" = any member document with nobody named in a role it has and no
+  blocks (`ondraft.js notSetUp`), the same rule the packet's own steps use to pick the
+  documents Set up fills. **Check on a live packet:** the row's `type` word, and that the
+  ids match.
 - Other routes in the app's client: `PUT /packet-templates/{id}`,
   `POST /packet-templates/{id}/document-templates` (add documents),
   `POST /packet-templates/draft`, `/clone`, `/from-packet`, `/share/*`,
