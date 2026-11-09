@@ -12,6 +12,7 @@ import { rankDeals, matchesBuyerNames, addressInText } from "./deals.js";
 import { suggestTemplate, signingSide } from "./match.js";
 import { signerCounts, signersWithoutEmail } from "./draft.js";
 import { actingNotes } from "./actor.js";
+import { oneSignerPlan, namedAcrossCopies } from "./copies.js";
 
 /** Below this, or with a tie at the top, the agent picks the deal. */
 export const CONFIDENT = 0.75;
@@ -121,7 +122,8 @@ export function planDraft({ job, c, remembered = {}, agentMode = "one" }) {
   const { counts } = signerCounts({
     deal, formNames: job.forms.map((f) => f.name),
     templates: picked.map((t) => t.slots).filter(Boolean),
-    webforms: job.parties ? [job.parties] : job.forms.map((f) => f.parties).filter(Boolean),
+    // Copies of one form, each naming a different person, name them all (namedAcrossCopies).
+    webforms: [...(job.parties ? [job.parties] : job.forms.map((f) => f.parties).filter(Boolean)), namedAcrossCopies(job.forms)],
     agentSide: job.agentSide,
   });
 
@@ -132,6 +134,13 @@ export function planDraft({ job, c, remembered = {}, agentMode = "one" }) {
     }
     if (signersWithoutEmail(deal, counts).length) needs.push("A client on this deal has no email or no name in reZEN.");
   }
+
+  // Copies of one form ticked, with more than one person on the signing side: whether each
+  // copy gets only its own signer is the agent's call, and a copy given to the wrong person
+  // is signed by the wrong person — so the panel shows who gets which copy first (issue #9).
+  // Refused (the names don't settle it) is today's draft, every signer on every copy.
+  const copies = oneSignerPlan({ forms: job.forms, people: deal ? deal.participants : job.contactPeople, counts });
+  if (copies.offer && !copies.refused) needs.push("You ticked more than one copy of a form — choose whether each copy gets only its own signer.");
 
   // Same default as the panel's box: the agent signs when a picked template has agent
   // blocks, or a form placed from its labels has an agent line (background.js `placed`).

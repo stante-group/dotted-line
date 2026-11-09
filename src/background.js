@@ -441,7 +441,7 @@ async function startJob({ wfTabId, wfForms, meta, background, auto }) {
       // seller side, Real's document names); WEBForms' own name was only for the zip.
       return { id: form.id, name: form.typeName || form.name, library: form.library || null,
         formGuid: form.formGuid, pageCount: form.pageCount ?? countPages(data),
-        parties: form.parties || null, pdfBase64: toBase64(data) };
+        parties: form.parties || null, names: form.names || null, pdfBase64: toBase64(data) };
     });
     // What "Place blocks from the form's labels" would give each form, read now while the
     // PDF is here: the panel and one click decide from it whether the agent signs (an agent

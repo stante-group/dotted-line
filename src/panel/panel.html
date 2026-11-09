@@ -140,6 +140,8 @@
       margin: 0 0 0 6px; padding: 0; border-radius: 50%; border: 1px solid #a3abba; background: none;
       color: var(--muted); font: italic 600 11px/1 Georgia, serif; vertical-align: middle; cursor: pointer; }
     button.i:hover:not(:disabled), button.i[aria-expanded="true"] { border-color: var(--pen); color: var(--pen); background: var(--pen-wash); }
+    ul.copies { margin: 4px 0 0; padding-left: 22px; font-size: 13px; color: #3b4456; }
+    ul.copies li { margin: 2px 0; overflow-wrap: anywhere; }
     .tip { background: var(--paper-2); border-radius: 8px; padding: 8px 10px; margin: 4px 0 8px; font-size: 12.5px; color: #3b4456; }
     .with-i { display: flex; align-items: center; }
     .with-i label { margin-right: 0; }
@@ -309,6 +311,18 @@
       <!-- When the forms and the reZEN deal count a side differently: said right here, under
            the number it's about, with the other number one click away. -->
       <div id="rs-counts-check" aria-live="polite"></div>
+      <!-- Copies of one form ticked (issue #9): each copy can get only its own signer. Who
+           gets which copy is listed here before Finish draft; when the names don't settle
+           it, the line says why and every copy keeps every signer. -->
+      <div id="rs-copies" hidden>
+        <div class="with-i">
+          <label class="check"><input id="rs-one-signer" type="checkbox"> One signer per copy</label>
+          <button class="i" type="button" aria-expanded="false" aria-controls="tip-copies" aria-label="About one signer per copy">i</button>
+        </div>
+        <div id="tip-copies" class="tip" hidden>You ticked the same form more than once. With this on, each copy gets only its own signer instead of every one, and keeps your agent role. Each copy's buyer or seller line in WEBForms says whose it is; when no copy names anybody, copy 1 goes to the first person, copy 2 to the second. When the names don't match the deal, nothing is split. Ticked for you only when every copy names a different person.</div>
+        <ul id="rs-copies-who" class="copies" aria-live="polite"></ul>
+        <p id="rs-copies-why" class="note" aria-live="polite"></p>
+      </div>
       <div class="with-i">
         <label class="check"><input id="rs-agent" type="checkbox"> Add the agent as a signer</label>
         <button class="i" type="button" aria-expanded="false" aria-controls="tip-agent" aria-label="About the agent as a signer">i</button>

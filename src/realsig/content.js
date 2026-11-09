@@ -14,7 +14,7 @@ let ctx = null; // { rs, lib, me, templates: Map, deals: Map } — this tab's li
 
 async function load() {
   const lib = {};
-  for (const p of ["realsig-api.js", "layout.js", "deals.js", "draft.js", "actor.js", "pdf.js", "pdftext.js", "autoplace.js", "ondraft.js"]) {
+  for (const p of ["realsig-api.js", "layout.js", "deals.js", "draft.js", "actor.js", "pdf.js", "pdftext.js", "autoplace.js", "ondraft.js", "copies.js"]) {
     Object.assign(lib, await import(chrome.runtime.getURL(`src/lib/${p}`)));
   }
   return lib;
@@ -200,7 +200,9 @@ const fileName = (name) => `${String(name).replace(/\.pdf$/i, "").replace(/[\\/:
 
 // agentChoice: null = don't add the agent; "all" = every agent on the deal; else the email
 // of the one agent who signs (see chooseAgents).
-async function create({ jobId, title, dealId, templateIds, counts, agentChoice = null, emailSubject = null }) {
+// oneSigner: the panel's "One signer per copy" (copies.js oneSignerPlan) when ticked and not
+// refused — {side, copies: [{form, slot, line}]} — else null: every copy gets every signer.
+async function create({ jobId, title, dealId, templateIds, counts, agentChoice = null, emailSubject = null, oneSigner = null }) {
   const c = await context();
   const { rs, lib } = c;
   const job = await chrome.runtime.sendMessage({ type: "job:get", id: jobId });
@@ -212,6 +214,16 @@ async function create({ jobId, title, dealId, templateIds, counts, agentChoice =
   const sender = lib.senderFor(c.me, deal);
   // No reZEN deal: the WEBForms deal's Buyer and Seller contacts, those with an email.
   const signees = lib.signeesFromDeal(deal || { participants: job.contactPeople || [] }, counts);
+  // Which copy keeps which signer, by form index. Checked against this hand-off: a plan for
+  // other forms is refused rather than applied to the wrong ones.
+  const copyOf = new Map();
+  if (oneSigner) {
+    if (!["BUYER", "SELLER"].includes(oneSigner.side) || !Array.isArray(oneSigner.copies)
+      || oneSigner.copies.some((a) => !job.forms[a.form] || !Number.isInteger(a.slot) || a.slot < 0 || a.slot >= (counts[oneSigner.side] ?? 0))) {
+      throw new Error("One signer per copy doesn't fit these forms any more. Untick it, or start again from WEBForms.");
+    }
+    for (const a of oneSigner.copies) copyOf.set(a.form, { ...a, side: oneSigner.side });
+  }
   const created = [];
   let packetId = null;
   const unfilled = new Set(); // signer roles left for the agent to fill (see unfilledRoles)
@@ -233,8 +245,20 @@ async function create({ jobId, title, dealId, templateIds, counts, agentChoice =
         pageCount: form.pageCount, signees, sender, emailSubject, notes,
         // (named by the form even in a packet of one, so the note says which form)
       });
-      for (const r of lib.unfilledRoles(body)) unfilled.add(r);
-      await timed("save", rs.putDraft(up.id, body));
+      // One signer per copy: this copy keeps only its own signer on that side. Their slot is
+      // filled even though the slots before it aren't on this copy, so it isn't an unfilled role.
+      const a = copyOf.get(i);
+      let out = body;
+      if (a) {
+        const only = lib.onlySigner(body, a);
+        out = only.body;
+        if (only.hadBlocks && !only.blocks) {
+          notes.push(`${String(form.name).replace(/\.pdf$/i, "")}: no ${a.side === "BUYER" ? "buyer" : "seller"} blocks were left for its signer. Place them in Real Signature.`);
+        }
+      }
+      const named = a && out.defaults.signees.some((s) => s.signeeType === a.side && s.signeeIndex === a.slot);
+      for (const r of lib.unfilledRoles(out)) if (!(named && r === a.side)) unfilled.add(r);
+      await timed("save", rs.putDraft(up.id, out));
     }
     // One form with a signer role nobody fills (no email for the buyer, say) goes in a packet
     // of one: a single document's Edit details hides empty roles and its Next deletes them,

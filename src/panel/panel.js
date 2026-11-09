@@ -9,6 +9,7 @@ import { suggestTemplate, rememberKey, normalizeName, rememberEntry, pruneRememb
 import { titleValues, titleFor, subjectFor, draftTitleValues, draftTitle, draftSubject, formNameFromFile, DEFAULT_SETTINGS } from "../lib/pattern.js";
 import { signerCounts, signersWithoutEmail, signeesFromDeal, agentRoleFor, agentPeople, cleanSubject, subjectTooLong, SUBJECT_MAX, countDisagreements } from "../lib/draft.js";
 import { actingNotes } from "../lib/actor.js";
+import { oneSignerPlan, oneSignerDefault, planLines, namedAcrossCopies } from "../lib/copies.js";
 import { packetPlacedSummary, packetDeals, mixedDealsWarning, straySignersWarning } from "../lib/ondraft.js";
 import { contextFromDraft, REPORTS_ON } from "../lib/report.js";
 
@@ -804,7 +805,8 @@ function updateDeal() {
     const templates = job.forms.map((_, i) => $(`tpl-${i}`)?.value)
       .map((tid) => c.templates.find((t) => t.id === tid)?.slots).filter(Boolean);
     // Contacts and forms already merged on the WEBForms side; older hand-offs per form.
-    const webforms = job.parties ? [job.parties] : job.forms.map((f) => f.parties).filter(Boolean);
+    // Copies of one form each naming a different person name them all (copies.js).
+    const webforms = [...(job.parties ? [job.parties] : job.forms.map((f) => f.parties).filter(Boolean)), namedAcrossCopies(job.forms)];
     const { counts: n, why } = signerCounts({ deal, formNames: job.forms.map((f) => f.name), templates, webforms, agentSide: job.agentSide });
     // A number the agent set (typed, or "Use N") stays when a template changes; a different
     // deal starts the counts again, since it brings its own people.
@@ -850,7 +852,47 @@ function updateDeal() {
     ...all.filter((n) => n.level === "info").map((n) => el("div", n.text, "info")),
   );
   updateAgent();
+  updateCopies();
 }
+
+/** "One signer per copy" (issue #9, copies.js): shown only when copies of one form are
+ *  ticked and more than one person signs on that side. Lists who gets which copy, so the
+ *  agent sees it before Finish draft; refused (the names don't settle it) greys the box out
+ *  and says why. Ticked for the agent only when each copy's own line names a different
+ *  person on the deal; once the agent touches it, theirs stands. Not for uploads set up in
+ *  Real Signature: those have no WEBForms lines to go by. */
+function updateCopies() {
+  const { c, job } = rsState;
+  const id = $("rs-deal").value;
+  const deal = c.deals.find((d) => d.id === id) || null;
+  const counts = { BUYER: Number($("rs-buyers").value) || 0, SELLER: Number($("rs-sellers").value) || 0 };
+  const people = deal ? deal.participants || [] : id === "none" ? job.contactPeople || [] : [];
+  const plan = uploaded(job) || !(deal || id === "none") ? { offer: false } : oneSignerPlan({ forms: job.forms, people, counts });
+  rsState.copyPlan = plan;
+  $("rs-copies").hidden = !plan.offer;
+  const box = $("rs-one-signer");
+  if (!plan.offer) { $("rs-copies-who").replaceChildren(); $("rs-copies-why").textContent = ""; return; }
+  box.disabled = !!plan.refused;
+  if (plan.refused) box.checked = false;
+  else if (!rsState.oneSignerTouched) box.checked = oneSignerDefault(plan);
+  const on = box.checked && !plan.refused;
+  $("rs-copies-who").replaceChildren(...(on ? planLines(plan).map((t) => el("li", t)) : []));
+  const w = plan.side === "BUYER" ? "buyer" : "seller";
+  $("rs-copies-why").textContent = plan.refused ? plan.refused
+    : !on ? `Every copy gets every ${w}.`
+    : plan.by === "form" ? `Each copy's ${w} line in WEBForms names its signer. Check it before you finish.`
+    : plan.by === "mixed" ? `Some forms' copies name their ${w}; the others' don't, so they go in order. Check it's right before you finish.`
+    : `The copies don't name a ${w}, so they go in order. Check it's right before you finish.`;
+  syncTips();
+}
+
+/** What rs:create is told: the plan's copies when "One signer per copy" is on, else null. */
+function oneSignerChoice() {
+  const plan = rsState?.copyPlan;
+  if (!plan?.offer || plan.refused || !$("rs-one-signer").checked) return null;
+  return { side: plan.side, copies: plan.copies.map(({ form, slot, line }) => ({ form, slot, line })) };
+}
+$("rs-one-signer").addEventListener("change", () => { if (rsState) { rsState.oneSignerTouched = true; updateCopies(); } });
 
 /** The forms-vs-deal line under the Signers boxes (countDisagreements), one per side. */
 function updateCountCheck() {
@@ -1001,6 +1043,7 @@ for (const [id, role] of [["rs-buyers", "BUYER"], ["rs-sellers", "SELLER"]]) $(i
   (rsState.countsSet ||= {})[role] = true;
   updateCountCheck();
   updateAgent();
+  updateCopies();
 });
 $("rs-title").addEventListener("input", () => {
   if (rsState) rsState.titleEdited = true;
@@ -1030,6 +1073,7 @@ $("rs-go").addEventListener("click", async () => {
       dealId: dealId === "none" ? null : dealId,
       templateIds: templateIds.map((t) => (t === "none" ? null : t)), counts,
       agentChoice: agentChoice(),
+      oneSigner: oneSignerChoice(),
       // What the field shows is what's sent; hidden = leave Real Signature's own.
       emailSubject: $("rs-subject-wrap").hidden ? null : cleanSubject($("rs-subject").value) || null,
     });
