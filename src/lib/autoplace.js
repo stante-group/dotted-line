@@ -290,6 +290,28 @@ const TITLE_SIGNER = [
   [/\bCertificate and Consent of Purchaser\b/i, "BUYER"],
 ];
 const BARE_SIGNED = /^\s*Signed:/i;
+// A title that names another form to say what this one belongs to ("Schedule to the
+// Exclusive Seller Representation Agreement", "attached to and forms part of …", "to be used
+// with the Customer Acknowledgement") is about that form, not this one.
+const NAMES_ANOTHER = /(?:\b(?:schedule|addendum|appendix|amendment|attached|attachment)\s+to|\bforms?\s+(?:a\s+)?part\s+of|\b(?:used?|read)\s+(?:together\s+)?with)(?:\s+(?:the|this|that|an?|its))?\s*$/i;
+
+/** The form's own title: the largest type in the top quarter of page 1, its lines joined.
+ *  AREA prints the agreement a schedule belongs to largest and the schedule's own name under
+ *  it, smaller ("EXCLUSIVE SELLER REPRESENTATION AGREEMENT" over "TENANCY SCHEDULE"), and the
+ *  agreement's side is the schedule's too. Smaller lines up there can name other forms — a
+ *  header, a "use with" note — and only the title says whose form it is. */
+function titleOf(p) {
+  const top = toLines(p.items || []).filter((l) => l.y > p.height * 0.75 && l.text.trim());
+  const size = Math.max(0, ...top.map((l) => l.size));
+  return top.filter((l) => l.size >= size - 0.5).map((l) => l.text.replace(/\s+/g, " ").trim()).join(" ");
+}
+
+/** The first match of re in the title that isn't a mention of another form. */
+function ownMatch(re, title) {
+  const g = new RegExp(re.source, re.flags.includes("g") ? re.flags : re.flags + "g");
+  for (const m of title.matchAll(g)) if (!NAMES_ANOTHER.test(title.slice(0, m.index))) return m;
+  return null;
+}
 
 /** What a form's title says about its signers: {customer: undefined (not a customer form) |
  *  "BUYER" | "SELLER" | null (a customer form naming no side), party: "BUYER" | "SELLER" | null,
@@ -297,9 +319,9 @@ const BARE_SIGNED = /^\s*Signed:/i;
 export function formSides(pages) {
   const p = (pages || [])[0];
   if (!p) return { party: null };
-  const title = toLines(p.items || []).filter((l) => l.y > p.height * 0.75).map((l) => l.text).join("\n");
-  const c = TITLE_CUSTOMER.exec(title), r = TITLE_REPRESENTS.exec(title);
-  const signer = TITLE_SIGNER.find(([re]) => re.test(title))?.[1] ?? null;
+  const title = titleOf(p);
+  const c = ownMatch(TITLE_CUSTOMER, title), r = ownMatch(TITLE_REPRESENTS, title);
+  const signer = TITLE_SIGNER.find(([re]) => ownMatch(re, title))?.[1] ?? null;
   return { ...(c ? { customer: c[1] ? SIDE[c[1]] : null } : {}), party: r ? SIDE[r[1]] : null, signer };
 }
 
@@ -341,8 +363,10 @@ export function pageBlocks(page, { lease = false, sides = { party: null }, offic
     // On a customer form the client lines are the customer's: the side its title names, or
     // nobody's. Off one, a "Customer" line belongs to nobody.
     // (A date's role is null until it's paired with its signature: those pass through.)
-    // Its "SIGNED AND DATED" line is the customers' too, so with no side it goes as well.
-    if ("customer" in sides && sides.customer === null && spec === DATE) return;
+    // With no side named, the customers' lines are gone, so the one "SIGNED AND DATED" line
+    // over them all pairs with the Brokerage Representative's line under them (assignSlots):
+    // the agent's date, as on the Fee Disclosure, where it's the only line. It used to go
+    // with the customers' lines, and the agent's signature had no date (Dan, 2026-11-09).
     if (role === "CUSTOMER" || (role === "CLIENT" && "customer" in sides)) {
       role = sides.customer ?? null;
       // Left for the agent, and counted so the panel can say so (Dan, 2026-11-03).

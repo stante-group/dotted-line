@@ -7,7 +7,7 @@ import { createHash } from "node:crypto";
 
 import { readPdfText, md5, rc4 } from "../src/lib/pdftext.js";
 import { pageBlocks, autoLayout, forAgent, forClients, withSigners, toLines, isLease } from "../src/lib/autoplace.js";
-import { placeOutcome, assignSlots, clientsLeft, leftNote } from "../src/lib/autoplace.js";
+import { placeOutcome, assignSlots, clientsLeft, leftNote, formSides } from "../src/lib/autoplace.js";
 
 const enc = (s) => new TextEncoder().encode(s);
 const latin = (u8) => new TextDecoder("latin1").decode(u8);
@@ -274,8 +274,8 @@ test("customer forms: the title names the customer's side, or nobody's lines are
     ["SIGNED_DATE BUYER1", "SIGNATURE BUYER1", "SIGNATURE BUYER2", "SIGNATURE AGENT1"]);
   assert.deepEqual(placed(lines("SELLER CUSTOMER STATUS ACKNOWLEDGMENT AND FEE AGREEMENT", "Signature of Customer")),
     ["SIGNED_DATE SELLER1", "SIGNATURE SELLER1", "SIGNATURE SELLER2", "SIGNATURE AGENT1"]);
-  // No side named: only the agent's own line; the customers' lines and their date are left.
-  assert.deepEqual(placed(lines("CUSTOMER ACKNOWLEDGEMENT", "Signature of Seller/Buyer")), ["SIGNATURE AGENT1"]);
+  // No side named: the customers' lines are left, and the agent's own line gets the date.
+  assert.deepEqual(placed(lines("CUSTOMER ACKNOWLEDGEMENT", "Signature of Seller/Buyer")), ["SIGNED_DATE AGENT1", "SIGNATURE AGENT1"]);
   const footer = page([word("CUSTOMER ACKNOWLEDGEMENT", 60, 740, 12),
     word("Seller’s/Buyer’s Initials ______ ______ Brokerage Representative’s Initials ______", 200, 54, 8)]);
   assert.deepEqual(placed(footer), ["INITIALS AGENT1"]);
@@ -284,6 +284,24 @@ test("customer forms: the title names the customer's side, or nobody's lines are
   assert.deepEqual(autoLayout([lines("SELLER CUSTOMER STATUS ACKNOWLEDGMENT AND FEE AGREEMENT", "Signature of Customer")]).left, { customer: 0 });
   // Off a customer form, a "Signature of Customer" line is nobody's.
   assert.deepEqual(placed(lines("SOME OTHER FORM", "Signature of Customer")).filter((g) => g.startsWith("SIGNATURE ")), ["SIGNATURE AGENT1"]);
+});
+
+test("the title is the form's own: the largest line, not a mention of another form", () => {
+  const sides = (heads) => formSides([page(heads.map(([t, y, size]) => word(t, 60, y, size)))]);
+  // AREA's schedules: the agreement they belong to, largest, over their own name. Its side is theirs.
+  assert.equal(sides([["EXCLUSIVE SELLER REPRESENTATION AGREEMENT", 717, 13], ["TENANCY SCHEDULE", 701, 11]]).party, "SELLER");
+  // A smaller header line naming another form says nothing about this one.
+  const other = sides([["Prepared for use with the Exclusive Buyer Representation Agreement".toUpperCase(), 760, 8], ["NOTICE TO PARTIES", 717, 13]]);
+  assert.deepEqual(other, { party: null, signer: null });
+  assert.ok(!("customer" in sides([["See also the Customer Acknowledgement".toUpperCase(), 760, 8], ["DISCLOSURE", 717, 13]])));
+  // At title size too: "Schedule to the …", on one line or wrapped onto the next.
+  assert.equal(sides([["SCHEDULE TO THE EXCLUSIVE SELLER REPRESENTATION AGREEMENT", 717, 13]]).party, null);
+  assert.equal(sides([["ADDENDUM TO THE", 730, 13], ["EXCLUSIVE BUYER REPRESENTATION AGREEMENT", 717, 13]]).party, null);
+  assert.equal(sides([["This form is attached to and forms part of the Certificate and Consent of Purchaser", 748, 18]]).signer, null);
+  // Its own title still counts when another form is named after it.
+  assert.equal(sides([["EXCLUSIVE BUYER REPRESENTATION AGREEMENT", 717, 13], ["AMENDMENT TO THE CUSTOMER ACKNOWLEDGEMENT", 702, 13]]).party, "BUYER");
+  assert.equal(sides([["COMMERCIAL TENANT CUSTOMER DISCLOSURE ACKNOWLEDGMENT", 717, 13]]).customer, "BUYER");
+  assert.equal(sides([["REALTOR® Cooperation Disclosure and Consent Form", 740, 24]]).signer, "SELLER");
 });
 
 test("a seller representation agreement's bare signing-officer lines are the seller's", () => {
