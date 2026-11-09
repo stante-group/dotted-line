@@ -253,6 +253,33 @@ extension reads the PDF back and places blocks on that draft.
 - `report.js` keeps only known route words and blanks the rest, so add `file-url` to
   `ROUTE_WORDS` with the call, or error reports show that route as `{id}`.
 
+### Which step a document is on (0.4.0, NOT YET CHECKED LIVE)
+
+Check before you send and auto-close need the step, and the steps share one address (above).
+`src/lib/steps.js` reads it from the page, read only, strongest signal first: (1) a step word
+in the address (path end, `?step=`, `#…`), never seen but honoured if Real adds one; (2) the
+step bar's current label, an element with `aria-current="step"`/`"true"`, else one whose
+class contains `active`/`current`/`selected` and whose own text is a step name (several
+marked: the furthest); (3) a visible button saying only `Send` / `Send Document` /
+`Send Packet` means Review. `src/realsig/content.js` re-reads on page changes (a
+MutationObserver, throttled to 500 ms) and reports a change as `rs:step`. To confirm on a
+throwaway document, per step, in DevTools on Real's page:
+
+- Does the address change at all when **Next** (or Back, or clicking a step's name) is
+  pressed? If it does, write down how; signal 1 may then be enough.
+- What marks the current step in the bar: `aria-current`? which class? Is the label's own
+  element the marked one, or its parent (whose text might then be "4Review")?
+- On Review: what the Send button says exactly. Is there a `Send` button on any OTHER step?
+- On Edit details → Next: is `defaults.signees` already saved by the time Prepare shows?
+  (The panel reads the draft as soon as the step changes.)
+- On Review: does **Add Signees** save to the draft at once, so the re-check a moment after
+  a click sees the fix?
+- Does the side panel survive the reload after Auto place (it should), and does
+  `chrome.sidePanel.close` work on the Chrome in use (141+; older ones use `window.close`)?
+
+If a steps page shows no step for 20 s, the content script sends `rs:no-step` and the
+worker sends one quiet report (step `review`, code `no-step`) a day per version.
+
 ### Other routes the app's client has (not yet observed)
 
 `GET /document-templates` (`sharedWithMe`, `oneTimeUse`, `page`, `size`),

@@ -14,7 +14,7 @@ let ctx = null; // { rs, lib, me, templates: Map, deals: Map } — this tab's li
 
 async function load() {
   const lib = {};
-  for (const p of ["realsig-api.js", "layout.js", "deals.js", "draft.js", "actor.js", "pdf.js", "pdftext.js", "autoplace.js", "ondraft.js"]) {
+  for (const p of ["realsig-api.js", "layout.js", "deals.js", "draft.js", "actor.js", "pdf.js", "pdftext.js", "autoplace.js", "ondraft.js", "review.js", "steps.js"]) {
     Object.assign(lib, await import(chrome.runtime.getURL(`src/lib/${p}`)));
   }
   return lib;
@@ -427,7 +427,9 @@ async function setupDraft({ id, title, dealId, templateId, counts, agentChoice =
   return { url: `/one-time-documents/document/${id}`, drafts: 1, packet: false, notes };
 }
 
-async function placeDraft({ id, side = null }) {
+// dryRun: what Auto place WOULD add, saving nothing — the panel asks on Prepare, so it can
+// close itself when every block is already there (steps.js shouldClose).
+async function placeDraft({ id, side = null, dryRun = false }) {
   const lib = await load();
   const rs = client(lib);
   const draft = await rs.getTemplate(id);
@@ -442,7 +444,7 @@ async function placeDraft({ id, side = null }) {
   if (placed.needSide) return { needSide: true, counts: lib.draftSigners(draft).counts };
   const { body, added, skipped } = placed;
   // Nothing new: no save, so a draft that can't be placed is left exactly as it was.
-  if (added) await rs.putDraft(id, body);
+  if (added && !dryRun) await rs.putDraft(id, body);
   // Client lines aren't left here: with both sides on the draft, the panel asks whose (needSide).
   return { added, skipped, outcome: lib.placeOutcome({ pages, error, blocks: found?.fieldDefinitions?.length || 0 }),
     note: lib.leftNote(read?.left) };
@@ -481,6 +483,129 @@ async function openActing() {
     ctx = null;
     tell(v);
   }, 1000);
+}
+
+// ---- which step the document is on (src/lib/steps.js), and Check before you send ----
+// Real keeps a document's four steps at one address, so Next changes the page, not the URL
+// (api-notes, 2026-10-30). This watches the page — reading only: no element is changed,
+// added, clicked or styled — and tells the panel and the worker when the step changes. On
+// Review it reads the draft back (GET only) and checks it (src/lib/review.js). The worker
+// puts the amber dot on the icon when something's missing and the panel may be shut.
+const STEPS_PAGE = /^https:\/\/signature\.therealbrokerage\.com\/one-time-documents\/(document|packet)\/([0-9a-f-]{36})(?:[/?#]|$)/i;
+// What a step bar marks its current step with. A class is a guess at Real's styling, so
+// steps.js trusts aria-current first; the live check of 0.4.0 says which Real uses.
+const MARKED = '[aria-current="step"], [aria-current="true"], [aria-selected="true"], [class*="active" i], [class*="current" i], [class*="selected" i]';
+// A page that never shows a step (Real's bar changed): after this long, one quiet report.
+const NO_STEP_MS = 20000;
+const shown = (n) => !!(n.offsetWidth || n.offsetHeight || n.getClientRects().length);
+
+/** The page as steps.js reads it: texts only, of a few hundred elements at most. */
+function stepSnapshot() {
+  const marked = [];
+  for (const n of document.querySelectorAll(MARKED)) {
+    if (marked.length >= 200) break;
+    const text = (n.textContent || "").trim();
+    if (!text || text.length > 40 || !shown(n)) continue;
+    marked.push({ text, strong: /^(step|true)$/i.test(n.getAttribute("aria-current") || "") });
+  }
+  const buttons = [];
+  for (const b of document.querySelectorAll('button, [role="button"]')) {
+    if (buttons.length >= 200) break;
+    const t = (b.textContent || "").trim();
+    if (t && t.length <= 40 && shown(b)) buttons.push(t);
+  }
+  return { url: location.href, marked, buttons };
+}
+
+const where = { key: null, kind: null, id: null, step: null, check: null, error: null, since: 0, quiet: false };
+
+function tellStep() {
+  const review = where.step === "review";
+  chrome.runtime.sendMessage({ type: "rs:step", kind: where.kind, id: where.id, step: where.step,
+    check: review ? where.check : null, error: review ? where.error : null }).catch(() => { /* panel and worker asleep */ });
+}
+
+let checking = null;
+/** The check, on Review. A failure is said, never swallowed: the panel shows it and the
+ *  worker reports it (step "review"), as a document that can't be read is a broken check. */
+function runCheck() {
+  if (checking) return checking;
+  checking = (async () => {
+    const { kind, id } = where;
+    try {
+      const lib = await load();
+      const rs = client(lib);
+      const result = kind === "packet" ? lib.checkPacket(await rs.getPacketDraft(id)) : lib.checkDocument(await rs.getTemplate(id));
+      if (where.id !== id) return;
+      where.check = result;
+      where.error = null;
+    } catch (e) {
+      if (where.id !== id) return;
+      where.check = null;
+      where.error = { message: String(e?.message || e), name: e?.name || "Error" };
+    }
+    if (where.step === "review") tellStep();
+  })().finally(() => { checking = null; });
+  return checking;
+}
+
+async function readStep() {
+  const m = STEPS_PAGE.exec(location.href);
+  if (!m) {
+    if (where.key) { Object.assign(where, { key: null, kind: null, id: null, step: null, check: null, error: null }); tellStep(); }
+    return;
+  }
+  const key = `${m[1].toLowerCase()}:${m[2]}`;
+  if (key !== where.key) {
+    Object.assign(where, { key, kind: m[1].toLowerCase(), id: m[2], step: null, check: null, error: null, since: Date.now(), quiet: false });
+    setTimeout(() => readStep().catch(() => {}), NO_STEP_MS + 500);
+  }
+  const lib = await load();
+  const { step } = lib.stepFromPage(stepSnapshot());
+  if (!step) {
+    // Seen a step before on this document: Real is between steps (a spinner), not changed.
+    if (!where.step && !where.quiet && Date.now() - where.since >= NO_STEP_MS) {
+      where.quiet = true;
+      chrome.runtime.sendMessage({ type: "rs:no-step" }).catch(() => {});
+    }
+    return;
+  }
+  if (step === where.step) return;
+  where.step = step;
+  where.check = null;
+  where.error = null;
+  if (step === "review") await runCheck(); else tellStep();
+}
+
+// Throttled, not debounced: Prepare's editor changes the page all the time while a block is
+// dragged, and a debounce would never fire.
+let stepTimer = null;
+const watchStep = () => {
+  if (stepTimer) return;
+  stepTimer = setTimeout(() => { stepTimer = null; readStep().catch(() => {}); }, 500);
+};
+new MutationObserver(watchStep).observe(document.documentElement,
+  { subtree: true, childList: true, attributes: true, attributeFilter: ["class", "aria-current", "aria-selected"] });
+watchStep();
+
+// Fixed on Review itself (Add Signees opens there): check again a moment after any click,
+// and when the agent comes back to the tab. Still read only.
+let recheck = null;
+document.addEventListener("click", () => {
+  if (where.step !== "review") return;
+  clearTimeout(recheck);
+  recheck = setTimeout(() => runCheck().catch(() => {}), 1500);
+}, true);
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible" && where.step === "review") runCheck().catch(() => {});
+});
+
+/** The panel asking, when it opens or redraws: the step now and, on Review, a fresh check. */
+async function whereNow() {
+  await readStep();
+  if (where.step === "review") await runCheck();
+  return { kind: where.kind, id: where.id, step: where.step, check: where.step === "review" ? where.check : null,
+    error: where.step === "review" ? where.error : null };
 }
 
 // Next on a draft's steps: the icon's "one click chose for you" dot has done its job by
@@ -534,6 +659,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, reply) => {
     "rs:setup-draft": () => setupDraft(msg),
     "rs:setup-packet": () => setupPacket(msg),
     "rs:place-draft": () => placeDraft(msg),
+    "rs:where": whereNow,
   }[msg.type];
   if (!run) return false;
   run().then(reply, (e) => reply({ error: String(e?.message || e) }));

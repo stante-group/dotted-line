@@ -11,6 +11,8 @@ import { signerCounts, signersWithoutEmail, signeesFromDeal, agentRoleFor, agent
 import { actingNotes } from "../lib/actor.js";
 import { packetPlacedSummary, packetDeals, mixedDealsWarning, straySignersWarning } from "../lib/ondraft.js";
 import { contextFromDraft, REPORTS_ON } from "../lib/report.js";
+import { reviewLines } from "../lib/review.js";
+import { shouldClose } from "../lib/steps.js";
 
 // The same page is the popup (WEBForms and other sites) and the side panel (Real Signature);
 // see background.js "Where the UI shows".
@@ -50,8 +52,10 @@ function syncTips() {
   }
 }
 
+const SCREENS = ["idle", "made", "dr", "up", "wf", "rs", "rv"];
+const screenNow = () => SCREENS.find((s) => !$(s).hidden) || null;
 function show(section) {
-  for (const s of ["idle", "made", "dr", "up", "wf", "rs"]) $(s).hidden = s !== section;
+  for (const s of SCREENS) $(s).hidden = s !== section;
   // No Settings link beside a draft waiting for its choices: it opens a new tab, and Chrome
   // then dropped this tab's panel — the agent came back to an empty Drafts list and no
   // panel (2026-10-15). Settings is in the WEBForms popup, and the icon's right-click menu.
@@ -1277,9 +1281,10 @@ async function openDraft(tab, id) {
   if (info.template) { show("idle"); return; }
   if (info.inPacket) {
     // Blocks only: the deal, subject and signers are set on the packet's own steps.
-    showDraft(tab, id, info);
+    await showDraft(tab, id, info);
     if (!info.signers) $("dr-status").textContent = `${IN_PACKET} Open the packet (the Draft tab → the packet's Edit): Dotted Line sets up all its documents there.`;
     else $("dr-who").textContent += ` ${IN_PACKET}`;
+    drawn.note = true; // where to send it from is the thing to read
     return;
   }
   if (!info.signers && !info.blocks) {
@@ -1296,7 +1301,7 @@ async function openDraft(tab, id) {
     });
     return;
   }
-  showDraft(tab, id, info);
+  await showDraft(tab, id, info);
 }
 
 // Real Signature's home pages (Sent, Draft, Voided — where a dropped PDF lands). Before the
@@ -1334,7 +1339,7 @@ async function showUploads(tab) {
 
 $("up-refresh").addEventListener("click", () => refresh());
 
-function showDraft(tab, id, info) {
+async function showDraft(tab, id, info) {
   $("dr-status").className = "note";
   if (!info.signers) {
     $("dr-status").textContent = "To place blocks on this document, first add who signs in Real Signature (Edit details) and press Next. Then come back here on the Prepare step.";
@@ -1345,6 +1350,121 @@ function showDraft(tab, id, info) {
   $("dr-form").hidden = false;
   $("dr-go").disabled = false;
   $("dr-go").onclick = () => placeDraft(tab, id);
+  if (info.blocks && onPrepare(id)) await prepareCheck(tab, [id], "document");
+}
+
+// ---------- which step, and closing by itself (src/lib/steps.js) ----------
+
+// The step the document in front is on, as its content script last said (content.js
+// whereNow / tellStep). Only a CHANGE seen while the panel is open can close it.
+let stepNow = { tabId: null, id: null, step: null };
+const onPrepare = (id) => stepNow.step === "prepare" && stepNow.id === id;
+// What the screen drawn for a document holds, for shouldClose: a note to read, the check's
+// answer, and whether every block is already on it. Reset on every redraw.
+let drawn = { note: false, review: null, prepare: null };
+
+/** On Prepare: would Auto place add anything? Nothing to add and blocks already there →
+ *  every block is, and the panel may get out of the way. Saves nothing (content.js
+ *  placeDraft dryRun). A failure here is silent to the agent — the panel just doesn't
+ *  close — so it's reported (step "on-draft": it is Auto place's own read failing). */
+async function prepareCheck(tab, ids, kind) {
+  let skipped = 0, full = true;
+  for (const id of ids) {
+    const r = await send(tab.id, { type: "rs:place-draft", id, dryRun: true });
+    if (r?.error) {
+      full = false;
+      chrome.runtime.sendMessage({ type: "report:error", step: "on-draft", error: { message: String(r.error), name: "Error" },
+        ctx: contextFromDraft({ path: "draft" }) }).catch(() => {});
+      break;
+    }
+    // A client line asking whose it is, or lines left for the agent: not "every block".
+    if (r.needSide || r.added || r.note) { full = false; break; }
+    skipped += r.skipped || 0;
+  }
+  full &&= skipped > 0;
+  drawn.prepare = { full };
+  if (full) {
+    $("dr-status").className = "ok";
+    $("dr-status").textContent = `Every block Dotted Line would place is already on this ${kind}. Check them, then press Next.`;
+  }
+  return full;
+}
+
+/** Closes the panel in a moment, if steps.js says so. The pause is to read the line that
+ *  says why; anything that changed meanwhile (another tab, an error, a warning, work under
+ *  way) keeps it open. sidePanel.close() is newer Chrome (141+); window.close() closes a
+ *  side panel on older ones, as after Finish draft. The toolbar icon always brings it back. */
+function maybeClose(event, tab, extra = {}) {
+  const state = { event, step: stepNow.step, screen: screenNow(), popup: POPUP, busy: drBusy || wfBusy,
+    error: !!$("msg").querySelector(".err"), note: drawn.note || !!$("msg").querySelector(".warn") || !$("dr-ask").hidden,
+    review: drawn.review, prepare: drawn.prepare, ...extra };
+  if (!shouldClose(state)) return false;
+  setTimeout(async () => {
+    if ((await activeTab())?.id !== tab.id || drBusy || wfBusy || $("msg").querySelector(".err, .warn") || !$("dr-ask").hidden) return;
+    Promise.resolve(chrome.sidePanel?.close?.({ tabId: tab.id })).catch(() => {}).finally(() => window.close());
+  }, 1500);
+  return true;
+}
+
+// ---------- Check before you send (src/lib/review.js), on Real's Review step ----------
+
+/** The check, as the content script ran it. No button: it says, and that's all. */
+function showReview(tab, w) {
+  show("rv");
+  drawReview(w);
+}
+function drawReview(w) {
+  const st = $("rv-status"), list = $("rv-list");
+  const thingWord = w.kind === "packet" ? "packet" : "document";
+  drawn = { note: true, review: null, prepare: null };
+  list.hidden = true;
+  list.replaceChildren();
+  if (w.error) {
+    st.className = "note";
+    st.textContent = "";
+    say(`Couldn't check this ${thingWord}: ${w.error.message}`, "err");
+    // The worker reports it too, for when the panel is shut; sameFailure makes them one.
+    reportError(Object.assign(new Error(w.error.message), { name: w.error.name || "Error" }), "review").catch(() => {});
+    return;
+  }
+  if ($("msg").querySelector(".err")) say("");
+  if (!w.check) {
+    st.className = "busy";
+    st.textContent = `Checking this ${thingWord}…`;
+    return;
+  }
+  drawn.review = { ready: w.check.ready };
+  if (w.check.ready) {
+    drawn.note = false;
+    st.className = "ok";
+    st.textContent = `Ready to send. Every signer has an email and a signature block, and every signature has a date on its page.`;
+    return;
+  }
+  const lines = reviewLines(w.check);
+  st.className = "warn";
+  st.textContent = `${lines.length} thing${lines.length > 1 ? "s" : ""} to check before you send this ${thingWord}:`;
+  list.replaceChildren(...lines.map((t) => el("li", t)));
+  list.hidden = false;
+}
+
+chrome.runtime.onMessage.addListener((msg, sender) => {
+  if (msg?.type !== "rs:step" || POPUP) return;
+  onStep(msg, sender.tab?.id).catch(() => {});
+});
+async function onStep(msg, tabId) {
+  const tab = await activeTab();
+  if (!tab || tab.id !== tabId) return;
+  const moved = msg.id !== stepNow.id || msg.step !== stepNow.step;
+  stepNow = { tabId, id: msg.id, step: msg.step };
+  if (!moved) {
+    // A fresh check on the same Review step (fixed in Add Signees, say): the list follows
+    // it. Never closes: the agent is looking at it.
+    if (msg.step === "review" && !$("rv").hidden) drawReview(msg);
+    return;
+  }
+  if (!msg.id || !msg.step || wfBusy || drBusy) return;
+  await refresh({ where: msg });
+  maybeClose("step", tab);
 }
 
 /** A form whose signature line says only "client", on a draft with buyers and sellers:
@@ -1382,6 +1502,9 @@ async function placeDraft(tab, id, side = null) {
       // Real's editor holds the draft as it loaded it; a reload shows the new blocks, and
       // stops its next save from writing back the draft without them.
       await chrome.tabs.reload(tab.id);
+      // Done on Prepare, where the document needs the room: out of the way, unless there's
+      // a note (lines left for the agent) to read.
+      maybeClose("placed", tab, { added: r.added, note: !!r.note, busy: false });
     } else {
       say(NO_BLOCKS[r.outcome] || (r.skipped
         ? "Every block Dotted Line would place is already on this document."
@@ -1461,6 +1584,9 @@ async function openPacket(tab, id) {
   $("dr-go").disabled = false;
   $("dr-go").onclick = () => placePacket(tab, ready.map((d) => d.id), null, ready.map((d) => d.name));
   if (mixed) say(mixed, "warn");
+  // Documents left without signers, or a mixed-deal warning: something to read.
+  drawn.note = !!(mixed || $("dr-status").textContent);
+  if (!drawn.note && ready.every((d) => d.blocks) && onPrepare(id)) await prepareCheck(tab, ready.map((d) => d.id), "packet");
 }
 
 async function placePacket(tab, ids, side = null, names = []) {
@@ -1491,6 +1617,7 @@ async function placePacket(tab, ids, side = null, names = []) {
     if (added) {
       say(`${sum.text} Real Signature reloads to show them: check every block on Prepare before you send.`, sum.level);
       await chrome.tabs.reload(tab.id);
+      maybeClose("placed", tab, { added, note: sum.level !== "ok", busy: false });
     } else {
       say(sum.text, "warn");
       $("dr-go").disabled = false;
@@ -1512,7 +1639,9 @@ async function placePacket(tab, ids, side = null, names = []) {
 // ---------- which screen ----------
 
 let refreshing = null;
-async function refresh() {
+// where: the content script's step message that caused this redraw (onStep), so it isn't
+// asked again.
+async function refresh({ where: told = null } = {}) {
   // Not while a Create is under way: the Real Signature tab it opened finishes loading
   // mid-way, and a redraw then switched Create back on before the draft was made
   // (2026-10-14). The Create click sees its own ending through (draft, panel or error).
@@ -1520,6 +1649,7 @@ async function refresh() {
   if (refreshing) return refreshing;
   refreshing = (async () => {
     try {
+      drawn = { note: false, review: null, prepare: null };
       const tab = await activeTab();
       if (tab?.url?.startsWith(WF)) {
         // Reading the picks off the WEBForms page is reported too (step "handoff", the
@@ -1533,6 +1663,14 @@ async function refresh() {
         // 2026-10-31): a WEBForms hand-off tied to the tab put its own forms up over an
         // uploaded packet. A hand-off shows on the pages it opens on, never over a draft.
         const draftId = draftIdOf(tab.url), packetId = packetIdOf(tab.url);
+        // Which of Real's steps it's on (content.js whereNow). On Review the panel is the
+        // check, over the one-click summary too: by then the check is what matters. No answer
+        // (an old tab, Real's step bar not found) → step null, and the panel is as before.
+        const docId = draftId || packetId;
+        const where = !docId ? null : told?.id === docId ? told
+          : await send(tab.id, { type: "rs:where" }).then((w) => (w?.error ? null : w), () => null);
+        if (where?.id) stepNow = { tabId: tab.id, id: where.id, step: where.step };
+        if (where?.id === docId && where.step === "review") { showReview(tab, where); return; }
         // Clicked over before the forms arrived: say what's happening; job:ready redraws.
         const pending = draftId || packetId ? null : await chrome.runtime.sendMessage({ type: "job:pending", tabId: tab.id });
         if (pending) { showHandoff(pending); return; }

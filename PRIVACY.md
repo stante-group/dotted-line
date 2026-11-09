@@ -1,6 +1,6 @@
 # Dotted Line — privacy policy
 
-Last updated: November 2, 2026
+Last updated: November 9, 2026
 
 Dotted Line is a free, open-source browser extension made by the Deal Dates team. It
 turns forms you filled in CREA WEBForms into a draft in Real Signature.
@@ -18,6 +18,11 @@ When you press Finish draft, Dotted Line works with:
 When you press Auto place on a draft you uploaded in Real Signature yourself, it reads that
 draft's PDF and its signers back from your Real Signature account (the PDF from Real
 Signature's own file storage), and saves the blocks to the same draft.
+
+On Real Signature's Review step, Dotted Line reads the document's (or packet's) signers and
+blocks back from your Real Signature account to check that nothing is missing. To know
+which step you're on it reads the words on Real Signature's page; it never changes the
+page or the document. The check stays in your browser.
 
 ## Where it goes
 
@@ -38,9 +43,9 @@ Dotted Line's Settings.
 With your yes, it sends the Deal Dates team:
 
 - **a report when a draft fails:** which step failed (bringing the forms over, loading
-  your deals, making the draft, or placing blocks on a document you uploaded in Real
-  Signature), or when Real Signature refuses a template made with Import templates in
-  Settings; the kind of error and its code, such as "Real
+  your deals, making the draft, placing blocks on a document you uploaded in Real
+  Signature, or checking a document on Real Signature's Review step), or when Real
+  Signature refuses a template made with Import templates in Settings; the kind of error and its code, such as "Real
   Signature refused the email subject: longer than 70 characters"; and choices about the
   draft, such as "the deal was matched by address", "2–3 forms", "a template on every
   form", "acting as an agent in Real Signature" or "WEBForms and Real Signature are signed
@@ -50,12 +55,14 @@ With your yes, it sends the Deal Dates team:
   printed form it was, by WEBForms' code for the form type (like `AREA0287`). That code
   names the blank form, never anything typed on it. A draft you uploaded in Real Signature
   has no such code, so its report says only why. Once a day at most per form;
+- **when Dotted Line can't tell which of Real Signature's steps a document is on** (so
+  its check before you send has stopped working): only that, once a day at most;
 - **once a day, a count of drafts that worked**, by how they were made (one click or the
   side panel), how many had a form placed from its labels, and how many forms they had;
 - with both, the Dotted Line and Chrome version numbers, and how many drafts this browser
   has made and how many failed.
 
-The complete list of what an error report can hold: the step; the kind of error (signed
+The complete list of what an error report can hold: the step (one of those above); the kind of error (signed
 out, network, refused by Real Signature or WEBForms, not found, their server, a changed
 response, interrupted, or a fault in Dotted Line); a code for Dotted Line's own messages;
 which site answered; the HTTP status; the address it called with every ID removed (for
@@ -109,7 +116,9 @@ On your own computer, in the extension's storage:
 - the names of your WEBForms form library, so it can recognise forms;
 - how long each step of your last draft took, for "Check my setup";
 - how many drafts it has made and how many failed, your answer about error reports, the
-  last error report (for its Send button) and today's count of drafts that worked.
+  last error report (for its Send button) and today's count of drafts that worked;
+- while a document on Review has something missing, that document's Real Signature ID, so
+  the toolbar icon can show its dot (gone when you leave it, or when Chrome closes).
 
 While a draft is being made, the forms and their signers wait in the extension's storage
 until the draft is done, and are deleted then — or after an hour if you never finish it.

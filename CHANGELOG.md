@@ -5,6 +5,24 @@ Dotted Line by itself a few hours after a version is published.
 
 ## Not released yet
 
+- **Check before you send, by itself.** On Real Signature's Review step, the side panel
+  says "Ready to send", or lists what's missing: a signer with no email (or one that isn't
+  an email), a signer with no signature block, a signature with no date on its page, a
+  signature block nobody is set to sign, or nobody set to sign at all. There's no button to
+  press. It only tells you: it never stops you sending and never changes the document. Fix
+  it in Add Signees or on Prepare and the list follows.
+- **If the panel is shut and something's missing on Review, the icon gets its amber dot.**
+  Point at the icon to see how many things, click it to see them.
+- **The side panel gets out of the way on Prepare.** Real Signature's own panels can't be
+  closed there, so Dotted Line closes itself once it's done: after Auto place adds blocks,
+  when you reach Prepare and every block is already on the document, and when you reach
+  Review and nothing is missing. It stays open when there's something to read: lines left
+  for you to place, a warning, an error, or what's missing on Review. Click the Dotted Line
+  icon to bring it back at any time; it never closes on its own when you've just opened it.
+- **Error reports, if you've said yes, now cover the check too:** when it can't read the
+  document on Review, and (once a day at most) when Dotted Line can't tell which step
+  Real Signature is on, which would quietly stop the check and the closing.
+
 - **Signing in partway through no longer shows an error.** If Real Signature sent you
   to sign in just as one click was starting, the panel showed a red "message channel
   closed" error. Now your forms wait while you sign in, the same as any other sign-in.
