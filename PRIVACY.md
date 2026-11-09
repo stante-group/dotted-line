@@ -110,6 +110,7 @@ On your own computer, in the extension's storage:
 - how long each step of your last draft took, for "Check my setup";
 - how many drafts it has made and how many failed, your answer about error reports, the
   last error report (for its Send button) and today's count of drafts that worked.
+- after an update, the new version number until you've seen its "What's new" note.
 
 While a draft is being made, the forms and their signers wait in the extension's storage
 until the draft is done, and are deleted then — or after an hour if you never finish it.

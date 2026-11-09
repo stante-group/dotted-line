@@ -16,6 +16,8 @@ import { pairEntries, zipBatches } from "./lib/webforms-api.js";
 import { readPdfText } from "./lib/pdftext.js";
 import { autoLayout, placedSummary, placeOutcome } from "./lib/autoplace.js";
 import { errorReport, labelsReport, okReport, sanitizeReport, tallyOk, tallyDue, contextFromDraft, draftContext, chromeMajor, REPORT_URL, REPORTS_ON, sameFailure } from "./lib/report.js";
+import { WHATS_NEW } from "./whats-new.js";
+import { WHATS_NEW_KEY, unseenAfterInstall } from "./lib/whats-new-note.js";
 
 const DB = "wfrs";
 const STORE = "jobs";
@@ -38,6 +40,15 @@ chrome.action.setPopup({ popup: POPUP }).catch(() => {});
 // suggested it would do something there. Disabled by default; placeUi turns it on per tab.
 // Settings stays in the icon's right-click menu (Options) on every site.
 chrome.action.disable().catch(() => {});
+
+// "What's new" after Chrome updates the extension (GitHub #8, src/lib/whats-new-note.js):
+// the panel shows the note once. Registered at the top, as Chrome requires of a worker's
+// listeners. If storage fails the note simply never shows: nothing to report, and nothing
+// the agent was relying on.
+chrome.runtime.onInstalled.addListener((details) => {
+  const v = unseenAfterInstall(details, chrome.runtime.getManifest().version, WHATS_NEW);
+  if (v) chrome.storage.local.set({ [WHATS_NEW_KEY]: v }).catch(() => {});
+});
 const WF = "https://pr.transactiondesk.com/";
 
 async function placeUi(tabId, url) {
@@ -252,6 +263,8 @@ function recordError({ error, step, ctx }) {
 }
 
 function recordOk({ path, forms, labels = false }) {
+  // A draft made means the agent is busy with Dotted Line: the What's new note is seen.
+  chrome.storage.local.remove(WHATS_NEW_KEY).catch(() => {});
   return serial(async () => {
     const { draftStats = {}, okTally = null, reporting } = await chrome.storage.local.get(["draftStats", "okTally", "reporting"]);
     const { tally, due } = tallyOk(okTally, { day: today(), version: VERSION, path, forms, labels });

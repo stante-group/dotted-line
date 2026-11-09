@@ -129,6 +129,15 @@
     .consent summary, #report summary { cursor: pointer; color: var(--pen); }
     .consent .row { gap: 8px; }
     .consent .row button { margin-top: 8px; flex: 1; }
+    /* What's new after an update: the same blue slip as the questions, but news, not a
+       question, so smaller and with its two links on one line. */
+    .whats-new { border: 1px solid #d3ddf5; border-left: 3px solid var(--pen); background: #f5f8fe; border-radius: 8px;
+      padding: 9px 12px; margin: 0 0 14px; font-size: 13px; }
+    .whats-new p { margin: 0; }
+    .whats-new p + p { margin-top: 6px; color: var(--muted); }
+    .whats-new a { color: var(--pen); text-underline-offset: 2px; }
+    .whats-new a:hover { color: var(--pen-dark); }
+    a:focus-visible { outline: 2px solid var(--pen); outline-offset: 2px; border-radius: 2px; }
     .ask .choices { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; margin-top: 10px; }
     .ask .choices button { margin: 0; display: flex; flex-direction: column; align-items: center; gap: 1px; }
     .ask .choices small { color: var(--muted); font-size: 12px; font-weight: 400; }
@@ -193,6 +202,12 @@
     <h1>Dotted Line</h1>
     <span id="settings-wrap" class="end"><button id="open-settings" class="icon" type="button" aria-label="Settings" title="Settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></button></span>
   </header>
+  <!-- What's new, once after Chrome updates Dotted Line (panel.js showWhatsNew). Above
+       everything else, and gone for good once dismissed or once a draft is made. -->
+  <section id="whats-new" class="whats-new" hidden aria-label="What's new">
+    <p><b id="whats-new-title"></b> <span id="whats-new-text"></span></p>
+    <p class="whats-new-links"><a href="https://github.com/stante-group/dotted-line/blob/main/CHANGELOG.md" target="_blank" rel="noopener">All changes</a> · <button id="whats-new-dismiss" class="link" type="button">Dismiss</button></p>
+  </section>
   <!-- "Still working" lines: at the top, where what's loading will appear. -->
   <div id="status" role="status"></div>
 

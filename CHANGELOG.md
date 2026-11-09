@@ -5,6 +5,9 @@ Dotted Line by itself a few hours after a version is published.
 
 ## Not released yet
 
+- **A short "What's new" note after an update.** The first time you open Dotted Line
+  after Chrome updates it, a line at the top says what changed, with a link to the full
+  list. Dismiss it, or make a draft, and it's gone. Updates with only fixes don't show one.
 - **Signing in partway through no longer shows an error.** If Real Signature sent you
   to sign in just as one click was starting, the panel showed a red "message channel
   closed" error. Now your forms wait while you sign in, the same as any other sign-in.
