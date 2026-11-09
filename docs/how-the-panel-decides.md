@@ -5,7 +5,8 @@ deal, which side signs, how many, and who goes in as a signer. The agent can cha
 answer in the panel; these are only its starting choices.
 
 Keep this page in step with the code: a change to any of these rules updates its chart in
-the same commit (`src/lib/deals.js`, `src/lib/auto.js`, `src/lib/draft.js`).
+the same commit (`src/lib/deals.js`, `src/lib/auto.js`, `src/lib/draft.js`,
+`src/lib/copies.js`).
 
 Blue: a question. Grey: a step. White: what the agent sees.
 
@@ -123,9 +124,13 @@ An empty slot is one click to delete in Real Signature; a missing one means plac
 blocks by hand. So the fallback is 2, but only once nothing better is known
 (`signerCounts`; the WEBForms names from `partiesFromContacts` and `partiesFromFormValues`).
 
+Two copies of one form that each name one different buyer name two buyers, though each
+copy alone names one (`namedAcrossCopies`). Before 0.4.0 the panel said 1 there, and the
+second buyer's copy went to the first buyer.
+
 ```mermaid
 flowchart TD
-  A(["For the buyers, then for the sellers"]) --> F{"Are names read in WEBForms?<br/>Contacts, or the buyer and seller<br/>lines on Alberta forms<br/>(a run-on line: '(operating as ...)', o/a,<br/>aka, trading as, formerly ... is the<br/>name above it, not another person)"}
+  A(["For the buyers, then for the sellers"]) --> F{"Are names read in WEBForms?<br/>Contacts, or the buyer and seller<br/>lines on Alberta forms<br/>(a run-on line: '(operating as ...)', o/a,<br/>aka, trading as, formerly ... is the<br/>name above it, not another person;<br/>copies of one form each naming a<br/>different person name them all)"}
   F -- yes --> F1["That many"]
   F -- no --> DL{"Does the picked deal list<br/>people on this side?"}
   DL -- yes --> D1["The deal's own count"]
@@ -175,3 +180,44 @@ flowchart TD
   class EM,NM,CO q
   class A,OFF1,ON,ONC,OFF2 out
 ```
+
+## 5. One signer per copy
+
+When the same form is ticked more than once (by WEBForms' library code, else its name) and
+more than one person signs on that side, the panel offers **One signer per copy**: each
+copy keeps only its own signer instead of every one (`oneSignerPlan`, issue #9). A copy
+given to the wrong person is signed by the wrong person, so it never guesses. The panel
+lists who gets which copy before Finish draft; when the names don't settle it, the box is
+greyed out, the panel says why, and every copy keeps every signer, as without it.
+
+The copy keeps the deal's slot for its signer (the second buyer is Buyer 2 on their copy),
+the blocks of the copy's first signer line (or its own slot's, going in order), and the
+agent's role untouched. One click stops and hands over to the panel whenever the box would
+apply, so the agent always sees the list.
+
+```mermaid
+flowchart TD
+  A(["Forms picked, deal picked, counts set"]) --> G{"Same form ticked<br/>more than once?"}
+  G -- no --> NO["No box"]
+  G -- yes --> S{"Exactly one side signs,<br/>with 2 or more people?"}
+  S -- "one person" --> NO
+  S -- "both sides" --> RB["Box greyed out:<br/>'Buyers and sellers both sign'"]
+  S -- yes --> NM{"Does any copy name<br/>anybody on that side?"}
+  NM -- no --> EQ{"As many copies<br/>as people?"}
+  EQ -- no --> RE["Box greyed out: says why"]
+  EQ -- yes --> ORD["In order: copy 1 to the first person,<br/>copy 2 to the second<br/>(box starts unticked)"]
+  NM -- yes --> ONE{"Every copy names exactly one person,<br/>who is one of the deal's people<br/>on that side, a different one each?"}
+  ONE -- no --> RE
+  ONE -- yes --> FORM["By the form: each copy to the person<br/>its own line names<br/>(box starts ticked)"]
+  ORD --> LIST["Who gets which copy listed<br/>under the box"]
+  FORM --> LIST
+
+  classDef q fill:#eaf0ff,stroke:#1d4ed8,color:#1b2433
+  classDef out fill:#ffffff,stroke:#1b2433,color:#1b2433
+  class G,S,NM,EQ,ONE q
+  class A,NO,RB,RE,ORD,FORM,LIST out
+```
+
+A name matches a person when every word of their first and last name (or company name)
+is on the copy's line, in any order: "Sample, Jordan A." is Jordan Sample. The agent's own
+tick or untick always stands.

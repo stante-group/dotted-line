@@ -13,6 +13,15 @@ Dotted Line by itself a few hours after a version is published.
   button. Now packets are in the same list, newest first. A packet with some documents
   set up and some not shows how many are left, and Set up does only those.
 
+- **One signer per copy.** When you tick the same form more than once — a form that takes
+  one signer, filled once per buyer — each copy used to get every buyer, and you deleted
+  the extra one from each copy by hand. Now the panel offers "One signer per copy" and
+  lists who gets which copy before you finish. Each copy's buyer or seller line in
+  WEBForms says whose it is; when the names don't match the deal, nothing is split and
+  the panel says why. Your agent role stays on every copy. One click stops for you to
+  check whenever this would apply.
+- **Two copies naming two different buyers now count as two buyers.** When only the forms
+  named the buyers, the panel said 1, and the second buyer's copy went to the first buyer.
 - **Signing in partway through no longer shows an error.** If Real Signature sent you
   to sign in just as one click was starting, the panel showed a red "message channel
   closed" error. Now your forms wait while you sign in, the same as any other sign-in.
