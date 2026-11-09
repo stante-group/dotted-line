@@ -121,6 +121,7 @@ export function planDraft({ job, c, remembered = {}, agentMode = "one" }) {
   const { counts } = signerCounts({
     deal, formNames: job.forms.map((f) => f.name),
     templates: picked.map((t) => t.slots).filter(Boolean),
+    labels: templateIds.map((id, i) => (id === "auto" ? job.forms[i].placed?.slots : null)).filter(Boolean),
     webforms: job.parties ? [job.parties] : job.forms.map((f) => f.parties).filter(Boolean),
     agentSide: job.agentSide,
   });

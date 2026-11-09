@@ -798,7 +798,12 @@ export function forClients(layout, counts) {
  *  (the PDF stays in the background): how many blocks, and whether any are the agent's. */
 export function placedSummary(layout) {
   const f = layout?.fieldDefinitions || [];
-  return { blocks: f.length, agent: f.some((x) => AGENT_TYPES.includes(x.signeeType)) };
+  // slots: how many buyers, sellers and clients (whichever side signs) the labels have lines
+  // for, as a template's slots: the panel's signer numbers follow them (Dan, 2026-11-04: a
+  // seller-only form with No deal was offered 2 buyers and 2 sellers).
+  const slots = { BUYER: 0, SELLER: 0, CLIENT: 0 };
+  for (const x of f) if (x.signeeType in slots) slots[x.signeeType] = Math.max(slots[x.signeeType], (x.signeeIndex ?? 0) + 1);
+  return { blocks: f.length, agent: f.some((x) => AGENT_TYPES.includes(x.signeeType)), slots };
 }
 
 /** Why a form placed from its labels got no blocks, as a code for an error report (no text
