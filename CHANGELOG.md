@@ -39,6 +39,13 @@ Dotted Line by itself a few hours after a version is published.
 - **Error reports, if you've said yes, now cover the check too:** when it can't read the
   document on Review, and (once a day at most) when Dotted Line can't tell which step
   Real Signature is on, which would quietly stop the check and the closing.
+- **"Start as soon as I click the Dotted Line icon" no longer needs a second click.** With
+  one click off, clicking the icon in WEBForms now goes straight to Real Signature with the
+  Dotted Line panel open, and the panel says "Getting your forms from WEBForms…" until they
+  arrive. You used to wait in the small window over WEBForms and then click "Go to Real
+  Signature". If nothing is ready to send yet (no forms ticked, or a form not saved), the
+  small window over WEBForms opens and says why, as before. With one click on, nothing
+  changes.
 
 - **Signing in partway through no longer shows an error.** If Real Signature sent you
   to sign in just as one click was starting, the panel showed a red "message channel

@@ -24,10 +24,14 @@ const edits = {
      `import { sendToTab } from "../messaging.js";\nimport * as sim from "../../dev/sim-hooks.js"; // ${MARK}: test copy only\n`],
     [`const send = sendToTab;\n`,
      `const send = sim.wrapSend(sendToTab); // ${MARK}\n`],
-    [`async function selection(tabId) {\n`,
-     `async function selection(tabId) {\n  if (await sim.isSimTab(tabId)) return sim.selection(); // ${MARK}\n`],
     [`      if (tab?.url?.startsWith(WF)) {\n`,
      `      if (tab?.url?.startsWith(WF) || await sim.isSimTab(tab?.id)) { // ${MARK}\n`],
+  ],
+  // selection() moved here from panel.js with Start on click (0.4.0): the panel and the
+  // worker both read the picks through it, so the test page answers for both.
+  "src/webforms/selection.js": [
+    [`export async function selection(tabId) {\n`,
+     `import * as sim from "../../dev/sim-hooks.js"; // ${MARK}: test copy only\nexport async function selection(tabId) {\n  if (await sim.isSimTab(tabId)) return sim.selection(); // ${MARK}\n`],
   ],
   "src/background.js": [
     [`import { sendToTab } from "./messaging.js";\n`,
