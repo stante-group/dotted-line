@@ -9,3 +9,6 @@ captures/
 .DS_Store
 
 store/demo/panel.html
+
+# Claude Code agent worktrees (local only)
+.claude/worktrees/
