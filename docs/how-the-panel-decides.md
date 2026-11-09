@@ -62,7 +62,9 @@ lines. When every client on the signing side is a company in the reZEN deal (a c
 name with no first or last name), Auto place puts their blocks on the Per lines that have
 no party heading over them, and leaves the "Seller/Buyer" lines blank. A person, a mix, No
 deal or a form without Per lines places as before. Never guessed from "Ltd." in a name
-(`companyClients`, 0.4.0).
+(`companyClients`, 0.4.0). Setting up an uploaded document on Prepare does the same, from
+the deal attached on Real Signature's Transaction step; with none attached it places as
+for a person.
 
 ```mermaid
 flowchart TD

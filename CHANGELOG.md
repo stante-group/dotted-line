@@ -8,7 +8,8 @@ Dotted Line by itself a few hours after a version is published.
 - **Company clients sign on the "Per:" lines.** When your client is a company in reZEN,
   Auto place puts the signatures on the "Per: Authorized Signing Officer(s)" lines and
   leaves the Seller/Buyer lines blank, as on the Commercial Purchase Contract notices. A
-  person, or a mix of people and companies, signs as before.
+  person, or a mix of people and companies, signs as before. This also works when you set
+  up a document you uploaded to Real Signature, once its deal is attached.
 
 ## 0.3.1 — 2026-11-04
 
