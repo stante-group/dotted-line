@@ -805,7 +805,9 @@ function updateDeal() {
       .map((tid) => c.templates.find((t) => t.id === tid)?.slots).filter(Boolean);
     // Contacts and forms already merged on the WEBForms side; older hand-offs per form.
     const webforms = job.parties ? [job.parties] : job.forms.map((f) => f.parties).filter(Boolean);
-    const { counts: n, why } = signerCounts({ deal, formNames: job.forms.map((f) => f.name), templates, webforms, agentSide: job.agentSide });
+    // Forms placed from their labels: the lines Auto place found, read at hand-off.
+    const labels = job.forms.map((f, i) => ($(`tpl-${i}`)?.value === "auto" ? f.placed?.slots : null)).filter(Boolean);
+    const { counts: n, why } = signerCounts({ deal, formNames: job.forms.map((f) => f.name), templates, labels, webforms, agentSide: job.agentSide });
     // A number the agent set (typed, or "Use N") stays when a template changes; a different
     // deal starts the counts again, since it brings its own people.
     if (rsState.countsDeal !== id) { rsState.countsDeal = id; rsState.countsSet = {}; }

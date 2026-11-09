@@ -65,14 +65,16 @@ flowchart TD
   E -- yes --> E1["That side signs<br/>(both, if on both)"]
   E -- no --> TP{"Do the picked templates have<br/>blocks for one side only?"}
   TP -- yes --> T1["That side signs"]
-  TP -- no --> FN{"Do the form names point one way?<br/>Listing, Buyer, Seller, Purchaser, Tenant, Landlord,<br/>Cooperation Disclosure (seller)"}
+  TP -- no --> LB{"Do the forms placed from their labels<br/>have signing lines for one side only?"}
+  LB -- yes --> L1["That side signs"]
+  LB -- no --> FN{"Do the form names point one way?<br/>Listing, Buyer, Seller, Purchaser, Tenant, Landlord,<br/>Cooperation Disclosure (seller)"}
   FN -- yes --> F1["That side signs"]
   FN -- no --> BOTH["Buyers and sellers both sign"]
 
   classDef q fill:#eaf0ff,stroke:#1d4ed8,color:#1b2433
   classDef out fill:#ffffff,stroke:#1b2433,color:#1b2433
-  class D,E,TP,FN q
-  class A,D1,E1,T1,F1,BOTH out
+  class D,E,TP,LB,FN q
+  class A,D1,E1,T1,L1,F1,BOTH out
 ```
 
 ## 3. How many on the signing side
@@ -87,15 +89,25 @@ flowchart TD
   F -- yes --> F1["That many"]
   F -- no --> DL{"Does the picked deal list<br/>people on this side?"}
   DL -- yes --> D1["The deal's own count"]
-  DL -- no --> TS{"Does a picked template have<br/>more than 2 slots?"}
+  DL -- no --> TP{"Is a template picked?"}
+  TP -- yes --> TS{"Does a picked template have<br/>more than 2 slots?"}
   TS -- yes --> T1["The template's number of slots"]
   TS -- no --> TWO["2"]
+  TP -- no --> LB{"Does a form placed from its labels<br/>have just 1 line for this side?"}
+  LB -- yes --> L1["1"]
+  LB -- no --> TWO
 
   classDef q fill:#eaf0ff,stroke:#1d4ed8,color:#1b2433
   classDef out fill:#ffffff,stroke:#1b2433,color:#1b2433
-  class F,DL,TS q
-  class A,F1,D1,T1,TWO out
+  class F,DL,TP,TS,LB q
+  class A,F1,D1,T1,L1,TWO out
 ```
+
+Forms placed from their labels count the lines Auto place found when the forms came over
+from WEBForms (`placedSummary` slots; a "Client" line counts for whichever side signs).
+They settle the side before the form names do, and one line lowers the number to 1. More
+lines than 2 never raise it: BC's contracts print three a side as room, not as three
+people (Dan, 2026-11-04; 22 of 178 sample forms change, 9 Nov).
 
 When the forms and the picked deal both count a side and differ, the panel says so under
 the Buyers and Sellers boxes, with a button to use the other number (`countDisagreements`).

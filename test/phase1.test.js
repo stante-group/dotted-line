@@ -736,3 +736,28 @@ test("forms and deal disagree on how many: said under the boxes, the other numbe
   assert.deepEqual(countDisagreements({ deal, webforms: [], current: { BUYER: 2 } }), []);
   assert.deepEqual(countDisagreements({ deal: null, webforms, current: { BUYER: 2 } }), []);
 });
+
+// The panel's numbers follow Auto place's lines (Dan, 2026-11-04): a seller-only form with
+// No deal, whose name says no side, was offered 2 buyers and 2 sellers.
+test("signer counts: forms placed from their labels set the side and the number", () => {
+  const sellerOnly = { BUYER: 0, SELLER: 1, CLIENT: 0 };
+  const r = signerCounts({ deal: null, formNames: ["Some Disclosure"], labels: [sellerOnly] });
+  assert.deepEqual(r.counts, { BUYER: 0, SELLER: 1 });
+  assert.match(r.why, /only has seller signing lines/);
+  // Both sides' lines: each gets its own number.
+  assert.deepEqual(signerCounts({ deal: null, formNames: ["X"], labels: [{ BUYER: 2, SELLER: 1, CLIENT: 0 }] }).counts, { BUYER: 2, SELLER: 1 });
+  // Spare lines are room, not people: three a side (BC's contracts) still suggest two.
+  assert.deepEqual(signerCounts({ deal: null, formNames: ["X"], labels: [{ BUYER: 3, SELLER: 3, CLIENT: 0 }] }).counts, { BUYER: 2, SELLER: 2 });
+  // Client lines (whichever side signs) count for the side that signs.
+  assert.deepEqual(signerCounts({ deal: null, formNames: ["X"], agentSide: "SELLER", labels: [{ BUYER: 0, SELLER: 0, CLIENT: 1 }] }).counts, { BUYER: 0, SELLER: 1 });
+  // No lines read (a scan): as before.
+  assert.deepEqual(signerCounts({ deal: null, formNames: ["X"], labels: [] }).counts, { BUYER: 2, SELLER: 2 });
+});
+
+test("signer counts: names in WEBForms, the deal's side and its people still come first", () => {
+  const l = [{ BUYER: 0, SELLER: 1, CLIENT: 0 }];
+  assert.deepEqual(signerCounts({ deal: null, formNames: ["X"], labels: l, webforms: [{ BUYER: 0, SELLER: 2 }] }).counts, { BUYER: 0, SELLER: 2 });
+  assert.equal(signerCounts({ deal: null, formNames: ["X"], labels: l, agentSide: "BUYER" }).counts.SELLER, 0);
+  // A template beside the labels keeps the floor of two.
+  assert.deepEqual(signerCounts({ deal: null, formNames: ["X"], labels: l, templates: [{ BUYER: 0, SELLER: 1 }] }).counts, { BUYER: 0, SELLER: 2 });
+});

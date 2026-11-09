@@ -661,3 +661,12 @@ test("CREA's bare 'Signed:' lines: whose they are comes from the title, and the 
   // Any other form's bare "Signed:" is nobody's: nothing is guessed.
   assert.equal(autoLayout(form("SOME OTHER FORM", [["Signed: ______________________________", 197]])).layout, null);
 });
+
+test("placedSummary counts the lines each side gets, as slots", async () => {
+  const { placedSummary } = await import("../src/lib/autoplace.js");
+  const def = (signeeType, signeeIndex) => ({ signeeType, signeeIndex });
+  const s = placedSummary({ fieldDefinitions: [def("SELLER", 0), def("SELLER", 1), def("CLIENT", 0), def("SELLERS_AGENT", 0)] });
+  assert.deepEqual(s.slots, { BUYER: 0, SELLER: 2, CLIENT: 1 });
+  assert.equal(s.agent, true);
+  assert.deepEqual(placedSummary(null).slots, { BUYER: 0, SELLER: 0, CLIENT: 0 });
+});
