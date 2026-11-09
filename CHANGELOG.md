@@ -8,6 +8,15 @@ Dotted Line by itself a few hours after a version is published.
 - **Signing in partway through no longer shows an error.** If Real Signature sent you
   to sign in just as one click was starting, the panel showed a red "message channel
   closed" error. Now your forms wait while you sign in, the same as any other sign-in.
+- **Alberta's Customer Acknowledgement now gets your date.** Auto place put your
+  signature on the brokerage representative's line but no date. Now the "Signed and dated
+  on" line is your date, the way the Fee Disclosure has it. The customers' lines are still
+  left for you to place, because the form doesn't say which side they're on.
+- **Auto place reads only the form's own title.** It looks at the title to tell whose
+  form it is, like "Exclusive Seller Representation Agreement" for the seller. Now it reads
+  only the biggest heading at the top. It skips smaller header lines, and it skips a title
+  that only names another form, like "Schedule to the …" or "Addendum to the …". Every
+  form that worked before still works the same.
 
 ## 0.3.1 — 2026-11-04
 

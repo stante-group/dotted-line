@@ -50,7 +50,15 @@ Only the agent's own clients sign through them; the other side signs with their 
 Placing from a form's own labels never uses the deal to decide a **customer's** side
 (Alberta: someone the agent does not represent, on either side). On a customer form the
 customer's lines go to the side its title names ("Tenant Customer…" is the buyer slot), and
-with no side named they are left for the agent (`formSides`, 2026-11-03).
+with no side named they are left for the agent (`formSides`, 2026-11-03). The form's one
+"Signed and dated on" line then goes with the agent's own line, the Brokerage
+Representative's, as on the Fee Disclosure (2026-11-09).
+
+The title is the largest type in the top quarter of page 1. AREA prints the agreement a
+schedule belongs to largest, with the schedule's own name smaller under it, and the
+agreement's side is the schedule's too. Smaller header lines don't count. Neither does a
+title that only names another form ("Schedule to the …", "Addendum to the …", "attached to
+and forms part of …", "for use with …"): it says nothing about whose form this is (2026-11-09).
 
 CREA's national forms sign on a bare "Signed:" line, and the title alone says whose it is:
 the seller on the REALTOR® Cooperation Disclosure and Consent Form, the buyer on the
@@ -73,6 +81,29 @@ flowchart TD
   classDef out fill:#ffffff,stroke:#1b2433,color:#1b2433
   class D,E,TP,FN q
   class A,D1,E1,T1,F1,BOTH out
+```
+
+When placing from labels, the form's title decides whose customer lines and bare
+"Signed:" lines are (`formSides`, `pageBlocks`):
+
+```mermaid
+flowchart TD
+  A(["Form placed from its labels"]) --> T["Title = the largest type in the<br/>top quarter of page 1"]
+  T --> O{"Does the title only name another form?<br/>Schedule to, Addendum to, attached to,<br/>forms part of, for use with"}
+  O -- yes --> NONE["The title names no side"]
+  O -- no --> C{"Customer ... Acknowledgment?"}
+  C -- "names a side<br/>(Tenant = buyer, Landlord = seller)" --> CS["Customer lines and their date<br/>go to that side"]
+  C -- "names no side" --> CN["Customer lines left for the agent<br/>(the panel says how many);<br/>the Signed and dated line<br/>is the agent's date"]
+  C -- no --> R{"Exclusive Buyer / Seller<br/>Representation Agreement,<br/>Cooperation Disclosure and Consent,<br/>Certificate and Consent of Purchaser?"}
+  R -- yes --> RS["Bare signing-officer and Signed:<br/>lines are that side's"]
+  R -- no --> NONE
+
+  classDef q fill:#eaf0ff,stroke:#1d4ed8,color:#1b2433
+  classDef step fill:#f6f7fa,stroke:#c9d1e0,color:#1b2433
+  classDef out fill:#ffffff,stroke:#1b2433,color:#1b2433
+  class O,C,R q
+  class T step
+  class A,NONE,CS,CN,RS out
 ```
 
 ## 3. How many on the signing side
