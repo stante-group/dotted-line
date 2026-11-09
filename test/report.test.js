@@ -176,7 +176,7 @@ test("the only request that leaves for anywhere but Real Signature and WEBForms 
   assert.match(bg, /fetch\(REPORT_URL,/);
   // Every post() gets a report straight out of report.js (or the stored one it made).
   for (const call of bg.match(/\bpost\([^)]*\)?/g).filter((c) => !c.startsWith("post(report) {"))) {
-    assert.match(call, /^post\((report|okReport\(|labelsReport\(|l\.report)/, call);
+    assert.match(call, /^post\((report|okReport\(|labelsReport\(|quietReport\(|l\.report)/, call);
   }
 });
 
@@ -295,7 +295,10 @@ async function backgroundWorker() {
   globalThis.fetch = async (_url, init) => { sent.push(JSON.parse(init.body)); return { ok: true }; };
   await import(`../src/background.js?${Math.random()}`);
   const ask = (msg) => new Promise((res) => { for (const f of onMsg) f(msg, { url: "chrome-extension://x/src/panel/panel.html" }, res); });
-  return { store, local, sent, ask, settle: () => new Promise((r) => setTimeout(r, 20)) };
+  // As the Real Signature tab's content script asks: the sender is the page, not ours.
+  const rsUrl = "https://signature.therealbrokerage.com/one-time-documents/document/00000000-0000-4000-8000-000000000001";
+  const askFromRs = (msg) => new Promise((res) => { for (const f of onMsg) f(msg, { url: rsUrl, tab: { id: 7, url: rsUrl } }, res); });
+  return { store, local, sent, ask, askFromRs, settle: () => new Promise((r) => setTimeout(r, 20)) };
 }
 
 test("one failure is one report: repeats, and a switch from no to yes, don't send it twice", async () => {
@@ -376,4 +379,40 @@ test("why Real refused is one fixed word, never Real's message", async () => {
   for (const w of ENUMS.reason) assert.equal(sanitizeReport({ kind: "error", version: "0.3.1", reason: w }).reason, w);
   assert.equal(reasonShape("  "), "none");
   assert.equal(reasonShape("Unexpected token < in JSON at position 0"), "malformed"); // not a sign-in
+});
+
+test("a document's steps page with no step found: one quiet report a day, only with a yes", async () => {
+  const { REPORTS_ON } = await import("../src/lib/report.js");
+  if (!REPORTS_ON) return;
+  const w = await backgroundWorker();
+  // No answer yet: nothing goes.
+  await w.askFromRs({ type: "rs:no-step" }); await w.settle();
+  assert.equal(w.sent.length, 0);
+  await w.local.set({ reporting: "yes" });
+  await w.askFromRs({ type: "rs:no-step" }); await w.settle();
+  await w.askFromRs({ type: "rs:no-step" }); await w.settle();
+  assert.equal(w.sent.length, 1, "once a day");
+  assert.deepEqual([w.sent[0].step, w.sent[0].code, w.sent[0].cls], ["review", "no-step", "changed-shape"]);
+  // From the panel's own page it isn't the tab's word, and is ignored.
+  await w.local.remove("quietSent");
+  // (A refused message gets no answer at all, so don't wait for one.)
+  w.ask({ type: "rs:no-step" }); await w.settle();
+  assert.equal(w.sent.length, 1);
+});
+
+test("Check before you send: its failures are step review, and nothing of the check is in a report", async () => {
+  const { quietReport, errorReport, ENUMS } = await import("../src/lib/report.js");
+  assert.ok(ENUMS.step.includes("review"));
+  assert.ok(ENUMS.code.includes("no-step"));
+  const q = quietReport({ version: "0.4.0", chrome: "141" });
+  assert.deepEqual([q.step, q.code, q.cls, q.site], ["review", "no-step", "changed-shape", "real-signature"]);
+  // The check's own error, as the content script sends it.
+  const e = errorReport({ error: new Error("GET /document-templates/ec2d0000-1111-2222-3333-444455556666 → 404: Jordan Sample's document not found"),
+    step: "review", version: "0.4.0", chrome: "141" });
+  assert.equal(e.step, "review");
+  assert.equal(e.route, "GET /document-templates/{id}");
+  assert.equal(e.reason, "not-found");
+  assert.ok(!/Jordan|Sample|ec2d/.test(JSON.stringify(e)));
+  const shape = errorReport({ error: new Error("Real Signature's draft changed shape"), step: "review", version: "0.4.0", chrome: "141" });
+  assert.deepEqual([shape.cls, shape.code], ["changed-shape", "changed-shape"]);
 });

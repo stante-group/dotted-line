@@ -31,7 +31,11 @@ export const ENUMS = {
   // form placed from its printed labels that got no blocks (autoplace.js placeOutcome).
   // "import": Real Signature refusing a template made by Import templates (Settings).
   // "on-draft": Auto place on a document the agent uploaded in Real Signature (ondraft.js).
-  step: ["handoff", "context", "create", "one-click", "labels", "import", "on-draft"],
+  // "review": Check before you send (review.js) on Real's Review step, and reading which
+  // step a document is on (steps.js). Its own step, not "on-draft": that one is Auto place
+  // writing blocks, and a read-only check failing (or Real's step bar changing) is a
+  // different fix with a different urgency. Mixed in, neither alert would say which.
+  step: ["handoff", "context", "create", "one-click", "labels", "import", "on-draft", "review"],
   // What kind of failure. The receiving end alerts on some and only logs others (signed-out
   // and network are the agent's connection, not a bug).
   cls: ["signed-out", "network", "rejected", "forbidden", "not-found", "real-server", "changed-shape", "interrupted", "ours"],
@@ -42,7 +46,11 @@ export const ENUMS = {
     // Chrome lost the tab mid-draft (it closed, reloaded or moved pages), not one of ours.
     "tab-gone",
     // step "labels" only: why the form got no blocks.
-    "pdf-locked", "pdf-unreadable", "no-text", "fonts", "no-labels"],
+    "pdf-locked", "pdf-unreadable", "no-text", "fonts", "no-labels",
+    // step "review" only: a document's steps page where Dotted Line found no step at all
+    // (steps.js stepFromPage) — Real's step bar changed, so the check and auto-close have
+    // silently stopped. The agent sees nothing wrong, so only a report can say so.
+    "no-step"],
   site: ["real-signature", "webforms", "none"],
   err: ["Error", "TypeError", "RangeError", "SyntaxError", "ReferenceError", "DOMException", "NotSignedIn", "other"],
   // "draft": Auto place on a draft uploaded in Real Signature, not a WEBForms hand-off.
@@ -333,6 +341,13 @@ export function errorReport({ error, step, ctx = null, version, chrome, local = 
 export function labelsReport({ code, form, path, version, chrome }) {
   return sanitizeReport({ kind: "error", step: "labels", cls: "ours", code, version, chrome,
     ctx: { path, form, labels: "some" } });
+}
+
+/** A failure nobody saw (the agent's screen showed nothing wrong): Dotted Line couldn't tell
+ *  which of Real Signature's steps a document is on. Sent only with a yes, at most once a
+ *  day per version (background.js recordQuiet), never offered as "Send this error". */
+export function quietReport({ code = "no-step", version, chrome }) {
+  return sanitizeReport({ kind: "error", step: "review", cls: "changed-shape", code, site: "real-signature", version, chrome });
 }
 
 /** Two error reports are the same failure only when EVERY field matches — the error and

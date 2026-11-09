@@ -15,7 +15,8 @@ import { isPdf, hasAcroForm, countPages, fromBase64, toBase64 } from "./lib/pdf.
 import { pairEntries, zipBatches } from "./lib/webforms-api.js";
 import { readPdfText } from "./lib/pdftext.js";
 import { autoLayout, placedSummary, placeOutcome } from "./lib/autoplace.js";
-import { errorReport, labelsReport, okReport, sanitizeReport, tallyOk, tallyDue, contextFromDraft, draftContext, chromeMajor, REPORT_URL, REPORTS_ON, sameFailure } from "./lib/report.js";
+import { errorReport, labelsReport, okReport, quietReport, sanitizeReport, tallyOk, tallyDue, contextFromDraft, draftContext, chromeMajor, REPORT_URL, REPORTS_ON, sameFailure } from "./lib/report.js";
+import { reviewTitle } from "./lib/review.js";
 import { WHATS_NEW } from "./whats-new.js";
 import { WHATS_NEW_KEY, unseenAfterInstall } from "./lib/whats-new-note.js";
 
@@ -64,8 +65,12 @@ chrome.tabs.onUpdated.addListener((tabId, info, tab) => {
   if (info.url || info.status === "loading") placeUi(tabId, tab.url);
   if (info.url || info.status === "complete") madeBadge(tabId, tab.url).catch(() => {});
   if (info.status === "complete") waitingBadge(tabId, tab.url).catch(() => {});
+  if (info.url) reviewLeft(tabId, info.url).catch(() => {});
 });
-chrome.tabs.onRemoved.addListener((tabId) => forgetMade(tabId).catch(() => {}));
+chrome.tabs.onRemoved.addListener((tabId) => {
+  forgetMade(tabId).catch(() => {});
+  setReview(tabId, null).catch(() => {});
+});
 
 // What one click chose, per Real Signature tab (auto.js madeSummary): the panel shows it
 // when the icon is clicked on that draft. Session storage: gone when Chrome closes, and
@@ -152,6 +157,44 @@ async function waitingBadge(tabId, url) {
   if (!j) return;
   await chrome.action.setIcon({ tabId, path: DOT_ICON }).catch(iconFailed);
   await chrome.action.setTitle({ tabId, title: "Your forms from WEBForms are waiting here. Click to finish the draft." }).catch(() => {});
+}
+
+// Check before you send (src/lib/review.js), from the Real Signature tab's content script:
+// on Review, something missing — or the check couldn't run — and the panel may be shut (it
+// closes itself on Prepare). The same amber dot as the others, "look at the panel", with a
+// tooltip that says what for. A state, not a notice: it stays while the document is on
+// Review with something missing, and goes when the check comes back clean, the page leaves
+// Review, or the tab leaves the document. reviewFor: {tabId: documentId}, session storage.
+async function setReview(tabId, id) {
+  const { reviewFor = {} } = await chrome.storage.session.get("reviewFor");
+  if (id) reviewFor[tabId] = id; else delete reviewFor[tabId];
+  await chrome.storage.session.set({ reviewFor });
+}
+async function reviewBadge(tabId, msg) {
+  if (tabId == null) return { ok: false };
+  const bad = msg.step === "review" && (msg.error || (msg.check && !msg.check.ready));
+  if (bad) {
+    await setReview(tabId, msg.id);
+    await chrome.action.setIcon({ tabId, path: DOT_ICON }).catch(iconFailed);
+    await chrome.action.setTitle({ tabId, title: reviewTitle(msg.check, { error: !!msg.error }) }).catch(() => {});
+    // A check that couldn't read the document is a broken feature, reported like any other
+    // failure (the panel reports the same one when it shows it; sameFailure keeps it one).
+    if (msg.error) await recordError({ error: msg.error, step: "review", ctx: null });
+    return { ok: true };
+  }
+  const { reviewFor = {} } = await chrome.storage.session.get("reviewFor");
+  if (reviewFor[tabId]) await reviewDotOff(tabId);
+  return { ok: true };
+}
+async function reviewLeft(tabId, url) {
+  const { reviewFor = {} } = await chrome.storage.session.get("reviewFor");
+  if (reviewFor[tabId] && !String(url).includes(reviewFor[tabId])) await reviewDotOff(tabId);
+}
+// The icon back as it was — with a one-click summary's own dot, if that one is still due.
+async function reviewDotOff(tabId) {
+  await setReview(tabId, null);
+  await clearMadeBadge(tabId);
+  await madeBadge(tabId, null).catch(() => {});
 }
 
 function db() {
@@ -292,6 +335,23 @@ function recordLabels({ job, templateIds, path }) {
       post(labelsReport({ code, form: f.library, path, version: VERSION, chrome: CHROME })); // not awaited: see recordError
     }
     await chrome.storage.local.set({ labelsSent: sent });
+  });
+}
+
+// A failure nobody saw: a document's steps page where the content script found no step
+// (steps.js), so Check before you send and auto-close have quietly stopped working. With a
+// yes only, never offered as "Send this error", and once a day per version and code.
+function recordQuiet(code) {
+  return serial(async () => {
+    const { reporting, quietSent = {} } = await chrome.storage.local.get(["reporting", "quietSent"]);
+    if (!REPORTS_ON || reporting !== "yes") return;
+    const day = today();
+    const sent = Object.fromEntries(Object.entries(quietSent).filter(([, d]) => d === day));
+    const key = `${VERSION}|${code}`;
+    if (sent[key]) return;
+    sent[key] = day;
+    await chrome.storage.local.set({ quietSent: sent });
+    post(quietReport({ code, version: VERSION, chrome: CHROME })); // not awaited: see recordError
   });
 }
 
@@ -487,7 +547,7 @@ async function startJob({ wfTabId, wfForms, meta, background, auto }) {
 }
 
 const OWN = chrome.runtime.getURL("");
-const RS_TAB_ONLY = new Set(["job:get", "job:status", "made:next"]);
+const RS_TAB_ONLY = new Set(["job:get", "job:status", "made:next", "rs:step", "rs:no-step"]);
 chrome.runtime.onMessage.addListener((msg, sender, reply) => {
   const fromRsTab = !!sender.tab?.url?.startsWith(RS);
   // One of Dotted Line's own pages: the panel, the popup, or Settings, which opens in a tab
@@ -500,6 +560,9 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
     if (msg.type === "job:status") return handoffs.get(sender.tab?.id) || null;
     // Next on a one-click draft's first step: Real Signature may not change the address.
     if (msg.type === "made:next") return madeSeen(sender.tab?.id).then(() => ({ ok: true }));
+    // The step a document is on, and on Review the check (content.js tellStep).
+    if (msg.type === "rs:step") return reviewBadge(sender.tab?.id, msg);
+    if (msg.type === "rs:no-step") return recordQuiet("no-step").then(() => ({ ok: true }));
     if (msg.type === "job:pending") return handoffs.get(msg.tabId) || null;
     if (msg.type === "job:forTab") {
       const cutoff = Date.now() - JOB_TTL_MS;
