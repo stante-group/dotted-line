@@ -16,6 +16,8 @@ import { pairEntries, zipBatches } from "./lib/webforms-api.js";
 import { readPdfText } from "./lib/pdftext.js";
 import { autoLayout, placedSummary, placeOutcome } from "./lib/autoplace.js";
 import { errorReport, labelsReport, okReport, sanitizeReport, tallyOk, tallyDue, contextFromDraft, draftContext, chromeMajor, REPORT_URL, REPORTS_ON, sameFailure } from "./lib/report.js";
+import { startsFromClick, notReady, detailsRequest, webformsHandoff, handoffMeta, samePicks } from "./lib/handoff.js";
+import { selection } from "./webforms/selection.js";
 
 const DB = "wfrs";
 const STORE = "jobs";
@@ -40,13 +42,34 @@ chrome.action.setPopup({ popup: POPUP }).catch(() => {});
 chrome.action.disable().catch(() => {});
 const WF = "https://pr.transactiondesk.com/";
 
+// The Settings page's choices, as panel.js reads them. Missing or unreadable → the defaults.
+async function readSettings() {
+  try {
+    return { ...DEFAULT_SETTINGS, ...((await chrome.storage.sync.get("settings")).settings || {}) };
+  } catch {
+    return { ...DEFAULT_SETTINGS };
+  }
+}
+// "Start as soon as I click the Dotted Line icon" with one click off (handoff.js
+// startsFromClick): on WEBForms the icon then has NO popup, so the click comes here
+// (action.onClicked, startFromClick below) and can still open the side panel. Kept current
+// for placeUi, which runs on every tab change and must know it without waiting.
+let fromClick = false;
+const settingsRead = readSettings().then((s) => { fromClick = startsFromClick(s); }, () => {});
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area !== "sync" || !changes.settings) return;
+  fromClick = startsFromClick({ ...DEFAULT_SETTINGS, ...(changes.settings.newValue || {}) });
+  chrome.tabs.query({}).then((tabs) => tabs.forEach((t) => placeUi(t.id, t.url))).catch(() => {});
+});
+
 async function placeUi(tabId, url) {
   const u = String(url || "");
   const rs = u.startsWith(RS);
+  await settingsRead;
   // Without the "tabs" permission Chrome only gives us the URL of our two sites; any other
   // tab's url is undefined, which correctly reads as "not ours".
   await (rs || u.startsWith(WF) ? chrome.action.enable(tabId) : chrome.action.disable(tabId)).catch(() => {});
-  await chrome.action.setPopup({ tabId, popup: rs ? "" : POPUP }).catch(() => {});
+  await chrome.action.setPopup({ tabId, popup: rs || (fromClick && u.startsWith(WF)) ? "" : POPUP }).catch(() => {});
   await chrome.sidePanel.setOptions(rs ? { tabId, path: PANEL, enabled: true } : { tabId, enabled: false }).catch(() => {});
 }
 chrome.tabs.onUpdated.addListener((tabId, info, tab) => {
@@ -421,9 +444,10 @@ function setHandoff(tabId, status) {
   chrome.runtime.sendMessage(msg).catch(() => { /* no panel open */ });
 }
 
-async function startJob({ wfTabId, wfForms, meta, background, auto }) {
+async function startJob({ wfTabId, wfForms, meta, background, auto, rsTabId = null }) {
   // Real Signature loads in its tab while WEBForms makes the zip (speed, 2026-10-14).
-  const tabId = await openRealSignature(background);
+  // rsTabId: the tab the icon click already opened (startFromClick), its panel open there.
+  const tabId = rsTabId ?? await openRealSignature(background);
   setHandoff(tabId, { busy: "Getting your forms from WEBForms…" });
   try {
     const tZip = Date.now();
@@ -468,6 +492,106 @@ async function startJob({ wfTabId, wfForms, meta, background, auto }) {
   } catch (e) {
     const error = String(e?.message || e);
     await recordError({ error: e, step: "handoff", ctx: draftContext({ path: auto ? "one-click" : "panel", forms: wfForms }) }).catch(() => {});
+    setHandoff(tabId, { error });
+    return { error, tabId };
+  }
+}
+
+// ---- "Start as soon as I click the Dotted Line icon", one click off (issue #11) ----
+// The popup can't open the side panel by itself: Chrome lets sidePanel.open run only in
+// answer to a click, and a popup opened by the icon has none of its own (the popup's start
+// is a click the page makes for the agent). So it ended on "Go to Real Signature", one more
+// click. Here the icon click comes to the worker instead (placeUi gives WEBForms no popup),
+// and the Real Signature tab and its side panel open within that click; the panel then says
+// "Getting your forms from WEBForms…" (job:pending) while the worker does what the popup
+// did: reads the picks, asks WEBForms about the forms, and hands over (startJob).
+//
+// What counts as "within the click", tried 2026-11-09 in Chrome for Testing 157 on Linux,
+// with a test extension and the toolbar click made through DevTools (Extensions.triggerAction,
+// which runs the same code as a real click):
+//   - sidePanel.open in the click handler itself: opens.
+//   - chrome.tabs.create with a CALLBACK, sidePanel.open inside that callback: opens, on a
+//     tab still loading (status "loading") and in the background; the panel shows as soon
+//     as the tab is switched to. This is what startFromClick does.
+//   - the same with create's PROMISE (.then or await): refused ("may only be called in
+//     response to a user gesture"). So is one more API call first (tabs.get, storage.get,
+//     scripting.executeScript) — the click lasts exactly one callback — and so is a 1 s wait.
+//   - in a popup opened by the click, sidePanel.open at load: refused, with or without a
+//     tab made first (navigator.userActivation false). That is why the popup can't do this.
+//   - action.onClicked still fires with openPanelOnActionClick on, on a tab whose panel is
+//     disabled (WEBForms here); and action.openPopup works from the worker afterwards,
+//     outside the click (giveUp below).
+// Not tried, so for Dan to confirm live: a real mouse click on the icon in his own Chrome
+// on Windows, and the real Real Signature and WEBForms sites (signed in and signed out).
+//
+// Because the picks can only be read AFTER the tab is made (one callback is all the click
+// allows), a click with nothing ready (no forms ticked, unsaved, still loading) briefly makes
+// a background Real Signature tab, closes it unseen, and opens the popup, which says why in
+// its own words as before. Anything that goes wrong before the forms are asked for does the
+// same, so the worst case is today's behaviour: the popup, and its extra click.
+chrome.action.onClicked.addListener((tab) => {
+  // Real Signature tabs open the side panel by themselves (openPanelOnActionClick).
+  if (!String(tab?.url || "").startsWith(WF)) return;
+  if (!fromClick) { showPopup(tab).catch(() => {}); return; } // a stale "no popup": the popup, as before
+  // A second click while the first is still reading WEBForms would make a second hand-off
+  // of the same forms. In memory: a worker restart ends that first one anyway.
+  if (clickStarts.has(tab.id)) return;
+  startFromClick(tab);
+});
+const clickStarts = new Set();
+
+// Nothing may be awaited before sidePanel.open (see above): create's callback, then open.
+function startFromClick(wf) {
+  clickStarts.add(wf.id);
+  chrome.tabs.create({ url: `${RS}home/draft`, active: false }, (rs) => {
+    if (chrome.runtime.lastError || !rs) { clickStarts.delete(wf.id); showPopup(wf).catch(() => {}); return; }
+    chrome.sidePanel.setOptions({ tabId: rs.id, path: PANEL, enabled: true }).catch(() => {});
+    const opened = chrome.sidePanel.open({ tabId: rs.id }).then(() => true, () => false);
+    setHandoff(rs.id, { busy: "Getting your forms from WEBForms…" });
+    handOverFromClick(wf, rs.id, opened).catch(() => {}).finally(() => clickStarts.delete(wf.id));
+  });
+}
+
+// The popup over WEBForms instead, as when the setting is off: for a click with nothing to
+// hand over, or a side panel Chrome wouldn't open. Then back to no popup, for the next click.
+// Where openPopup isn't there or refuses, the popup stays set: the next click shows it.
+async function showPopup(tab) {
+  await chrome.action.setPopup({ tabId: tab.id, popup: POPUP }).catch(() => {});
+  const shown = typeof chrome.action.openPopup === "function"
+    && await chrome.action.openPopup({ windowId: tab.windowId }).then(() => true, () => false);
+  if (shown) await placeUi(tab.id, tab.url);
+}
+
+async function handOverFromClick(wf, tabId, opened) {
+  // Not shown to the agent yet (a background tab): closed unseen, and the popup takes over.
+  const giveUp = async () => {
+    handoffs.delete(tabId);
+    await chrome.tabs.remove(tabId).catch(() => {});
+    await showPopup(wf);
+  };
+  if (!(await opened)) return giveUp();
+  // A failed read is left to the popup, which reads again, says so and reports it.
+  const sel = await selection(wf.id).catch(() => null);
+  if (notReady(sel)) return giveUp();
+  // From here the agent is on Real Signature, and anything that fails shows in its panel.
+  await chrome.tabs.update(tabId, { active: true }).catch(() => {});
+  try {
+    const tRead = Date.now();
+    const d = await sendToTab(wf.id, detailsRequest(sel));
+    const formDetails = Math.round((Date.now() - tRead) / 100) / 10;
+    // Looked at again just before the download, as the popup's Prepare click does: never a
+    // copy edited (or picks changed) while WEBForms was being asked about the forms.
+    if (!samePicks(sel, await selection(wf.id))) {
+      throw new Error("Your forms changed in WEBForms while they were being read. Go back to WEBForms and click the Dotted Line icon again.");
+    }
+    const h = webformsHandoff({ sel, d, settings: await readSettings() });
+    return startJob({ wfTabId: wf.id, wfForms: h.forms, auto: false, rsTabId: tabId,
+      meta: handoffMeta(h, { source: sel.source, title: h.title, formDetails }) });
+  } catch (e) {
+    // startJob reports its own; this is the WEBForms read before it (step "handoff", as the
+    // popup reports the same read).
+    const error = String(e?.message || e);
+    await recordError({ error: e, step: "handoff", ctx: draftContext({ path: "panel", forms: sel.forms }) }).catch(() => {});
     setHandoff(tabId, { error });
     return { error, tabId };
   }

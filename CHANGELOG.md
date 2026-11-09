@@ -5,6 +5,14 @@ Dotted Line by itself a few hours after a version is published.
 
 ## Not released yet
 
+- **"Start as soon as I click the Dotted Line icon" no longer needs a second click.** With
+  one click off, clicking the icon in WEBForms now goes straight to Real Signature with the
+  Dotted Line panel open, and the panel says "Getting your forms from WEBForms…" until they
+  arrive. You used to wait in the small window over WEBForms and then click "Go to Real
+  Signature". If nothing is ready to send yet (no forms ticked, or a form not saved), the
+  small window over WEBForms opens and says why, as before. With one click on, nothing
+  changes.
+
 - **Signing in partway through no longer shows an error.** If Real Signature sent you
   to sign in just as one click was starting, the panel showed a red "message channel
   closed" error. Now your forms wait while you sign in, the same as any other sign-in.
