@@ -11,12 +11,14 @@
 // half-made is left in the agent's Drafts.
 
 let ctx = null; // { rs, lib, me, templates: Map, deals: Map } — this tab's lifetime only
+let libLoaded = null; // the last load(), for blockCount
 
 async function load() {
   const lib = {};
   for (const p of ["realsig-api.js", "layout.js", "deals.js", "draft.js", "actor.js", "pdf.js", "pdftext.js", "autoplace.js", "ondraft.js"]) {
     Object.assign(lib, await import(chrome.runtime.getURL(`src/lib/${p}`)));
   }
+  libLoaded = lib;
   return lib;
 }
 
@@ -63,8 +65,9 @@ async function context({ fresh = false } = {}) {
   return ctx;
 }
 
-const BLOCK_TYPES = new Set(["SIGNATURE", "INITIALS", "SIGNED_DATE", "SIGNED_DATE_ONLY", "SIGNED_TIME_ONLY"]);
-const blockCount = (t) => (t.fieldDefinitions || []).filter((f) => BLOCK_TYPES.has(f.type)).length;
+// ondraft.js's, so a packet on the home page's list and on its own steps are judged alike.
+// Every caller has run load() first.
+const blockCount = (t) => libLoaded.blockCount(t);
 
 async function summary() {
   let c;
@@ -330,7 +333,9 @@ async function packetRead({ id }) {
   });
   // Fresh documents beside set-up ones (one added after Set up, or a Set up that stopped
   // part way): those are read too, so the panel can set them up the same way.
-  const unset = docs.filter((d) => !d.signers && !d.blocks);
+  // The same rule as the home page's list of packets not set up (ondraft.js notSetUp).
+  const todo = new Set(p.documentTemplates.filter(lib.notSetUp).map((d) => d.id));
+  const unset = docs.filter((d) => todo.has(d.id));
   if (!unset.length) return { name: p.name, docs };
   for (const d of unset) Object.assign(d, await readUpload(lib, rs, d.id));
   return { name: p.name, docs, fresh: unset.length === docs.length, unset: unset.map((d) => d.id) };
@@ -357,6 +362,22 @@ async function recentUploads() {
   const r = await client(lib).listOneTimeDrafts({ size: 20 });
   if (!r || !Array.isArray(r.data)) throw new Error("Real Signature's draft list changed shape");
   return lib.newUploads(r.data);
+}
+
+/** Packets not set up yet, for the same list: any of their documents with nobody named and
+ *  no blocks (ondraft.js unsetPacket). The Drafts list's packet row doesn't say, so each of
+ *  the newest five from the last week is read whole — read only, as on its own steps. */
+async function recentPackets() {
+  const lib = await load();
+  const rs = client(lib);
+  const r = await rs.listOneTimeDrafts({ size: 20 });
+  if (!r || !Array.isArray(r.data)) throw new Error("Real Signature's draft list changed shape");
+  const out = [];
+  for (const row of lib.packetRows(r.data)) {
+    const p = lib.unsetPacket(await rs.getPacketDraft(row.id), row);
+    if (p) out.push(p);
+  }
+  return out;
 }
 
 /** The whole draft from the panel's choices — deal, signers, agent, blocks, subject — in
@@ -538,6 +559,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, reply) => {
     "rs:create": () => create(msg),
     "rs:draft-read": () => draftRead(msg),
     "rs:recent-uploads": recentUploads,
+    "rs:recent-packets": recentPackets,
     "rs:packet-read": () => packetRead(msg),
     "rs:setup-draft": () => setupDraft(msg),
     "rs:setup-packet": () => setupPacket(msg),

@@ -9,7 +9,7 @@ import { suggestTemplate, rememberKey, normalizeName, rememberEntry, pruneRememb
 import { titleValues, titleFor, subjectFor, draftTitleValues, draftTitle, draftSubject, formNameFromFile, DEFAULT_SETTINGS } from "../lib/pattern.js";
 import { signerCounts, signersWithoutEmail, signeesFromDeal, agentRoleFor, agentPeople, cleanSubject, subjectTooLong, SUBJECT_MAX, countDisagreements } from "../lib/draft.js";
 import { actingNotes } from "../lib/actor.js";
-import { packetPlacedSummary, packetDeals, mixedDealsWarning, straySignersWarning } from "../lib/ondraft.js";
+import { packetPlacedSummary, packetDeals, mixedDealsWarning, straySignersWarning, homeList } from "../lib/ondraft.js";
 import { contextFromDraft, REPORTS_ON } from "../lib/report.js";
 import { WHATS_NEW } from "../whats-new.js";
 import { WHATS_NEW_KEY, noteToShow } from "../lib/whats-new-note.js";
@@ -93,13 +93,6 @@ function working(btn, label) {
  *  and "Draft" is only their status until sent (its Draft tab, "Save as Draft"). */
 const thing = (forms) => (forms > 1 ? "packet" : "document");
 const nameLabel = (forms) => (forms > 1 ? "Packet name" : "Document name");
-
-/** "Uploaded 5 minutes ago", from a time in milliseconds. */
-function uploadedAgo(t) {
-  const m = Math.max(0, Math.round((Date.now() - (t || 0)) / 60000));
-  const n = (v, w) => `${v} ${w}${v === 1 ? "" : "s"} ago`;
-  return `Uploaded ${m < 1 ? "just now" : m < 60 ? n(m, "minute") : m < 1440 ? n(Math.round(m / 60), "hour") : n(Math.round(m / 1440), "day")}`;
-}
 
 /** The Auto place screen's heading and button, for a draft or a packet. */
 function drKind(kind) {
@@ -1331,30 +1324,54 @@ async function openDraft(tab, id) {
 // draft's own steps there was nothing in the panel (Dan's test, 2026-10-30).
 const HOME_URL = /^https:\/\/signature\.therealbrokerage\.com\/home(?:[/?#]|$)/i;
 
-/** Recent uploads nobody has set up yet, each opening its draft — the panel then sets it up. */
+/** Recent uploads nobody has set up yet — single documents, and packets with any document
+ *  not set up — each opening its own steps, where the panel then sets it up (openDraft,
+ *  openPacket). The single uploads show first; the packets need each one read, so they
+ *  join the list when they come. */
+let upRun = 0;
 async function showUploads(tab) {
+  const run = ++upRun; // a refresh while this one waits: only the newest draws
   show("up");
   $("up-status").className = "busy";
   $("up-status").textContent = "Looking for new uploads…";
   $("up-list").replaceChildren();
+  $("up-list").hidden = true;
   const r = await send(tab.id, { type: "rs:recent-uploads" }).catch((e) => ({ error: String(e?.message || e) }));
+  if (run !== upRun) return;
   if (r?.error) {
     $("up-status").className = "err";
     $("up-status").textContent = `Couldn't read your Draft tab: ${r.error}`;
     await reportError(new Error(r.error), "on-draft", { path: "draft" });
     return;
   }
+  drawUploads(tab, r, []);
+  $("up-status").className = "busy";
+  $("up-status").textContent = "Looking for packets…";
+  const p = await send(tab.id, { type: "rs:recent-packets" }).catch((e) => ({ error: String(e?.message || e) }));
+  if (run !== upRun) return;
+  if (p?.error) {
+    // The single uploads above still stand: they came from their own read.
+    $("up-status").className = "err";
+    $("up-status").textContent = `Couldn't read your packets: ${p.error}`;
+    await reportError(new Error(p.error), "on-draft", { path: "draft" });
+    return;
+  }
+  drawUploads(tab, r, p);
   $("up-status").className = "note";
-  $("up-status").textContent = r.length ? "From the last week, not set up yet" : "No new uploads from the last week.";
-  $("up-list").hidden = !r.length;
-  $("up-list").replaceChildren(...r.map((d) => {
+  $("up-status").textContent = r.length || p.length ? "From the last week, not set up yet" : "No new uploads or packets from the last week.";
+}
+
+function drawUploads(tab, uploads, packets) {
+  const rows = homeList(uploads, packets);
+  $("up-list").hidden = !rows.length;
+  $("up-list").replaceChildren(...rows.map((d) => {
     const li = el("li", null, "action-row");
     const what = el("div", null, "what");
-    what.append(el("span", d.name), el("span", uploadedAgo(d.createdAt), "alt"));
+    what.append(el("span", d.name), el("span", d.detail, "alt"));
     const b = el("button", "Set up", "secondary");
     b.type = "button";
-    b.setAttribute("aria-label", `Set up ${d.name}`);
-    b.onclick = () => chrome.tabs.update(tab.id, { url: new URL(`/one-time-documents/document/${d.id}`, RS).toString() });
+    b.setAttribute("aria-label", `Set up ${d.kind === "packet" ? "packet " : ""}${d.name}`);
+    b.onclick = () => chrome.tabs.update(tab.id, { url: new URL(`/one-time-documents/${d.kind === "packet" ? "packet" : "document"}/${d.id}`, RS).toString() });
     li.append(what, b);
     return li;
   }));

@@ -292,3 +292,65 @@ test("signers in a role the document doesn't have don't count, and are said (Rea
   assert.match(straySignersWarning([{ name: "Contract.pdf", stray: 1 }, { name: "Title.pdf", stray: 0 }]), /^Contract\.pdf has a signer saved in a role it doesn't have/);
   assert.equal(straySignersWarning([{ name: "a", stray: 0 }]), null);
 });
+
+test("the home page's packets: every row that isn't a single document is read, newest five from the last week", async () => {
+  const { packetRows } = await import("../src/lib/ondraft.js");
+  const now = Date.UTC(2026, 10, 3);
+  const row = (id, ago, extra = {}) => ({ type: "PACKET", id, name: `${id} packet`, createdAt: now - ago * 3600e3, ...extra });
+  const rows = [row("p1", 1), { type: "DOCUMENT", id: "doc", createdAt: now }, row("old", 8 * 24), row("p3", 3), row("p2", 2),
+    row("p4", 4), row("p5", 5), row("p6", 6), row("other-word", 0.5, { type: "PACKET_TEMPLATE" })];
+  assert.deepEqual(packetRows(rows, now).map((p) => p.id), ["other-word", "p1", "p2", "p3", "p4"]);
+  assert.deepEqual(packetRows(null, now), []);
+  // No id or no date: the list changed, never a guess.
+  assert.throws(() => packetRows([row("x", 1, { id: undefined })], now), /changed shape/);
+  assert.throws(() => packetRows([row("x", 1, { createdAt: "2026-11-03" })], now), /changed shape/);
+});
+
+test("a packet not set up: any document with nobody named and no blocks, the same rule as its own Set up", async () => {
+  const { unsetPacket, notSetUp } = await import("../src/lib/ondraft.js");
+  const row = { id: "pk", name: "Row name", createdAt: 5 };
+  const bare = (id) => ({ id, name: `${id}.pdf`, signeeConfigs: [{ signeeType: "SELLER" }], defaults: null, fieldDefinitions: [{ type: "TEXT" }] });
+  const named = (id) => ({ ...bare(id), defaults: { signees: [casey] } });
+  const blocked = (id) => ({ ...bare(id), fieldDefinitions: [{ type: "SIGNATURE" }] });
+  assert.equal(notSetUp(bare("a")), true);
+  assert.equal(notSetUp(named("a")), false);
+  assert.equal(notSetUp(blocked("a")), false);
+
+  assert.deepEqual(unsetPacket({ id: "pk", name: "Sample packet", oneTimeUse: true, documentTemplates: [bare("a"), bare("b")] }, row),
+    { kind: "packet", id: "pk", name: "Sample packet", createdAt: 5, documents: 2, unset: 2 });
+  // Partly set up: still listed, and its own Set up does only the fresh ones.
+  assert.equal(unsetPacket({ id: "pk", documentTemplates: [named("a"), bare("b"), blocked("c")] }, row).unset, 1);
+  assert.equal(unsetPacket({ id: "pk", documentTemplates: [bare("a")] }, row).name, "Row name");
+  // Every document set up, a reusable packet, or an empty one: not listed.
+  assert.equal(unsetPacket({ id: "pk", documentTemplates: [named("a"), blocked("b")] }, row), null);
+  assert.equal(unsetPacket({ id: "pk", oneTimeUse: false, documentTemplates: [bare("a")] }, row), null);
+  assert.equal(unsetPacket({ id: "pk", documentTemplates: [] }, row), null);
+  // Shapes Dotted Line doesn't know: a plain message, never a guess.
+  assert.throws(() => unsetPacket(null, row), /packet changed shape/);
+  assert.throws(() => unsetPacket({ id: "pk", documents: [] }, row), /packet changed shape/);
+  assert.throws(() => unsetPacket({ id: "another", documentTemplates: [bare("a")] }, row), /another id/);
+  assert.throws(() => unsetPacket({ id: "pk", documentTemplates: [null] }, row), /packet changed shape/);
+  assert.throws(() => unsetPacket({ id: "pk", documentTemplates: [{ defaults: { signees: [{ name: "Jordan Sample" }] } }] }, row), /signers changed shape/);
+});
+
+test("the home page's list: uploads and packets together, newest first, each saying what it is", async () => {
+  const { homeList, agoWords } = await import("../src/lib/ondraft.js");
+  const now = Date.UTC(2026, 10, 3, 12);
+  const min = 60e3;
+  const list = homeList(
+    [{ id: "d1", name: "Offer.pdf", createdAt: now - 5 * min }, { id: "d2", name: "Title.pdf", createdAt: now - 3 * 60 * min }],
+    [{ kind: "packet", id: "p1", name: "Sample packet", createdAt: now - 30 * min, documents: 2, unset: 2 },
+      { kind: "packet", id: "p2", name: "Partly packet", createdAt: now - 2 * 1440 * min, documents: 3, unset: 1 },
+      { kind: "packet", id: "p3", name: "One", createdAt: now, documents: 1, unset: 1 }],
+    now);
+  assert.deepEqual(list.map((d) => [d.id, d.kind]), [["p3", "packet"], ["d1", "document"], ["p1", "packet"], ["d2", "document"], ["p2", "packet"]]);
+  assert.deepEqual(list.map((d) => d.detail), [
+    "Packet of 1 document · Made just now",
+    "Uploaded 5 minutes ago",
+    "Packet of 2 documents · Made 30 minutes ago",
+    "Uploaded 3 hours ago",
+    "Packet, 1 of 3 documents not set up · Made 2 days ago",
+  ]);
+  assert.deepEqual(homeList(undefined, undefined, now), []);
+  assert.equal(agoWords(now - min, now), "1 minute ago");
+});
