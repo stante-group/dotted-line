@@ -57,6 +57,13 @@ the seller on the REALTOR® Cooperation Disclosure and Consent Form, the buyer o
 Certificate and Consent of Purchaser. Its "Date:" under it is that signer's. On any other
 form a bare "Signed:" is nobody's and nothing is placed (`formSides`, 2026-11-04).
 
+A company client signs by its officer on the "Per: ____ / Authorized Signing Officer(s)"
+lines. When every client on the signing side is a company in the reZEN deal (a company
+name with no first or last name), Auto place puts their blocks on the Per lines that have
+no party heading over them, and leaves the "Seller/Buyer" lines blank. A person, a mix, No
+deal or a form without Per lines places as before. Never guessed from "Ltd." in a name
+(`companyClients`, 0.4.0).
+
 ```mermaid
 flowchart TD
   A(["Deal picked, or No deal"]) --> D{"Is the deal buy side or<br/>listing side in reZEN?"}

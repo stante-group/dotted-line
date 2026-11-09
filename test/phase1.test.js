@@ -8,7 +8,7 @@ import { isPdf, hasAcroForm, countPages, toBase64, fromBase64 } from "../src/lib
 import { suggestTitle, matchAddress, addressLine } from "../src/lib/title.js";
 import { WebForms, isAllowed, readBearer, zipEntryName, pairEntries, zipBatches, WebFormsSignedOut, partiesFromFormValues, libraryNamesFrom, agentSideFromFormValues, agentSideFromContacts, combineSides, partiesFromContacts, buyerNamesFromContacts, mergeParties, peopleFromContacts } from "../src/lib/webforms-api.js";
 import { formKey } from "../src/lib/match.js";
-import { countDisagreements, buildDraftBody, signeesFromDeal, countsFromDeal, signersWithoutEmail, signerCounts, sideFromFormNames, templateSlots, isEmail, agentRoleFor, agentPerson, agentPeople, chooseAgents, unfilledRoles, fitSubject, SUBJECT_MAX, cleanSubject, subjectTooLong } from "../src/lib/draft.js";
+import { countDisagreements, buildDraftBody, signeesFromDeal, countsFromDeal, signersWithoutEmail, signerCounts, sideFromFormNames, templateSlots, isEmail, agentRoleFor, agentPerson, agentPeople, chooseAgents, unfilledRoles, fitSubject, SUBJECT_MAX, cleanSubject, subjectTooLong, companyClients } from "../src/lib/draft.js";
 import { stripTemplate, dropUnusedSlots } from "../src/lib/layout.js";
 import { summarizeDeal, addressScore } from "../src/lib/deals.js";
 import { actingNotes, setupReport, senderFor, meFromYenta, meFromDeals, DELEGATION_VERIFIED, samePerson, isOwnCorporation, wfMatch } from "../src/lib/actor.js";
@@ -760,4 +760,22 @@ test("signer counts: names in WEBForms, the deal's side and its people still com
   assert.equal(signerCounts({ deal: null, formNames: ["X"], labels: l, agentSide: "BUYER" }).counts.SELLER, 0);
   // A template beside the labels keeps the floor of two.
   assert.deepEqual(signerCounts({ deal: null, formNames: ["X"], labels: l, templates: [{ BUYER: 0, SELLER: 1 }] }).counts, { BUYER: 0, SELLER: 2 });
+});
+
+test("company clients: every signer on the one signing side is a company, from the reZEN deal", () => {
+  const co = (role, company) => ({ role, firstName: "", lastName: "", company, email: "office@example.com" });
+  const person = (role) => ({ role, firstName: "Jordan", lastName: "Sample", company: "", email: "jordan@example.com" });
+  const deal = (...participants) => ({ participants });
+  assert.equal(companyClients(deal(co("SELLER", "Example Holdings Ltd."), person("BUYER")), { BUYER: 0, SELLER: 1 }), true);
+  // a person, or a mix, signs as today
+  assert.equal(companyClients(deal(person("SELLER")), { BUYER: 0, SELLER: 1 }), false);
+  assert.equal(companyClients(deal(co("SELLER", "Example Holdings Ltd."), person("SELLER")), { BUYER: 0, SELLER: 2 }), false);
+  // only the signers the counts keep
+  assert.equal(companyClients(deal(co("SELLER", "Example Holdings Ltd."), person("SELLER")), { BUYER: 0, SELLER: 1 }), true);
+  // both sides signing, no deal, or nobody on that side: no
+  assert.equal(companyClients(deal(co("SELLER", "A Ltd."), co("BUYER", "B Inc.")), { BUYER: 1, SELLER: 1 }), false);
+  assert.equal(companyClients(null, { BUYER: 0, SELLER: 1 }), false);
+  assert.equal(companyClients(deal(person("BUYER")), { BUYER: 0, SELLER: 1 }), false);
+  // never from the name alone: a person named with "Ltd." is a person
+  assert.equal(companyClients(deal({ ...person("SELLER"), lastName: "Sample Ltd." }), { BUYER: 0, SELLER: 1 }), false);
 });

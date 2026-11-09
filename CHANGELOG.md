@@ -14,6 +14,11 @@ Dotted Line by itself a few hours after a version is published.
   with one signing line suggests one signer. Names in WEBForms and the reZEN deal still
   come first, and you can always change the numbers.
 
+- **Company clients sign on the "Per:" lines.** When your client is a company in reZEN,
+  Auto place puts the signatures on the "Per: Authorized Signing Officer(s)" lines and
+  leaves the Seller/Buyer lines blank, as on the Commercial Purchase Contract notices. A
+  person, or a mix of people and companies, signs as before.
+
 ## 0.3.1 — 2026-11-04
 
 - **Signed out of Real Signature? Dotted Line now waits while you sign in.** It used to
