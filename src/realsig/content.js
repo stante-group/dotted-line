@@ -436,7 +436,15 @@ async function placeDraft({ id, side = null }) {
   if (!lib.isPdf(bytes)) throw new Error("the draft's file isn't a PDF");
   let pages = null, error = null;
   try { pages = await lib.readPdfText(bytes); } catch (e) { error = e; }
-  const read = pages ? lib.autoLayout(pages) : null;
+  // A company client signs on the "Per:" lines here too, when the deal attached on Real's
+  // Transaction step says so (companyClients; Dan, 2026-11-03). No deal attached, or the
+  // deals can't load: placed as for a person, as before — never guessed from the name.
+  let company = false;
+  const tid = draft?.defaults?.transactionId;
+  if (tid) {
+    try { company = lib.companyClients((await context()).deals.get(tid), lib.draftSigners(draft).counts); } catch { company = false; }
+  }
+  const read = pages ? lib.autoLayout(pages, { company }) : null;
   const found = read?.layout || null;
   const placed = lib.placeOnDraft(draft, found, pages?.length ?? lib.countPages(bytes), side);
   if (placed.needSide) return { needSide: true, counts: lib.draftSigners(draft).counts };
