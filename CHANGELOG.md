@@ -3,6 +3,15 @@
 What changed in each version, in plain words. The newest is at the top. Chrome updates
 Dotted Line by itself a few hours after a version is published.
 
+## Not released yet
+
+- **When Real Signature turns your account away, Dotted Line says so in words.** If Real
+  Signature refuses every request from your sign-in without giving a reason, the panel
+  used to show only "GET /document-templates → 400". It now says that Real Signature
+  turned the sign-in down, whether it's an agent's account, and what to check: that
+  Real Signature works on its own, and if you're an assistant, the agent you're working
+  for. Nothing is made or sent.
+
 ## 0.3.1 — 2026-11-04
 
 - **Signed out of Real Signature? Dotted Line now waits while you sign in.** It used to
