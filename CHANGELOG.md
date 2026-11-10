@@ -70,6 +70,12 @@ Dotted Line by itself a few hours after a version is published.
   leaves the Seller/Buyer lines blank, as on the Commercial Purchase Contract notices. A
   person, or a mix of people and companies, signs as before. This also works when you set
   up a document you uploaded to Real Signature, once its deal is attached.
+- **When Real Signature turns your account away, Dotted Line says so in words.** If Real
+  Signature refuses every request from your sign-in without giving a reason, the panel
+  used to show only "GET /document-templates → 400". It now says that Real Signature
+  turned the sign-in down, whether it's an agent's account, and what to check: that
+  Real Signature works on its own, and if you're an assistant, the agent you're working
+  for. Nothing is made or sent.
 
 ## 0.3.1 — 2026-11-04
 

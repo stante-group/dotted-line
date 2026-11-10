@@ -15,7 +15,7 @@ let libLoaded = null; // the last load(), for blockCount
 
 async function load() {
   const lib = {};
-  for (const p of ["realsig-api.js", "layout.js", "deals.js", "draft.js", "actor.js", "pdf.js", "pdftext.js", "autoplace.js", "ondraft.js", "copies.js", "review.js", "steps.js"]) {
+  for (const p of ["realsig-api.js", "layout.js", "deals.js", "draft.js", "actor.js", "pdf.js", "pdftext.js", "autoplace.js", "ondraft.js", "copies.js", "review.js", "steps.js", "refusal.js"]) {
     Object.assign(lib, await import(chrome.runtime.getURL(`src/lib/${p}`)));
   }
   libLoaded = lib;
@@ -716,6 +716,24 @@ chrome.runtime.onMessage.addListener((msg, _sender, reply) => {
     "rs:where": whereNow,
   }[msg.type];
   if (!run) return false;
-  run().then(reply, (e) => reply({ error: String(e?.message || e) }));
+  run().then(reply, async (e) => reply({ error: await explained(String(e?.message || e)) }));
   return true;
 });
+
+/** A read Real Signature turned down with a bare 400, in words (src/lib/refusal.js). Who is
+ *  signed in decides which words; one look at /users/me, only on this failure, says. Any
+ *  other error, or a look that fails itself, passes through unchanged. */
+async function explained(message) {
+  try {
+    const lib = await load();
+    if (!lib.isBare400(message)) return message;
+    if (lib.readActingAs(document.cookie)) return lib.refusalMessage(message, "acting");
+    let type = ctx?.me?.type || null;
+    if (!type) {
+      try { type = lib.meFromYenta(await client(lib).me()).type; } catch { type = null; }
+    }
+    return lib.refusalMessage(message, lib.whoFromType(type));
+  } catch {
+    return message;
+  }
+}
