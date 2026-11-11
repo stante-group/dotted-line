@@ -41,3 +41,9 @@ test("the explained error still makes a valid report with nothing but fixed choi
   assert.equal(r.code, "not-agent-account");
   assert.ok(!JSON.stringify(r).includes("Whose documents"));
 });
+
+test("not-agent: says where the team leader turns Real Signature on in reZEN", () => {
+  const msg = refusalMessage("GET /document-templates → 400: Bad Request", "not-agent");
+  assert.match(msg, /Whose documents would you like to access\?/);
+  assert.match(msg, /reZEN.*Team Administrators.*Real Signature under Additional Permissions/);
+});
