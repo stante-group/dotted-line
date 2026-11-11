@@ -37,7 +37,10 @@ export const ENUMS = {
   cls: ["signed-out", "network", "rejected", "forbidden", "not-found", "real-server", "changed-shape", "interrupted", "ours"],
   // Our own messages, by what they mean (the text itself names forms and templates).
   code: ["not-pdf", "fillable-pdf", "handoff-expired", "stale-tab", "deal-gone", "template-missing",
-    "acting-no-deals", "page-count", "same-signer", "block-off-page", "zip", "duplicate-names",
+    "acting-no-deals", "page-count",
+    // Real Signature turned down a read with a bare 400 (refusal.js): an agent's own sign-in
+    // (or a TC acting for one), or a sign-in that isn't an agent's account (2026-11-10).
+    "account-refused", "not-agent-account", "same-signer", "block-off-page", "zip", "duplicate-names",
     "no-forms", "refused-route", "changed-shape", "http", "unknown",
     // Chrome lost the tab mid-draft (it closed, reloaded or moved pages), not one of ours.
     "tab-gone",
@@ -97,6 +100,8 @@ const OUR_CODES = [
   [/no longer in your open deals/, "deal-gone"],
   [/Pick a template \(or none\)/, "template-missing"],
   [/Couldn't find the agent you're acting for/, "acting-no-deals"],
+  [/this sign-in isn't an agent's account/, "not-agent-account"],
+  [/turned down every request (from this sign-in|for the agent you're acting for)/, "account-refused"],
   [/page count differs|couldn't read how many pages/, "page-count"],
   [/two roles are set to the same signer/, "same-signer"],
   [/block (is on|on) page/, "block-off-page"],
@@ -194,7 +199,8 @@ export function classifyError(error) {
     out.site = rs ? "real-signature" : "webforms";
     out.status = Number(status);
     out.route = routeShape(method, path);
-    out.code = "http";
+    // Our words in front of Real's answer (refusal.js) keep their code; the rest is "http".
+    if (out.code !== "account-refused" && out.code !== "not-agent-account") out.code = "http";
     Object.assign(out, validationShape(why));
     // WEBForms' messages carry no text of Real's, so only Real Signature gets a reason.
     if (rs) out.reason = reasonShape(why, { validation: !!out.field });
