@@ -123,6 +123,18 @@ Real's UI has no "packet" choice at upload: each PDF uploads as its own one-time
 - Not usable from her sign-in: yenta `/delegation/managed-accounts?userId&capability=REAL_SIGNATURE`
   → 403 with her keymaker id (400 without one); `/transaction-coordinators/connections` → 403.
 
+- **"My Documents" = the word `SELF` in `actingAsUserId`** (read from Real's bundle,
+  2026-11-12). Picking it (or Real choosing it for a TC with no connected agents) puts her
+  in Real's "LITE version" (the yellow banner: TC, not an agent, not acting). Real's app
+  treats `SELF` as no agent and sends no X-Agent-Context. Sent as a header, it gets a bare
+  400 on every list, even her own drafts. Real's sidebar "Switch account" goes back to the
+  picker ("Assigned Agents" / "My Documents").
+- **A TC's own profile is `GET yenta…/api/v1/users/generic/me`, not `/users/me`** (bundle,
+  2026-11-12; confirmed on Dan's assistant, test 99). Real's app asks it when keymaker roles
+  have `TRANSACTION_COORDINATOR` without `AGENT`. Its `id` lists her deals through the same
+  arrakis `/transactions/participant/{id}/…/OPEN`: the team deals and listings she's on,
+  which is what Real's LITE "Search & select transaction" shows.
+
 ### Sharing (observed 2026-10-12)
 
 - The app's **Shared** tab is `/shared-with-me/templates`: "Shared with Me" → Templates and

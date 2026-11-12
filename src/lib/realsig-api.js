@@ -42,9 +42,27 @@ export function readToken(cookieString) {
  *  the X-Agent-Context header on its API calls (read from its bundle, 2026-10-15). An
  *  agent's own sign-in has no such cookie. */
 export function readActingAs(cookieString) {
+  const v = actingCookie(cookieString);
+  return v && v !== MY_DOCUMENTS ? v : null;
+}
+
+// "My Documents": a TC who picked herself in Real Signature, not an agent (Real's yellow
+// "LITE version" banner). Real keeps the word SELF in the same cookie where an agent's id
+// goes, and its own app leaves it out of X-Agent-Context. Dotted Line sent it as if it were
+// an agent's id, so every request asked for an agent called "SELF" and Real answered a bare
+// 400 (a store user's assistant, Nov 2026: reports 68-83; read from Real's bundle and
+// confirmed with Dan's assistant on test 95, 2026-11-12).
+export const MY_DOCUMENTS = "SELF";
+
+function actingCookie(cookieString) {
   const m = /(?:^|;\s*)actingAsUserId=([^;]+)/.exec(cookieString || "");
   const v = m ? decodeURIComponent(m[1]).replace(/^"|"$/g, "") : "";
   return v && v !== "null" && v !== "undefined" ? v : null;
+}
+
+/** True when a TC is working in her own documents ("My Documents", LITE), not an agent's. */
+export function readMyDocuments(cookieString) {
+  return actingCookie(cookieString) === MY_DOCUMENTS;
 }
 
 export class NotSignedIn extends Error { name = "NotSignedIn"; }
@@ -198,6 +216,10 @@ export class RealSignature {
 
   // ---- who is signed in (the same calls Real Signature's own app makes) ----
   me() { return this.request("GET", "/users/me", { base: YENTA }); }
+  /** A non-agent's profile (a TC's): /users/me is a 404 for her, and Real's own app asks
+   *  this instead when her keymaker roles have TRANSACTION_COORDINATOR and not AGENT. Its
+   *  id is the one Real's transaction picker lists her deals by (bundle, 2026-11-12). */
+  genericMe() { return this.request("GET", "/users/generic/me", { base: YENTA }); }
 
   /** After a 403: whether it's because the sign-in has gone (see request). */
   async signedOut(base, path, headers) {

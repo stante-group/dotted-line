@@ -24,6 +24,13 @@ Dotted Line by itself a few hours after a version is published.
   that only names another form, like "Schedule to the …" or "Addendum to the …". Every
   form that worked before still works the same.
 
+- **Assistants on Real Signature's "My Documents" (the LITE version): no more "400: Bad
+  Request".** Dotted Line mistook My Documents for an agent and asked Real Signature for
+  that agent's templates and deals, which it turned down. Now it works the way Real
+  Signature does on My Documents: your own templates, the deals and listings you're on,
+  and the draft in your own Drafts. To make a draft as an agent, use Switch account in
+  Real Signature first.
+
 ## 0.3.1 — 2026-11-04
 
 - **Signed out of Real Signature? Dotted Line now waits while you sign in.** It used to

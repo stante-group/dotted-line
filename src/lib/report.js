@@ -119,7 +119,7 @@ const OUR_CODES = [
 // The words in the routes this extension calls (realsig-api.js, webforms-api.js). Any other
 // path segment is an id — or could be a name — and is blanked.
 const ROUTE_WORDS = new Set([
-  "document-templates", "packet-templates", "users", "me", "keymaker", "myself", "transactions",
+  "document-templates", "packet-templates", "users", "generic", "me", "keymaker", "myself", "transactions",
   "participant", "listing-transactions", "OPEN", "buyer-record", "api", "systems",
   "GetPopulatedGlobalJson", "Basic", "transactioncontacts", "index", "forms", "single",
   "formeditor", "formfields", "Transfer", "CreateDownloadRequest", "downloadmany",
@@ -236,7 +236,7 @@ export function slowStep(timings = {}) {
 /** What the draft looked like, as categories. Everything the panel and one-click already
  *  know; nothing about the deal itself.
  *  forms: [{pageCount}], templates: the chosen template per form ({pagesCount} or null). */
-export function draftContext({ path, acting = false, wf = "none", dealBy = "none", othersDeal = false,
+export function draftContext({ path, acting = false, myDocs = false, wf = "none", dealBy = "none", othersDeal = false,
   forms = [], templates = [], labels = 0, signers = 0, noEmail = false, timings = {}, warned = false }) {
   const chosen = templates.filter(Boolean);
   const withTpl = forms.map((f, i) => (templates[i] ? [f?.pageCount, templates[i].pagesCount] : null)).filter(Boolean);
@@ -244,7 +244,7 @@ export function draftContext({ path, acting = false, wf = "none", dealBy = "none
     : withTpl.some(([a, b]) => a && b && a !== b) ? "differ"
     : withTpl.some(([a, b]) => !a || !b) ? "unknown" : "agree";
   return {
-    path, acting: !!acting, wf, deal: dealBy, othersDeal: !!othersDeal,
+    path, acting: !!acting, myDocs: !!myDocs, wf, deal: dealBy, othersDeal: !!othersDeal,
     tpl: !chosen.length ? "none" : chosen.length === forms.length ? "all" : "some",
     labels: !labels ? "none" : labels >= forms.length ? "all" : "some",
     pages, forms: forms.length ? formsBand(forms.length) : "unknown", signers: signersBand(signers),
@@ -263,6 +263,7 @@ export function contextFromDraft({ path, c = null, job = null, dealId = null, de
   return draftContext({
     path,
     acting: !!me?.actingForAgent,
+    myDocs: !!me?.myDocuments,
     wf: job ? wfMatch({ me, webformsUserName: job.webformsUserName, webformsUserEmail: job.webformsUserEmail }) : "none",
     dealBy: !deal ? (dealBy === "none" ? "none-default" : "none") : dealBy === "address" || dealBy === "name" ? dealBy : "picked",
     othersDeal: isOthersDeal(me, deal),
@@ -311,6 +312,7 @@ export function sanitizeReport(r) {
     out.ctx = {
       path: pick(c.path, ENUMS.path, null),
       acting: c.acting === true,
+      myDocs: c.myDocs === true,
       wf: pick(c.wf, ENUMS.wf, "none"),
       deal: pick(c.deal, ENUMS.deal, "none"),
       othersDeal: c.othersDeal === true,

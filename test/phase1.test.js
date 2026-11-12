@@ -736,3 +736,17 @@ test("forms and deal disagree on how many: said under the boxes, the other numbe
   assert.deepEqual(countDisagreements({ deal, webforms: [], current: { BUYER: 2 } }), []);
   assert.deepEqual(countDisagreements({ deal: null, webforms, current: { BUYER: 2 } }), []);
 });
+
+test("My Documents: no sender of our own, Real's upload sender kept; one note, no warnings", async () => {
+  const { senderFor, actingNotes } = await import("../src/lib/actor.js");
+  const me = { id: null, firstName: "", lastName: "", fullName: "", email: "", type: null, myDocuments: true };
+  assert.equal(senderFor(me), null);
+  const prev = { firstName: "Jordan", lastName: "Sample", email: "jordan@example.com", agentYentaId: null };
+  const draft = { id: "d1", name: "x", pagesCount: 1, fieldDefinitions: [], documentFieldValidations: [], signeeConfigs: [], defaults: { sender: prev } };
+  const body = buildDraftBody({ draft, layout: null, name: "x", pageCount: 1, transactionId: null, counts: { BUYER: 1, SELLER: 0 }, signees: [], sender: senderFor(me) });
+  assert.deepEqual(body.defaults.sender, prev);
+  const notes = actingNotes({ me, deal: null, webformsUserName: "Someone Else", webformsUserEmail: "else@example.com" });
+  assert.equal(notes.length, 1);
+  assert.equal(notes[0].level, "info");
+  assert.match(notes[0].text, /My Documents/);
+});
