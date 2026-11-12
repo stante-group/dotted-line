@@ -3,7 +3,7 @@
 What changed in each version, in plain words. The newest is at the top. Chrome updates
 Dotted Line by itself a few hours after a version is published.
 
-## Not released yet
+## 0.3.2 — 2026-11-12
 
 - **Signing in partway through no longer shows an error.** If Real Signature sent you
   to sign in just as one click was starting, the panel showed a red "message channel
