@@ -29,20 +29,26 @@ async function context({ fresh = false } = {}) {
   // reZEN profile of her own (/users/me → 404) and may not read the agent's (/users/{id} →
   // 403), so the agent's name and email come from the agent's own deals (2026-10-15).
   const actingAs = lib.readActingAs(document.cookie);
-  if (!actingAs && lib.readMyDocuments(document.cookie)) {
-    // "My Documents" (Real's LITE version): a TC working as herself. No reZEN profile
-    // (/users/me is a 404 for a TC) and no deals of her own, so neither is asked for: her
-    // own templates, No deal, and signers from the forms. The draft goes in her own Drafts
-    // with the sender Real gave it on upload (lib.senderFor → null keeps it).
-    const [mine, shared] = await Promise.all([rs.allTemplates(), rs.allTemplates({ sharedWithMe: true })]);
-    const templates = new Map();
-    for (const t of mine) templates.set(t.id, { t, shared: false });
-    for (const t of shared) if (!templates.has(t.id)) templates.set(t.id, { t, shared: true });
-    ctx = { rs, lib, me: { id: null, firstName: "", lastName: "", fullName: "", email: "", type: null, myDocuments: true }, templates, deals: new Map() };
-    return ctx;
-  }
+  const myDocs = !actingAs && lib.readMyDocuments(document.cookie);
   let own = null;
-  if (!actingAs) {
+  if (myDocs) {
+    // "My Documents" (Real's LITE version): a TC working as herself. Real's own deal picker
+    // there asks for the deals of HER reZEN profile (yentaUserResponse.id, read from its
+    // bundle 2026-11-12): the team deals she's a participant on (Dan's assistant, test 97).
+    // So the same here. A TC Real has no profile for (/users/me → 404, as one did on
+    // 2026-10-15) still gets her own templates and No deal. The draft goes in her own Drafts
+    // with the sender Real gave it on upload (lib.senderFor → null keeps it).
+    try { own = { ...lib.meFromYenta(await rs.me()), myDocuments: true }; } catch (e) {
+      if (!/^GET \/users\/me → 404\b/.test(String(e?.message))) throw e;
+      const [mine, shared] = await Promise.all([rs.allTemplates(), rs.allTemplates({ sharedWithMe: true })]);
+      const templates = new Map();
+      for (const t of mine) templates.set(t.id, { t, shared: false });
+      for (const t of shared) if (!templates.has(t.id)) templates.set(t.id, { t, shared: true });
+      ctx = { rs, lib, me: { id: null, firstName: "", lastName: "", fullName: "", email: "", type: null, myDocuments: true }, templates, deals: new Map() };
+      return ctx;
+    }
+  }
+  if (!actingAs && !own) {
     // A TC who hasn't picked an agent yet: Real Signature opens on "Whose documents would you
     // like to access?" and her own profile is a 404 (Dan's assistant, 2026-11-04, reported as
     // an error). Not an error: the forms wait, and the pick reloads the page (see below).
@@ -114,7 +120,7 @@ async function steps() {
   // Every call carries X-Agent-Context when acting, as Real's app does. A TC's own /users/me
   // is a 404 by design — her agent's deals give the id instead.
   let id = actingAs;
-  if (!actingAs && !myDocs) { // My Documents has no profile and no deals to look at
+  if (!actingAs) {
     const me = await run("me", () => rs.me());
     try { id = me && lib.meFromYenta(me).id; } catch { out.me = "odd shape"; }
   }

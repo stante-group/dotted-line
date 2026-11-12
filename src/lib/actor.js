@@ -130,7 +130,9 @@ export function wfMatch({ me, webformsUserName, webformsUserEmail = null }) {
 export function actingNotes({ me, deal, webformsUserName, webformsUserEmail = null }) {
   const out = [];
   if (me?.myDocuments) {
-    out.push({ level: "info", text: "Real Signature is on My Documents: the draft goes in your own Drafts, with no reZEN deal. To work on an agent's deal, use Switch account in Real Signature first." });
+    out.push({ level: "info", text: me.id
+      ? "Real Signature is on My Documents: the draft goes in your own Drafts, not an agent's. To make it as an agent, use Switch account in Real Signature first."
+      : "Real Signature is on My Documents: the draft goes in your own Drafts, with no reZEN deal. To work on an agent's deal, use Switch account in Real Signature first." });
     return out;
   }
   const acting = !!me?.actingForAgent;
