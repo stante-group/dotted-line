@@ -129,6 +129,11 @@ Real's UI has no "packet" choice at upload: each PDF uploads as its own one-time
   treats `SELF` as no agent and sends no X-Agent-Context. Sent as a header, it gets a bare
   400 on every list, even her own drafts. Real's sidebar "Switch account" goes back to the
   picker ("Assigned Agents" / "My Documents").
+- **A TC's own profile is `GET yenta…/api/v1/users/generic/me`, not `/users/me`** (bundle,
+  2026-11-12; confirmed on Dan's assistant, test 99). Real's app asks it when keymaker roles
+  have `TRANSACTION_COORDINATOR` without `AGENT`. Its `id` lists her deals through the same
+  arrakis `/transactions/participant/{id}/…/OPEN`: the team deals and listings she's on,
+  which is what Real's LITE "Search & select transaction" shows.
 
 ### Sharing (observed 2026-10-12)
 
