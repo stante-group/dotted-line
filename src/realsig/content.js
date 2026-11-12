@@ -38,7 +38,10 @@ async function context({ fresh = false } = {}) {
     // So the same here. A TC Real has no profile for (/users/me → 404, as one did on
     // 2026-10-15) still gets her own templates and No deal. The draft goes in her own Drafts
     // with the sender Real gave it on upload (lib.senderFor → null keeps it).
-    try { own = { ...lib.meFromYenta(await rs.me()), myDocuments: true }; } catch (e) {
+    // Real's app asks /users/generic/me for a TC (/users/me is an agent's, a 404 for her:
+    // test 98, 2026-11-12), so that first, then /users/me for anyone else on My Documents.
+    const profile = () => rs.genericMe().catch((e) => (/→ 40[034]\b/.test(String(e?.message)) ? rs.me() : Promise.reject(e)));
+    try { own = { ...lib.meFromYenta(await profile()), myDocuments: true }; } catch (e) {
       if (!/^GET \/users\/me → 404\b/.test(String(e?.message))) throw e;
       const [mine, shared] = await Promise.all([rs.allTemplates(), rs.allTemplates({ sharedWithMe: true })]);
       const templates = new Map();
@@ -120,7 +123,11 @@ async function steps() {
   // Every call carries X-Agent-Context when acting, as Real's app does. A TC's own /users/me
   // is a 404 by design — her agent's deals give the id instead.
   let id = actingAs;
-  if (!actingAs) {
+  if (myDocs) {
+    const g = await run("generic me", () => rs.genericMe());
+    try { id = g && lib.meFromYenta(g).id; } catch { out["generic me"] = "odd shape"; }
+  }
+  if (!actingAs && !id) {
     const me = await run("me", () => rs.me());
     try { id = me && lib.meFromYenta(me).id; } catch { out.me = "odd shape"; }
   }

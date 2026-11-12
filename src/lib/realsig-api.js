@@ -216,6 +216,10 @@ export class RealSignature {
 
   // ---- who is signed in (the same calls Real Signature's own app makes) ----
   me() { return this.request("GET", "/users/me", { base: YENTA }); }
+  /** A non-agent's profile (a TC's): /users/me is a 404 for her, and Real's own app asks
+   *  this instead when her keymaker roles have TRANSACTION_COORDINATOR and not AGENT. Its
+   *  id is the one Real's transaction picker lists her deals by (bundle, 2026-11-12). */
+  genericMe() { return this.request("GET", "/users/generic/me", { base: YENTA }); }
 
   /** After a 403: whether it's because the sign-in has gone (see request). */
   async signedOut(base, path, headers) {

@@ -114,7 +114,7 @@ const OUR_CODES = [
 // The words in the routes this extension calls (realsig-api.js, webforms-api.js). Any other
 // path segment is an id — or could be a name — and is blanked.
 const ROUTE_WORDS = new Set([
-  "document-templates", "packet-templates", "users", "me", "keymaker", "myself", "transactions",
+  "document-templates", "packet-templates", "users", "generic", "me", "keymaker", "myself", "transactions",
   "participant", "listing-transactions", "OPEN", "buyer-record", "api", "systems",
   "GetPopulatedGlobalJson", "Basic", "transactioncontacts", "index", "forms", "single",
   "formeditor", "formfields", "Transfer", "CreateDownloadRequest", "downloadmany",
