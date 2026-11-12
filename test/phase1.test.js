@@ -750,3 +750,15 @@ test("My Documents: no sender of our own, Real's upload sender kept; one note, n
   assert.equal(notes[0].level, "info");
   assert.match(notes[0].text, /My Documents/);
 });
+
+test("My Documents on an agent's deal: says whose deal it is and that it goes out from her", async () => {
+  const { actingNotes } = await import("../src/lib/actor.js");
+  const me = { id: "tc-1", fullName: "Jordan Sample", email: "jordan@example.com", myDocuments: true };
+  const deal = { id: "d1", ownerId: "agent-1", agentName: "Alex Example" };
+  const notes = actingNotes({ me, deal, webformsUserName: null });
+  assert.equal(notes.length, 2);
+  assert.equal(notes[1].level, "warn");
+  assert.match(notes[1].text, /Alex Example's, but the draft goes out from you/);
+  assert.equal(actingNotes({ me, deal: { ...deal, ownerId: "tc-1" }, webformsUserName: null }).length, 1);
+  assert.equal(actingNotes({ me, deal: null, webformsUserName: null }).length, 1);
+});

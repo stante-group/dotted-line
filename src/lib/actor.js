@@ -133,6 +133,11 @@ export function actingNotes({ me, deal, webformsUserName, webformsUserEmail = nu
     out.push({ level: "info", text: me.id
       ? "Real Signature is on My Documents: the draft goes in your own Drafts, not an agent's. To make it as an agent, use Switch account in Real Signature first."
       : "Real Signature is on My Documents: the draft goes in your own Drafts, with no reZEN deal. To work on an agent's deal, use Switch account in Real Signature first." });
+    // The team's deals she's on belong to their agents, but on My Documents the draft goes
+    // out from HER: say whose deal it is and who sends (Dan, 2026-11-12, test 99).
+    if (isOthersDeal(me, deal)) {
+      out.push({ level: "warn", text: `This deal is ${deal.agentName || "an agent"}'s, but the draft goes out from you: it's in your Drafts with you as sender. To send it as ${deal.agentName || "the agent"}, use Switch account in Real Signature and pick them first.` });
+    }
     return out;
   }
   const acting = !!me?.actingForAgent;
