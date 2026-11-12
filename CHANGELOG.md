@@ -3,6 +3,13 @@
 What changed in each version, in plain words. The newest is at the top. Chrome updates
 Dotted Line by itself a few hours after a version is published.
 
+## Not released yet
+
+- **My Documents on an agent's deal now says who sends.** When an assistant on Real
+  Signature's My Documents picks a deal that belongs to an agent, the panel says whose deal
+  it is and that the draft goes out from the assistant, and how to send it as the agent
+  instead (Switch account).
+
 ## 0.3.2 — 2026-11-12
 
 - **Signing in partway through no longer shows an error.** If Real Signature sent you
