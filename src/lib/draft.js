@@ -339,7 +339,8 @@ export function buildDraftBody({ draft, layout: tpl, name, pageCount, transactio
       transactionId: transactionId || null,
       signees: all.filter((s) => types.has(s.signeeType)),
       recipients: prev.recipients || [],
-      sender,
+      // null: keep the sender Real gave the draft (My Documents, actor.js senderFor).
+      sender: sender || prev.sender || null,
       // The signers' email subject: the title the agent saw (and could edit) in the panel.
       emailSubject: fitSubject(emailSubject || prev.emailSubject),
       emailBody: prev.emailBody ?? null,

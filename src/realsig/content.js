@@ -29,6 +29,18 @@ async function context({ fresh = false } = {}) {
   // reZEN profile of her own (/users/me → 404) and may not read the agent's (/users/{id} →
   // 403), so the agent's name and email come from the agent's own deals (2026-10-15).
   const actingAs = lib.readActingAs(document.cookie);
+  if (!actingAs && lib.readMyDocuments(document.cookie)) {
+    // "My Documents" (Real's LITE version): a TC working as herself. No reZEN profile
+    // (/users/me is a 404 for a TC) and no deals of her own, so neither is asked for: her
+    // own templates, No deal, and signers from the forms. The draft goes in her own Drafts
+    // with the sender Real gave it on upload (lib.senderFor → null keeps it).
+    const [mine, shared] = await Promise.all([rs.allTemplates(), rs.allTemplates({ sharedWithMe: true })]);
+    const templates = new Map();
+    for (const t of mine) templates.set(t.id, { t, shared: false });
+    for (const t of shared) if (!templates.has(t.id)) templates.set(t.id, { t, shared: true });
+    ctx = { rs, lib, me: { id: null, firstName: "", lastName: "", fullName: "", email: "", type: null, myDocuments: true }, templates, deals: new Map() };
+    return ctx;
+  }
   let own = null;
   if (!actingAs) {
     // A TC who hasn't picked an agent yet: Real Signature opens on "Whose documents would you
@@ -96,12 +108,13 @@ async function steps() {
   const rs = new lib.RealSignature({ getToken: () => lib.readToken(document.cookie), getActingAs: () => lib.readActingAs(document.cookie) });
   const code = (e) => (e?.name === "NotSignedIn" ? "401" : /→ (\d{3})/.exec(String(e?.message))?.[1] || "error");
   const actingAs = lib.readActingAs(document.cookie);
-  const out = { token: lib.readToken(document.cookie) ? "yes" : "no", acting: actingAs ? "yes" : "no" };
+  const myDocs = lib.readMyDocuments(document.cookie);
+  const out = { token: lib.readToken(document.cookie) ? "yes" : "no", acting: actingAs ? "yes" : myDocs ? "my documents" : "no" };
   const run = async (k, f) => { try { const r = await f(); out[k] = "ok"; return r; } catch (e) { out[k] = code(e); return null; } };
   // Every call carries X-Agent-Context when acting, as Real's app does. A TC's own /users/me
   // is a 404 by design — her agent's deals give the id instead.
   let id = actingAs;
-  if (!actingAs) {
+  if (!actingAs && !myDocs) { // My Documents has no profile and no deals to look at
     const me = await run("me", () => rs.me());
     try { id = me && lib.meFromYenta(me).id; } catch { out.me = "odd shape"; }
   }
@@ -131,7 +144,9 @@ async function setup() {
   const tpls = [...c.templates.values()];
   return {
     signedIn: true,
-    steps: c.lib.readActingAs(document.cookie) ? await steps().catch(() => "unavailable") : null, // TC: show the calls too
+    // TC: show the calls too, acting for an agent or in her own documents
+    steps: c.lib.readActingAs(document.cookie) || c.me.myDocuments ? await steps().catch(() => "unavailable") : null,
+    myDocuments: !!c.me.myDocuments,
     fullName: c.me.fullName, // compared in the panel, never printed in the report
     email: c.me.email, // likewise
     type: c.me.type,
@@ -469,7 +484,9 @@ async function openActing() {
 {
   const now = () => {
     const v = decodeURIComponent(/(?:^|;\s*)actingAsUserId=([^;]*)/.exec(document.cookie)?.[1] || "").replace(/^"|"$/g, "");
-    return v && v !== "null" && v !== "undefined" ? v : null;
+    // "SELF" is My Documents, not an agent (realsig-api.js MY_DOCUMENTS): reported as no
+    // agent, so switching between it and an agent still reloads the panel.
+    return v && v !== "null" && v !== "undefined" && v !== "SELF" ? v : null;
   };
   const tell = (actingAs) => chrome.runtime.sendMessage({ type: "rs:acting", actingAs }).catch(() => { /* panel closed */ });
   let last = now();

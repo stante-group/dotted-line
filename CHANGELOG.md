@@ -3,6 +3,14 @@
 What changed in each version, in plain words. The newest is at the top. Chrome updates
 Dotted Line by itself a few hours after a version is published.
 
+## Unreleased
+
+- **Assistants on Real Signature's "My Documents" (the LITE version): no more "400: Bad
+  Request".** Dotted Line mistook My Documents for an agent and asked Real Signature for
+  that agent's templates and deals, which it turned down. Now it uses your own templates,
+  makes the draft in your own Drafts with No deal, and takes the signers from the forms.
+  To work on an agent's deal, use Switch account in Real Signature first.
+
 ## 0.3.1 — 2026-11-04
 
 - **Signed out of Real Signature? Dotted Line now waits while you sign in.** It used to

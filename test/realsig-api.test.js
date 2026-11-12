@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 
-import { RealSignature, isForbidden, readToken, readActingAs, NotSignedIn } from "../src/lib/realsig-api.js";
+import { RealSignature, isForbidden, readToken, readActingAs, readMyDocuments, NotSignedIn } from "../src/lib/realsig-api.js";
 
 test("sending routes are refused", () => {
   assert.ok(isForbidden("POST", "/documents"));
@@ -142,4 +142,19 @@ test("a TC with no agent picked: /users/me is a 404 in the shape content.js wait
   const rs = new RealSignature({ getToken: () => "t", fetchImpl: async () => ({ ok: false, status: 404, text: async () => "" }) });
   const e = await rs.me().catch((x) => x);
   assert.match(e.message, /^GET \/users\/me → 404\b/);
+});
+
+test("My Documents (LITE): SELF is no agent, never sent as X-Agent-Context", async () => {
+  // Real's own app leaves SELF out of the header; sending it got a bare 400 on every call
+  // (store reports 68-83, Nov 2026).
+  for (const c of ["actingAsUserId=SELF", "jwtToken=x; actingAsUserId=%22SELF%22; other=1"]) {
+    assert.equal(readActingAs(c), null);
+    assert.equal(readMyDocuments(c), true);
+  }
+  const id = "00000000-0000-4000-8000-000000000001";
+  for (const c of [`actingAsUserId=${id}`, "jwtToken=x", "actingAsUserId=null", ""]) assert.equal(readMyDocuments(c), false);
+  const seen = [];
+  const fetchImpl = async (url, init) => { seen.push(init.headers); return { ok: true, status: 200, text: async () => "{}" }; };
+  await new RealSignature({ getToken: () => "t", getActingAs: () => readActingAs("actingAsUserId=SELF"), fetchImpl }).listTemplates();
+  assert.equal(seen[0]["X-Agent-Context"], undefined);
 });
