@@ -3,12 +3,18 @@
 What changed in each version, in plain words. The newest is at the top. Chrome updates
 Dotted Line by itself a few hours after a version is published.
 
-## Not released yet
+## 0.3.3 — 2026-11-14
 
 - **My Documents on an agent's deal now says who sends.** When an assistant on Real
   Signature's My Documents picks a deal that belongs to an agent, the panel says whose deal
   it is and that the draft goes out from the assistant, and how to send it as the agent
   instead (Switch account).
+- **A form Auto place can't read is reported by its title as well as its code.** When a
+  form placed from its printed labels gets no blocks, and you've said yes to reports, the
+  report now names the form type the way your WEBForms Forms library does ("Ancillary
+  Services"), not only by WEBForms' internal code, so we can find a blank copy and teach
+  Auto place that form. Only for a real estate association's forms, and never anything
+  typed on the form. The privacy policy says exactly what's sent.
 
 ## 0.3.2 — 2026-11-12
 

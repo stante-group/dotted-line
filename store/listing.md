@@ -44,7 +44,7 @@ What it never does
 - It doesn't change your WEBForms forms or pages.
 - It doesn't alter your PDFs — the pages go over exactly as WEBForms made them.
 - It never sends your forms, your clients' details or your deals to us. It works with your own sign-ins, in your own browser, on two sites only: WEBForms and Real Signature.
-- It asks before sending us anything at all. With your yes, a short error report when a draft fails and a daily count of drafts that worked: never a name, address, deal or form.
+- It asks before sending us anything at all. With your yes, a short error report when a draft fails and a daily count of drafts that worked: never a name, address, deal or anything typed on a form.
 
 For transaction coordinators
 If an agent has given you Real Signature access in reZEN, pick them under "Acting as" in Real Signature and the draft goes into their Draft tab, with them as sender. Dotted Line warns you when WEBForms and Real Signature are signed in as different people.

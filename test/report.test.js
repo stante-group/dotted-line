@@ -153,6 +153,23 @@ test("a form placed from its labels with no blocks: the reason and the form's li
   assert.equal(labelsReport({ code: "Jordan Sample", form: null, path: "panel", version: "0.1.2" }).code, "unknown");
 });
 
+test("the form type's library title rides with an association code, and nothing else gets through", () => {
+  const r = labelsReport({ code: "no-labels", form: "SRAR0145", title: "  Ancillary   Services (Form 910) ", path: "panel", version: "0.3.3", chrome: "152" });
+  assert.equal(r.ctx.formTitle, "Ancillary Services (Form 910)");
+  // Not association-shaped: a brokerage's own library form could be titled anything.
+  assert.equal(labelsReport({ code: "no-labels", form: "AB12", title: "Ancillary Services", path: "panel", version: "0.3.3" }).ctx.formTitle, undefined);
+  // No code, no title.
+  assert.equal(labelsReport({ code: "no-labels", form: null, title: "Ancillary Services", path: "panel", version: "0.3.3" }).ctx.formTitle, undefined);
+  // Dropped whole, never trimmed into shape: an email, a phone, an MLS number, a quote, too long.
+  for (const title of ["Offer for jordan@example.com", "Call (555) 000-0000", "Listing A1234567 12345",
+    "Jordan's \"offer\"", "x".repeat(81), "<script>", ""]) {
+    const x = labelsReport({ code: "fonts", form: "AREA0287", title, path: "panel", version: "0.3.3" });
+    assert.equal(x.ctx.formTitle, undefined, title);
+  }
+  // sanitizeReport applies it to any report's ctx, not just labelsReport's.
+  assert.equal(sanitizeReport({ kind: "error", step: "labels", version: "0.3.3", ctx: { form: "SRAR0145", formTitle: "Jordan Sample 12345 Example" } }).ctx.formTitle, undefined);
+});
+
 test("No deal as the default is told apart from No deal picked", async () => {
   const { contextFromDraft } = await import("../src/lib/report.js");
   assert.equal(contextFromDraft({ path: "one-click", dealBy: "none" }).deal, "none-default");

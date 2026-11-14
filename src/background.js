@@ -276,7 +276,7 @@ function recordLabels({ job, templateIds, path }) {
       const key = `${VERSION}|${f.library || "?"}|${code}`;
       if (sent[key]) continue;
       sent[key] = day;
-      post(labelsReport({ code, form: f.library, path, version: VERSION, chrome: CHROME })); // not awaited: see recordError
+      post(labelsReport({ code, form: f.library, title: f.typeName, path, version: VERSION, chrome: CHROME })); // not awaited: see recordError
     }
     await chrome.storage.local.set({ labelsSent: sent });
   });
@@ -439,7 +439,10 @@ async function startJob({ wfTabId, wfForms, meta, background, auto }) {
       if (hasAcroForm(data)) throw new Error(`"${form.name}" came back as a fillable PDF, not the flattened form. Not using it.`);
       // From here on a form is known by its TYPE's name (template suggestions, the buyer or
       // seller side, Real's document names); WEBForms' own name was only for the zip.
+      // typeName kept apart from name: only the library's title may go in a report
+      // (report.js formTitle); name falls back to WEBForms' own, which can be typed text.
       return { id: form.id, name: form.typeName || form.name, library: form.library || null,
+        typeName: form.typeName || null,
         formGuid: form.formGuid, pageCount: form.pageCount ?? countPages(data),
         parties: form.parties || null, pdfBase64: toBase64(data) };
     });
