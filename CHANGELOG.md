@@ -3,6 +3,15 @@
 What changed in each version, in plain words. The newest is at the top. Chrome updates
 Dotted Line by itself a few hours after a version is published.
 
+## Not released yet
+
+- **A form Auto place can't read is reported by its title as well as its code.** When a
+  form placed from its printed labels gets no blocks, and you've said yes to reports, the
+  report now names the form type the way your WEBForms Forms library does ("Ancillary
+  Services"), not only by WEBForms' internal code, so we can find a blank copy and teach
+  Auto place that form. Only for a real estate association's forms, and never anything
+  typed on the form. The privacy policy says exactly what's sent.
+
 ## 0.3.2 — 2026-11-12
 
 - **Signing in partway through no longer shows an error.** If Real Signature sent you
