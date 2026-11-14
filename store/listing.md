@@ -51,7 +51,7 @@ If an agent has given you Real Signature access in reZEN, pick them under "Actin
 
 Free and open source (MIT): https://github.com/stante-group/dotted-line
 
-What's new in 0.3.2: Assistants on Real Signature's My Documents (the LITE version) no longer get "400: Bad Request": Dotted Line uses your own templates and the deals you're on, and the draft goes in your own Drafts. When Real Signature turns an account away, the panel now says so in words and what to check. Signing in partway through no longer shows an error. Alberta's Customer Acknowledgement gets your date, and Auto place reads only a form's own title. Every version's changes: https://github.com/stante-group/dotted-line/blob/main/CHANGELOG.md
+What's new in 0.3.3: Assistants on Real Signature's My Documents who pick an agent's deal are now told the draft goes out from them, and how to send it as the agent instead (Switch account). And when Auto place can't read a form, a report (only if you've said yes) names the form by its title, so we can teach Auto place that form. Every version's changes: https://github.com/stante-group/dotted-line/blob/main/CHANGELOG.md
 
 Made by the Deal Dates team — your deal deadlines in your inbox at 6am (dealdates.app).
 Dotted Line is an independent tool. It is not made, endorsed or supported by Lone Wolf Technologies, CREA or Real Broker. WEBForms, reZEN and Real Signature are their owners' trademarks.
