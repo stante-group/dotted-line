@@ -8,7 +8,7 @@
   "permissions": ["sidePanel", "storage", "scripting"],
   "host_permissions": [
     "https://pr.transactiondesk.com/*",
-    "https://signature.therealbrokerage.com/*"
+    "https://signature.realremaxgroup.com/*", "https://signature.therealbrokerage.com/*"
   ],
   "background": { "service_worker": "src/background.js", "type": "module" },
   "side_panel": { "default_path": "src/panel/panel.html" },
@@ -25,7 +25,7 @@
       "run_at": "document_idle"
     },
     {
-      "matches": ["https://signature.therealbrokerage.com/*"],
+      "matches": ["https://signature.realremaxgroup.com/*", "https://signature.therealbrokerage.com/*"],
       "js": ["src/realsig/content.js"],
       "run_at": "document_idle"
     }
@@ -33,7 +33,7 @@
   "web_accessible_resources": [
     {
       "resources": ["src/lib/*.js"],
-      "matches": ["https://pr.transactiondesk.com/*", "https://signature.therealbrokerage.com/*"]
+      "matches": ["https://pr.transactiondesk.com/*", "https://signature.realremaxgroup.com/*", "https://signature.therealbrokerage.com/*"]
     }
   ]
 }

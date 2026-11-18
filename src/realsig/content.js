@@ -1,4 +1,4 @@
-// Real Signature side. Runs in the signature.therealbrokerage.com tab so every API call
+// Real Signature side. Runs in the Real Signature tab (src/lib/sites.js) so every API call
 // goes out with the page's own origin and sign-in. Draft only — see src/lib/realsig-api.js.
 //
 // The side panel shows the choices (deal, template per form, signer counts); this script

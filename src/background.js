@@ -27,7 +27,7 @@ const JOB_TTL_MS = 60 * 60 * 1000;
 // So: the icon opens a POPUP over the page everywhere except Real Signature, where the
 // deal / signer / template choices need room and the SIDE PANEL opens — enabled on Real
 // Signature tabs only, so switching back to WEBForms never squeezes it.
-const RS = "https://signature.therealbrokerage.com/";
+import { RS, isRs } from "./lib/sites.js";
 const PANEL = "src/panel/panel.html";
 const POPUP = "src/panel/panel.html?popup=1";
 chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(() => {});
@@ -42,7 +42,7 @@ const WF = "https://pr.transactiondesk.com/";
 
 async function placeUi(tabId, url) {
   const u = String(url || "");
-  const rs = u.startsWith(RS);
+  const rs = isRs(u);
   // Without the "tabs" permission Chrome only gives us the URL of our two sites; any other
   // tab's url is undefined, which correctly reads as "not ours".
   await (rs || u.startsWith(WF) ? chrome.action.enable(tabId) : chrome.action.disable(tabId)).catch(() => {});
@@ -135,7 +135,7 @@ chrome.tabs.query({}).then((tabs) => tabs.forEach((t) => placeUi(t.id, t.url))).
 // same amber dot as a draft one click made: "look at the panel". Gone once the panel has
 // shown the forms (job:forTab marks the job seen) or when the job ends.
 async function waitingBadge(tabId, url) {
-  if (!String(url || "").startsWith(RS)) return;
+  if (!isRs(url)) return;
   const cutoff = Date.now() - JOB_TTL_MS;
   const j = (await allJobs()).find((x) => x.tabId === tabId && x.createdAt >= cutoff && !x.seen && !autoRunning.has(x.id));
   if (!j) return;
@@ -479,7 +479,7 @@ async function startJob({ wfTabId, wfForms, meta, background, auto }) {
 const OWN = chrome.runtime.getURL("");
 const RS_TAB_ONLY = new Set(["job:get", "job:status", "made:next"]);
 chrome.runtime.onMessage.addListener((msg, sender, reply) => {
-  const fromRsTab = !!sender.tab?.url?.startsWith(RS);
+  const fromRsTab = isRs(sender.tab?.url);
   // One of Dotted Line's own pages: the panel, the popup, or Settings, which opens in a tab
   // of its own (so has a sender.tab, whose page is ours too). A content script's sender.url
   // is the website's, never ours.

@@ -5,7 +5,7 @@
 // request() refuses those routes even if someone adds a method that calls them, and
 // test/realsig-api.test.js fails if one appears.
 //
-// Runs inside the signature.therealbrokerage.com tab: the API only accepts that origin,
+// Runs inside the Real Signature tab (src/lib/sites.js): the API only accepts that origin,
 // and the token is the page's own sign-in (cookie `jwtToken`). We read it per request and
 // never store it.
 

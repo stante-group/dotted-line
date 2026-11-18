@@ -3,6 +3,14 @@
 What changed in each version, in plain words. The newest is at the top. Chrome updates
 Dotted Line by itself a few hours after a version is published.
 
+## Next version (not released yet)
+
+- **Works on Real Signature's new address.** Real moved Real Signature to
+  `signature.realremaxgroup.com`, and Dotted Line didn't know it there: no side panel, and
+  "Open Real Signature" from WEBForms. It now works on the new address and the old one.
+  Chrome asks once to turn Dotted Line back on after this update, because it now runs on
+  one more site: click **Re-enable** (or turn it on in `chrome://extensions`).
+
 ## 0.3.3 — 2026-11-14
 
 - **My Documents on an agent's deal now says who sends.** When an assistant on Real

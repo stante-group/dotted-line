@@ -7,7 +7,9 @@ the extension must fail loudly when a shape stops matching.
 
 ## Real Signature
 
-- App `signature.therealbrokerage.com`; API `signature-api.therealbrokerage.com/api/v1`.
+- App `signature.realremaxgroup.com` since 2026-11-18 (moved without notice; the old
+  `signature.therealbrokerage.com` now 302s to it, and both are listed in `src/lib/sites.js`).
+  API still `signature-api.therealbrokerage.com/api/v1`, as are arrakis, yenta and keymaker.
 - Auth: the app holds a JWT in a JS-readable cookie `jwtToken` and sends
   `Authorization: Bearer <jwt>`. Cross-origin calls are only accepted from the app's own
   origin, which is why the extension works from inside that tab.

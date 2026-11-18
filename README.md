@@ -100,7 +100,8 @@ from the first form that has an address. It is written Canada Post style, unit f
   and numbers, plus the title of an association form Auto place couldn't read; never a
   name, address, deal or anything typed on a form ([what's in one](PRIVACY.md));
   `src/lib/report.js` is the whole list.
-- ✅ Only runs on `pr.transactiondesk.com` and `signature.therealbrokerage.com`, and only
+- ✅ Only runs on `pr.transactiondesk.com` and Real Signature (`signature.realremaxgroup.com`, and its
+  old address `signature.therealbrokerage.com`), and only
   when you click.
 - ❌ Does not change WEBForms' pages or your forms. PDFs pass through unchanged.
 

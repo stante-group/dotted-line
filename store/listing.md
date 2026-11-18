@@ -76,7 +76,7 @@ Create a Real Signature draft from forms the user filled in CREA WEBForms.
 - `storage` — remembers the user's settings and which Real Signature template they chose for each form, on their own computer (settings sync through their own Chrome profile).
 - `scripting` — reads which forms the user ticked in the open WEBForms page, when they click the Dotted Line button, and adds Dotted Line's page script to a WEBForms or Real Signature tab that was already open when it was installed or updated.
 - Host permission `pr.transactiondesk.com` — downloads the forms the user ticked, from WEBForms, using their own sign-in.
-- Host permission `signature.therealbrokerage.com` — reads the user's deals and templates and creates the draft in Real Signature, using their own sign-in.
+- Host permissions `signature.realremaxgroup.com` and `signature.therealbrokerage.com` (Real Signature's address since 2026-11-18, and its old one, which now forwards there) — reads the user's deals and templates and creates the draft in Real Signature, using their own sign-in.
 
 **Remote code:** No, I am not using remote code. (All code ships in the package.)
 

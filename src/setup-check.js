@@ -5,11 +5,11 @@ import { askOpenTab as ask } from "./messaging.js";
 import { setupReport, wfMatch } from "./lib/actor.js";
 
 const WF = "https://pr.transactiondesk.com/";
-const RS = "https://signature.therealbrokerage.com/";
+import { RS_PATTERNS } from "./lib/sites.js";
 
 /** → the report text: counts and yes/no only, safe to paste into a message. */
 export async function runSetupCheck() {
-  const rsAsk = await ask(`${RS}*`, { type: "rs:setup" });
+  const rsAsk = await ask(RS_PATTERNS, { type: "rs:setup" });
   const wfAsk = await ask(`${WF}*`, { type: "webforms:setup" });
   const rs = rsAsk.r, wf = wfAsk.r;
   if (wf && rs?.signedIn && wf.signedIn) {

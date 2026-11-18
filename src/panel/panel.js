@@ -18,7 +18,7 @@ const POPUP = new URLSearchParams(location.search).has("popup");
 if (POPUP) document.documentElement.classList.add("popup");
 
 const WF = "https://pr.transactiondesk.com/";
-const RS = "https://signature.therealbrokerage.com/";
+import { RS, isRs, draftIdOf, packetIdOf, HOME_URL } from "../lib/sites.js";
 const $ = (id) => document.getElementById(id);
 const el = (tag, text, cls) => { const e = document.createElement(tag); if (text != null) e.textContent = text; if (cls) e.className = cls; return e; };
 
@@ -474,7 +474,7 @@ async function goToRealSignature(tabId, needsYou = false) {
     // the usual reason it didn't: signed out, Real sends the tab to its own sign-in page on
     // another site, whose address Chrome doesn't give us. "Your forms are ready" was
     // wrong there; nothing is in Real Signature yet. The forms wait in that tab for an hour.
-    const onRs = String((await chrome.tabs.get(tabId).catch(() => null))?.url || "").startsWith(RS);
+    const onRs = isRs((await chrome.tabs.get(tabId).catch(() => null))?.url);
     const b = el("button", onRs ? "Go to Real Signature" : "Go to sign in");
     b.addEventListener("click", () => go().catch(async () => {
       await chrome.tabs.update(tabId, { active: true });
@@ -1219,20 +1219,6 @@ function showMade(made) {
 
 // ---------- a draft uploaded in Real Signature: Auto place (src/lib/ondraft.js) ----------
 
-// Real's one-time document steps (Transaction → Edit details → Prepare → Review) all live at
-// this address. A packet's are at PACKET_URL below.
-const DRAFT_URL = /^https:\/\/signature\.therealbrokerage\.com\/one-time-documents\/document\/([0-9a-f-]{36})(?:[/?#]|$)/i;
-// Clicking a draft on the Drafts list opens its preview first, with Next to the steps
-// (Dan's test, 2026-10-30) — the place to set it up. Only a one-time draft's preview: the
-// same /view/ pages show sent documents, which are never touched.
-const VIEW_URL = /^https:\/\/signature\.therealbrokerage\.com\/view\/document\/([0-9a-f-]{36})\?(?:[^#]*&)?oneTimeUse=true(?:[&#]|$)/i;
-// A packet's own steps (its Edit, where the signers are set once for every document) and
-// its one-time preview. Clicking the packet's name opens the preview, which has no actions;
-// its Edit opens the steps (Dan's test, 2026-10-30).
-const PACKET_URL = /^https:\/\/signature\.therealbrokerage\.com\/one-time-documents\/packet\/([0-9a-f-]{36})(?:[/?#]|$)/i;
-const PACKET_VIEW_URL = /^https:\/\/signature\.therealbrokerage\.com\/view\/packet\/([0-9a-f-]{36})\?(?:[^#]*&)?oneTimeUse=true(?:[&#]|$)/i;
-const draftIdOf = (url) => DRAFT_URL.exec(url)?.[1] || VIEW_URL.exec(url)?.[1] || null;
-const packetIdOf = (url) => PACKET_URL.exec(url)?.[1] || PACKET_VIEW_URL.exec(url)?.[1] || null;
 // Real sends a packet's document only with its packet ("associated with a packet. Please
 // send the packet instead"), so the agent goes back to the packet's own steps.
 const IN_PACKET = "This document is in a packet: send it from the packet (the Draft tab → the packet's Edit), not from here.";
@@ -1299,9 +1285,6 @@ async function openDraft(tab, id) {
   showDraft(tab, id, info);
 }
 
-// Real Signature's home pages (Sent, Draft, Voided — where a dropped PDF lands). Before the
-// draft's own steps there was nothing in the panel (Dan's test, 2026-10-30).
-const HOME_URL = /^https:\/\/signature\.therealbrokerage\.com\/home(?:[/?#]|$)/i;
 
 /** Recent uploads nobody has set up yet, each opening its draft — the panel then sets it up. */
 async function showUploads(tab) {
@@ -1528,7 +1511,7 @@ async function refresh() {
         await showWebforms(tab).catch(async (e) => { await reportError(e, "handoff"); throw e; });
         return;
       }
-      if (tab?.url?.startsWith(RS)) {
+      if (isRs(tab?.url)) {
         // The document or packet open in this tab is what the panel shows, always (Dan,
         // 2026-10-31): a WEBForms hand-off tied to the tab put its own forms up over an
         // uploaded packet. A hand-off shows on the pages it opens on, never over a draft.
