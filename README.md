@@ -102,7 +102,9 @@ from the first form that has an address. It is written Canada Post style, unit f
   `src/lib/report.js` is the whole list.
 - ✅ Only runs on `pr.transactiondesk.com` and Real Signature (`signature.realremaxgroup.com`, and its
   old address `signature.therealbrokerage.com`), and only
-  when you click.
+  when you click. Chrome's permission names Real's whole domains (`*.realremaxgroup.com`,
+  `*.therealbrokerage.com`) so that Real moving Real Signature again doesn't switch
+  Dotted Line off; it still runs only on Real Signature's pages.
 - ❌ Does not change WEBForms' pages or your forms. PDFs pass through unchanged.
 
 ## Development

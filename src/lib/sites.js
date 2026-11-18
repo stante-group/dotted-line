@@ -5,8 +5,14 @@
 // Both stay listed: Real could send some accounts back, and the old one costs nothing.
 // Only the app moved. Its API hosts (signature-api, arrakis, yenta, keymaker) are still on
 // therealbrokerage.com, so realsig-api.js is unchanged; the new site's own code calls them.
-// The manifest names the same two hosts (host_permissions, content_scripts,
-// web_accessible_resources); test/sites.test.js fails if the two lists drift apart.
+// The manifest's host_permissions name Real's two whole DOMAINS, not these two addresses
+// (RS_DOMAINS, Dan, 2026-11-18): a new site in host_permissions makes Chrome switch the
+// extension off on every install until the agent clicks Re-enable, and 0.3.4 paid that once.
+// With the domains granted, the next move inside either one (signature.* to anything.*) is a
+// silent update: add the address here and to the two narrow lists below. Those stay exact,
+// so the script only ever runs on Real Signature, never on Real's sign-in or reZEN pages:
+// content_scripts and web_accessible_resources name RS_PATTERNS. A move to a THIRD domain
+// still costs a Re-enable. test/sites.test.js fails if any of this drifts apart.
 
 /** The app's address today: new Real Signature URLs are built on this one. */
 export const RS = "https://signature.realremaxgroup.com/";
@@ -14,6 +20,8 @@ export const RS = "https://signature.realremaxgroup.com/";
 export const RS_HOSTS = [RS, "https://signature.therealbrokerage.com/"];
 /** For chrome.tabs.query({ url }), which takes a list. */
 export const RS_PATTERNS = RS_HOSTS.map((h) => `${h}*`);
+/** Real's own domains, as host_permissions grants them. Every RS_HOSTS address is inside one. */
+export const RS_DOMAINS = ["https://*.realremaxgroup.com/*", "https://*.therealbrokerage.com/*"];
 /** The host part of a regular expression matching any of them. */
 export const RS_HOST_RE = "https:\\/\\/signature\\.(?:realremaxgroup|therealbrokerage)\\.com";
 

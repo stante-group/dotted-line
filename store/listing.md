@@ -51,7 +51,7 @@ If an agent has given you Real Signature access in reZEN, pick them under "Actin
 
 Free and open source (MIT): https://github.com/stante-group/dotted-line
 
-What's new in 0.3.4: Dotted Line works again on Real Signature, which moved to signature.realremaxgroup.com. Chrome turns Dotted Line off once after this update because it now runs on the new address: click Re-enable (or switch it back on in chrome://extensions). And on AREA amendments, Auto place now puts the time and date on the "DATED at" line. Every version's changes: https://github.com/stante-group/dotted-line/blob/main/CHANGELOG.md
+What's new in 0.3.4: Dotted Line works again on Real Signature, which moved to signature.realremaxgroup.com. Chrome turns Dotted Line off once after this update because it now asks for Real's sites by domain, so a future move won't switch it off again: click Re-enable (or switch it back on in chrome://extensions). And on AREA amendments, Auto place now puts the time and date on the "DATED at" line. Every version's changes: https://github.com/stante-group/dotted-line/blob/main/CHANGELOG.md
 
 Made by the Deal Dates team — your deal deadlines in your inbox at 6am (dealdates.app).
 Dotted Line is an independent tool. It is not made, endorsed or supported by Lone Wolf Technologies, CREA or Real Broker. WEBForms, reZEN and Real Signature are their owners' trademarks.
@@ -76,7 +76,7 @@ Create a Real Signature draft from forms the user filled in CREA WEBForms.
 - `storage` — remembers the user's settings and which Real Signature template they chose for each form, on their own computer (settings sync through their own Chrome profile).
 - `scripting` — reads which forms the user ticked in the open WEBForms page, when they click the Dotted Line button, and adds Dotted Line's page script to a WEBForms or Real Signature tab that was already open when it was installed or updated.
 - Host permission `pr.transactiondesk.com` — downloads the forms the user ticked, from WEBForms, using their own sign-in.
-- Host permissions `signature.realremaxgroup.com` and `signature.therealbrokerage.com` (Real Signature's address since 2026-11-18, and its old one, which now forwards there) — reads the user's deals and templates and creates the draft in Real Signature, using their own sign-in.
+- Host permissions `*.realremaxgroup.com` and `*.therealbrokerage.com`, Real Broker's two domains: Real Signature moved from signature.therealbrokerage.com to signature.realremaxgroup.com without notice on 2026-11-18, and granting the domains lets the next such move ship as an ordinary update. The content script runs only on Real Signature itself (signature.realremaxgroup.com and signature.therealbrokerage.com) — reads the user's deals and templates and creates the draft in Real Signature, using their own sign-in.
 
 **Remote code:** No, I am not using remote code. (All code ships in the package.)
 

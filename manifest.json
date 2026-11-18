@@ -8,7 +8,7 @@
   "permissions": ["sidePanel", "storage", "scripting"],
   "host_permissions": [
     "https://pr.transactiondesk.com/*",
-    "https://signature.realremaxgroup.com/*", "https://signature.therealbrokerage.com/*"
+    "https://*.realremaxgroup.com/*", "https://*.therealbrokerage.com/*"
   ],
   "background": { "service_worker": "src/background.js", "type": "module" },
   "side_panel": { "default_path": "src/panel/panel.html" },

@@ -1,18 +1,30 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { RS, RS_HOSTS, RS_PATTERNS, isRs, draftIdOf, packetIdOf, HOME_URL } from "../src/lib/sites.js";
+import { RS, RS_HOSTS, RS_PATTERNS, RS_DOMAINS, isRs, draftIdOf, packetIdOf, HOME_URL } from "../src/lib/sites.js";
 
 const manifest = JSON.parse(readFileSync(new URL("../manifest.json", import.meta.url)));
 
 // Real moved Real Signature to a new address without notice (2026-11-18). Every place the
 // manifest names it must list every address in sites.js, or Dotted Line goes deaf on one.
-test("the manifest names every Real Signature address, in all three places", () => {
-  const rs = (list) => list.filter((m) => /signature\./.test(m)).sort();
+test("the manifest grants Real's two domains, and runs the script on Real Signature only", () => {
+  const real = (list) => list.filter((m) => /realremaxgroup|therealbrokerage/.test(m)).sort();
+  // Domains, not addresses: the next move inside one is an update with no Re-enable.
+  assert.deepEqual(real(manifest.host_permissions), [...RS_DOMAINS].sort(), "host_permissions");
+  // Exact addresses: never on Real's sign-in page (bolt.) or reZEN.
   const want = [...RS_PATTERNS].sort();
-  assert.deepEqual(rs(manifest.host_permissions), want, "host_permissions");
-  assert.deepEqual(rs(manifest.content_scripts.find((c) => c.js.includes("src/realsig/content.js")).matches), want, "content_scripts");
-  assert.deepEqual(rs(manifest.web_accessible_resources[0].matches), want, "web_accessible_resources");
+  assert.deepEqual(real(manifest.content_scripts.find((c) => c.js.includes("src/realsig/content.js")).matches), want, "content_scripts");
+  assert.deepEqual(real(manifest.web_accessible_resources[0].matches), want, "web_accessible_resources");
+});
+
+test("every Real Signature address is inside a granted domain (a third domain would need a Re-enable)", () => {
+  const inside = (h) => RS_DOMAINS.some((d) => {
+    const dom = d.replace("https://*.", "").replace("/*", "");
+    const host = new URL(h).hostname;
+    return host === dom || host.endsWith(`.${dom}`);
+  });
+  for (const h of RS_HOSTS) assert.ok(inside(h), h);
+  assert.ok(!inside("https://signature.example.com/"), "the check can fail");
 });
 
 test("new Real Signature links are built on the new address", () => {
