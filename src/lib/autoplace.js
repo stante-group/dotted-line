@@ -670,7 +670,12 @@ export function assignSlots(blocks) {
     if (!below.length) below = sorted.filter((s) => s.sig && s.y < d.y + 6 && d.y - s.y < 180);
     const top = Math.max(...below.map((s) => s.y));
     const sig = below.filter((s) => top - s.y < 6).sort((a, b) => a.x - b.x)[0];
-    if (sig) { d.role = sig.role; d.index = sig.index; d.shared = true; }
+    // Never past another date line: that one is the nearer signer's, so this one belongs to
+    // a line in between that gets no block (AREA's Agreement to Represent Both Seller and
+    // Buyer Addendum dates the Brokerage's lines first, and the Seller got that date too,
+    // 2026-11-18). Its own time and date share its row, so only a date 6pt or more lower counts.
+    const between = sig && sorted.some((o) => o.date && !o.pair && !o.under && o.y < d.y - 6 && o.y > sig.y + 3);
+    if (sig && !between) { d.role = sig.role; d.index = sig.index; d.shared = true; }
   }
   // One date blank for a side with several signers is Signer 1's (Dan, 2026-10-30): Buyer 1
   // and Seller 1 are always there, Buyer 2 and Seller 2 not. A side with a date per signer
