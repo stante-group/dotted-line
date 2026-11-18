@@ -3,7 +3,7 @@
 What changed in each version, in plain words. The newest is at the top. Chrome updates
 Dotted Line by itself a few hours after a version is published.
 
-## Next version (not released yet)
+## 0.3.4 — 2026-11-18
 
 - **Works on Real Signature's new address.** Real moved Real Signature to
   `signature.realremaxgroup.com` without notice, and Dotted Line didn't know it there: no

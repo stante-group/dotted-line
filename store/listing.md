@@ -51,7 +51,7 @@ If an agent has given you Real Signature access in reZEN, pick them under "Actin
 
 Free and open source (MIT): https://github.com/stante-group/dotted-line
 
-What's new in 0.3.3: Assistants on Real Signature's My Documents who pick an agent's deal are now told the draft goes out from them, and how to send it as the agent instead (Switch account). And when Auto place can't read a form, a report (only if you've said yes) names the form by its title, so we can teach Auto place that form. Every version's changes: https://github.com/stante-group/dotted-line/blob/main/CHANGELOG.md
+What's new in 0.3.4: Dotted Line works again on Real Signature, which moved to signature.realremaxgroup.com. Chrome turns Dotted Line off once after this update because it now runs on the new address: click Re-enable (or switch it back on in chrome://extensions). And on AREA amendments, Auto place now puts the time and date on the "DATED at" line. Every version's changes: https://github.com/stante-group/dotted-line/blob/main/CHANGELOG.md
 
 Made by the Deal Dates team — your deal deadlines in your inbox at 6am (dealdates.app).
 Dotted Line is an independent tool. It is not made, endorsed or supported by Lone Wolf Technologies, CREA or Real Broker. WEBForms, reZEN and Real Signature are their owners' trademarks.
