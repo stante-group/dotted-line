@@ -6,10 +6,14 @@ Dotted Line by itself a few hours after a version is published.
 ## Next version (not released yet)
 
 - **Works on Real Signature's new address.** Real moved Real Signature to
-  `signature.realremaxgroup.com`, and Dotted Line didn't know it there: no side panel, and
-  "Open Real Signature" from WEBForms. It now works on the new address and the old one.
-  Chrome asks once to turn Dotted Line back on after this update, because it now runs on
-  one more site: click **Re-enable** (or turn it on in `chrome://extensions`).
+  `signature.realremaxgroup.com` without notice, and Dotted Line didn't know it there: no
+  side panel on Real Signature, and Prepare on WEBForms said to sign in when you already
+  were. It now works on the new address and the old one. After this update Chrome turns
+  Dotted Line off once, because it now runs on one more site: click **Re-enable** (or
+  switch it back on in `chrome://extensions`).
+- **AREA amendments now get their time and date.** Auto place put the signature on an
+  amendment's Seller or Buyer line, but nothing on the "DATED at ____ .m. on ____" line
+  above it. It now places the time and the date there, the same as on the contract itself.
 
 ## 0.3.3 — 2026-11-14
 

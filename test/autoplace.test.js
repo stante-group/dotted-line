@@ -622,6 +622,16 @@ test("a time blank of its own however the date line is worded: 'and DATED at ___
   assert.deepEqual(labels(autoLayout([q]).layout), ["SIGNED_DATE BUYER1", "SIGNATURE BUYER1"]);
 });
 
+test("a bare 'DATED at ____ .m. on ____' line gets its time and date (AREA amendments)", () => {
+  // AREA's Commercial Purchase Contract Amendment (Dan, 2026-11-17): the date line starts
+  // with "DATED at", with no "signed" before it and no "day of" after, and got nothing.
+  const p = page([
+    word("DATED at ________. m. on __________________________________________, 20______.", 38, 700),
+    word("Seller", 38, 670), word("Witness", 330, 670),
+  ], [rule(38, 300, 680), rule(330, 570, 680)]);
+  assert.deepEqual(labels(autoLayout([p]).layout), ["SIGNED_TIME_ONLY SELLER1", "SIGNED_DATE_ONLY SELLER1", "SIGNATURE SELLER1"]);
+});
+
 test("nothing in a purchase contract's REJECTION section: signing there declines the offer", () => {
   // AREA's Commercial Purchase Contract, last page (Dan, 2026-10-31): the acceptance gets
   // the seller; the rejection under "has no effect on the contract's terms" gets nothing.
