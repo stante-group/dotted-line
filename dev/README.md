@@ -26,6 +26,15 @@ node \\wsl.localhost\Ubuntu\home\dan\dotted-line\dev\apply.mjs C:\Users\dan\dott
 "Test WEBForms"), and sets `version_name`. It refuses a copy that's already wired, and
 stops without writing if the lines it edits have moved (`npm test` catches that first).
 
+## Comparing the sample forms (release step 3)
+
+```
+node dev/compare-forms.mjs <last release checkout> <release checkout> /mnt/c/Users/dan/dotted-line-test-forms
+```
+
+Lists each sample form whose Auto place blocks differ, block by block. The forms are real
+client PDFs: read the output here, never commit or paste it anywhere public.
+
 ## Before uploading a store zip
 
 ```
