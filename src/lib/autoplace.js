@@ -270,7 +270,9 @@ const INITIALS_OVAL = /\bINITIALS OF (BUYER|SELLER)\(S\):/g;
 // BCREA: "SIGNED, SEALED, & DELIVERED THIS ____ DAY OF ____ YR. ____".
 // BCREA: "Confirmed and signed this ___ Day of ____ Year".
 // SREC's Form 910: "Dated at ____ this ____ day of ____, 20__".
-const DATED = /\bsigned this(?![a-z]).*?day of(?![a-z])|^\s*Dated at\b.*?\bday of\b|\bsigned and dated\b.*?\bon(?![a-z])|\bsigned and sealed\b.*?\bday of\b|\bsigned, sealed,? (?:&|and) delivered\b.*?\bday of\b|^\s*Signed at\b.*?\bmm(?![a-ce-z])|^\s*Signed on\b|\bsigned in the presence of a witness, and dated\b.*?\bon(?![a-z])|^\s*Date\b/i;
+// AREA's amendments: a bare "DATED at ____ .m. on ____, 20__" (no "signed" before it, no
+// "day of" after), which matched nothing and got no time or date (Dan, 2026-11-17).
+const DATED = /\bsigned this(?![a-z]).*?day of(?![a-z])|^\s*Dated at\b.*?\bday of\b|^\s*Dated at\b.*?\bm\.\s*on(?![a-z])|\bsigned and dated\b.*?\bon(?![a-z])|\bsigned and sealed\b.*?\bday of\b|\bsigned, sealed,? (?:&|and) delivered\b.*?\bday of\b|^\s*Signed at\b.*?\bmm(?![a-ce-z])|^\s*Signed on\b|\bsigned in the presence of a witness, and dated\b.*?\bon(?![a-z])|^\s*Date\b/i;
 
 // A form's title, in capitals near the top of page 1, can name a side the labels don't:
 // "COMMERCIAL TENANT CUSTOMER DISCLOSURE ACKNOWLEDGMENT" (customer = the tenant), "CUSTOMER

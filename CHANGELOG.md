@@ -3,6 +3,12 @@
 What changed in each version, in plain words. The newest is at the top. Chrome updates
 Dotted Line by itself a few hours after a version is published.
 
+## Next version (not released yet)
+
+- **AREA amendments now get their time and date.** Auto place put the signature on an
+  amendment's Seller or Buyer line, but nothing on the "DATED at ____ .m. on ____" line
+  above it. It now places the time and the date there, the same as on the contract itself.
+
 ## 0.3.3 — 2026-11-14
 
 - **My Documents on an agent's deal now says who sends.** When an assistant on Real
