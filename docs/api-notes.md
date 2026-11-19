@@ -212,6 +212,16 @@ flag flipped; proven 2026-10-15 (next section).
   can be a used envelope (envelope-ID stamp, typed values); only the blocks matter, since
   drafts put them on the WEBForms PDF.
 
+### A packet's signer cards are read-only; Add Signees edits them (2026-11-19)
+
+On a PACKET's Edit details, each document shows its signers as cards (name · email ·
+role). The cards can't be clicked or edited:
+changing a signer, or adding one, goes through the packet's **Add Signees** box. Dan
+mistook the read-only cards for a lock caused by Auto place (a packet built by hand, deal
+picked in Real Signature, Auto place from the panel); it was only Real's layout. Not a
+Dotted Line fault: Auto place keeps a draft's signers and roles as they are and only adds
+blocks (`placeOnDraft` in src/lib/ondraft.js).
+
 ### Real's packet "Add Signees" box pre-fills a wrong row (2026-10-14)
 
 On a PACKET draft, Edit details → **Add Signees** opens a box with one row per role slot.
