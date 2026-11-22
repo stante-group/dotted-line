@@ -105,7 +105,8 @@ export function mergeLayouts(layouts) {
 export function applyToDraft(draft, layout) {
   if (typeof draft.pagesCount === "number" && typeof layout.pagesCount === "number"
       && draft.pagesCount !== layout.pagesCount) {
-    throw new Error(`page count differs (PDF ${draft.pagesCount}, template ${layout.pagesCount}) — the form may have been revised`);
+    // "page count differs" is what report.js matches; keep it at the start.
+    throw new Error(`page count differs: the PDF has ${draft.pagesCount} pages, the blocks are for ${layout.pagesCount}. Place the blocks in Real Signature, or check this is the right PDF`);
   }
   return {
     ...draft,
