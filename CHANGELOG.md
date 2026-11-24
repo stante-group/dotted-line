@@ -12,7 +12,6 @@ Dotted Line by itself a few hours after a version is published.
   already listed single documents you'd uploaded but not set up, each with a Set up
   button. Now packets are in the same list, newest first. A packet with some documents
   set up and some not shows how many are left, and Set up does only those.
-
 - **One signer per copy.** When you tick the same form more than once — a form that takes
   one signer, filled once per buyer — each copy used to get every buyer, and you deleted
   the extra one from each copy by hand. Now the panel offers "One signer per copy" and
@@ -46,10 +45,56 @@ Dotted Line by itself a few hours after a version is published.
   Signature". If nothing is ready to send yet (no forms ticked, or a form not saved), the
   small window over WEBForms opens and says why, as before. With one click on, nothing
   changes.
+- **Company clients sign on the "Per:" lines.** When your client is a company in reZEN,
+  Auto place puts the signatures on the "Per: Authorized Signing Officer(s)" lines and
+  leaves the Seller/Buyer lines blank, as on the Commercial Purchase Contract notices. A
+  person, or a mix of people and companies, signs as before. This also works when you set
+  up a document you uploaded to Real Signature, once its deal is attached.
+
+## 0.3.5 — 2026-11-24
+
+- **Signed PDFs work with Auto place.** A PDF that had been signed or saved again, such as
+  a signed contract, stopped with "page count differs": Dotted Line counted the pages it
+  had before each signature as well. It now counts each page once.
+
+## 0.3.4 — 2026-11-18
+
+- **Works on Real Signature's new address.** Real moved Real Signature to
+  `signature.realremaxgroup.com` without notice, and Dotted Line didn't know it there: no
+  side panel on Real Signature, and Prepare on WEBForms said to sign in when you already
+  were. It now works on the new address and the old one. After this update Chrome turns
+  Dotted Line off once, because it now asks for Real's sites by domain: click **Re-enable**
+  (or switch it back on in `chrome://extensions`). Asking for the whole domain means the next
+  time Real moves Real Signature within it, Dotted Line updates without being switched off.
+  It still runs only on Real Signature's own pages.
+- **AREA amendments now get their time and date.** Auto place put the signature on an
+  amendment's Seller or Buyer line, but nothing on the "DATED at ____ .m. on ____" line
+  above it. It now places the time and the date there, the same as on the contract itself.
+
+## 0.3.3 — 2026-11-14
+
+- **My Documents on an agent's deal now says who sends.** When an assistant on Real
+  Signature's My Documents picks a deal that belongs to an agent, the panel says whose deal
+  it is and that the draft goes out from the assistant, and how to send it as the agent
+  instead (Switch account).
+- **A form Auto place can't read is reported by its title as well as its code.** When a
+  form placed from its printed labels gets no blocks, and you've said yes to reports, the
+  report now names the form type the way your WEBForms Forms library does ("Ancillary
+  Services"), not only by WEBForms' internal code, so we can find a blank copy and teach
+  Auto place that form. Only for a real estate association's forms, and never anything
+  typed on the form. The privacy policy says exactly what's sent.
+
+## 0.3.2 — 2026-11-12
 
 - **Signing in partway through no longer shows an error.** If Real Signature sent you
   to sign in just as one click was starting, the panel showed a red "message channel
   closed" error. Now your forms wait while you sign in, the same as any other sign-in.
+- **When Real Signature turns your account away, Dotted Line says so in words.** If Real
+  Signature refuses every request from your sign-in without giving a reason, the panel
+  used to show only "GET /document-templates → 400". It now says that Real Signature
+  turned the sign-in down, whether it's an agent's account, and what to check: that
+  Real Signature works on its own, and if you're an assistant, the agent you're working
+  for. Nothing is made or sent.
 - **Alberta's Customer Acknowledgement now gets your date.** Auto place put your
   signature on the brokerage representative's line but no date. Now the "Signed and dated
   on" line is your date, the way the Fee Disclosure has it. The customers' lines are still
@@ -60,22 +105,12 @@ Dotted Line by itself a few hours after a version is published.
   that only names another form, like "Schedule to the …" or "Addendum to the …". Every
   form that worked before still works the same.
 
-- **The suggested number of buyers and sellers follows the form's own signing lines.**
-  With Auto place, a form with seller lines only no longer suggests buyers too, and a form
-  with one signing line suggests one signer. Names in WEBForms and the reZEN deal still
-  come first, and you can always change the numbers.
-
-- **Company clients sign on the "Per:" lines.** When your client is a company in reZEN,
-  Auto place puts the signatures on the "Per: Authorized Signing Officer(s)" lines and
-  leaves the Seller/Buyer lines blank, as on the Commercial Purchase Contract notices. A
-  person, or a mix of people and companies, signs as before. This also works when you set
-  up a document you uploaded to Real Signature, once its deal is attached.
-- **When Real Signature turns your account away, Dotted Line says so in words.** If Real
-  Signature refuses every request from your sign-in without giving a reason, the panel
-  used to show only "GET /document-templates → 400". It now says that Real Signature
-  turned the sign-in down, whether it's an agent's account, and what to check: that
-  Real Signature works on its own, and if you're an assistant, the agent you're working
-  for. Nothing is made or sent.
+- **Assistants on Real Signature's "My Documents" (the LITE version): no more "400: Bad
+  Request".** Dotted Line mistook My Documents for an agent and asked Real Signature for
+  that agent's templates and deals, which it turned down. Now it works the way Real
+  Signature does on My Documents: your own templates, the deals and listings you're on,
+  and the draft in your own Drafts. To make a draft as an agent, use Switch account in
+  Real Signature first.
 
 ## 0.3.1 — 2026-11-04
 

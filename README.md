@@ -97,10 +97,14 @@ from the first form that has an address. It is written Canada Post style, unit f
   nowhere else. No tracking, no account.
 - ✅ **Error reports only if you say yes.** A short report when a draft fails, and a daily
   count of drafts that worked, so problems get fixed without you telling us. Fixed choices
-  and numbers only, never a name, address, deal or form ([what's in one](PRIVACY.md));
+  and numbers, plus the title of an association form Auto place couldn't read; never a
+  name, address, deal or anything typed on a form ([what's in one](PRIVACY.md));
   `src/lib/report.js` is the whole list.
-- ✅ Only runs on `pr.transactiondesk.com` and `signature.therealbrokerage.com`, and only
-  when you click.
+- ✅ Only runs on `pr.transactiondesk.com` and Real Signature (`signature.realremaxgroup.com`, and its
+  old address `signature.therealbrokerage.com`), and only
+  when you click. Chrome's permission names Real's whole domains (`*.realremaxgroup.com`,
+  `*.therealbrokerage.com`) so that Real moving Real Signature again doesn't switch
+  Dotted Line off; it still runs only on Real Signature's pages.
 - ❌ Does not change WEBForms' pages or your forms. PDFs pass through unchanged.
 
 ## Development

@@ -37,11 +37,15 @@ export function refusalMessage(original, who) {
       "Check that Real Signature works on its own in this tab, with that agent's templates and drafts showing. " +
       "If it doesn't, Real's support can see why; Dotted Line can't change it. Nothing was made or sent." + tail;
   }
+  // Without the reZEN "Real Signature" permission on the assistant's team role, Real Signature never
+  // shows the picker and answers every read with a bare 400 (a store user, Nov 2026: rows 68-75).
   if (who === "not-agent") {
     return `Real Signature turned down this sign-in's requests without saying why: ${REFUSAL_WORDS.notAgent}, ` +
       "and Dotted Line works from an agent's templates and deals. If you work for an agent and Real Signature " +
       "lets you act for them, pick them where it asks “Whose documents would you like to access?”, " +
-      "then click the extension again. Nothing was made or sent." + tail;
+      "then click the extension again. If Real Signature never asks, the agent's team hasn't given you " +
+      "Real Signature yet: in reZEN, the team leader opens Teams, your team, Team Administrators, your name, " +
+      "and turns on Real Signature under Additional Permissions. Nothing was made or sent." + tail;
   }
   return `Real Signature ${REFUSAL_WORDS.agent} without saying why, so there are no templates or deals to load. ` +
     "Check that Real Signature works on its own in this tab: your templates and drafts should show. " +

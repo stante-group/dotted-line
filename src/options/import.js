@@ -9,7 +9,7 @@ import { isPdf, countPages, toBase64 } from "../lib/pdf.js";
 import { sendToTab } from "../messaging.js";
 import { classifyError } from "../lib/report.js";
 
-const RS = "https://signature.therealbrokerage.com/";
+import { RS, RS_PATTERNS } from "../lib/sites.js";
 const OFFER_BLANK = false; // the "Blank form PDF" picker on each card (see card())
 const $ = (id) => document.getElementById(id);
 
@@ -44,7 +44,7 @@ async function readFiles(files) {
  *  the extension was (re)loaded can't answer, so try the next — but a real error from a
  *  tab that did answer stops there, so a template is never made twice. */
 async function toRealSignature(msg) {
-  const tabs = (await chrome.tabs.query({ url: `${RS}*` })).sort((a, b) => (b.lastAccessed || 0) - (a.lastAccessed || 0));
+  const tabs = (await chrome.tabs.query({ url: RS_PATTERNS })).sort((a, b) => (b.lastAccessed || 0) - (a.lastAccessed || 0));
   if (!tabs.length) throw new Error("Open Real Signature in a tab first (signed in), then try again.");
   for (const t of tabs) {
     try { return await sendToTab(t.id, msg); }

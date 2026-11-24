@@ -52,8 +52,10 @@ With your yes, it sends the Deal Dates team:
   in as the same person";
 - **when a form placed from its printed labels gets no blocks** (the draft is still made):
   why, such as "no labels Dotted Line knows" or "the PDF's text can't be read", and which
-  printed form it was, by WEBForms' code for the form type (like `AREA0287`). That code
-  names the blank form, never anything typed on it. A draft you uploaded in Real Signature
+  printed form it was, by WEBForms' code for the form type (like `AREA0287`) and, for a
+  real estate association's form, its title as your WEBForms Forms library names it (like
+  "Ancillary Services"). Both name the blank form, never anything typed on it: the title
+  comes from the library's list of form types, not from the form's own name. A draft you uploaded in Real Signature
   has no such code, so its report says only why. Once a day at most per form;
 - **when Dotted Line can't tell which of Real Signature's steps a document is on** (so
   its check before you send has stopped working): only that, once a day at most;
@@ -83,8 +85,11 @@ whether a signer has no email, which step was slow (over 30 seconds), and whethe
 warning was showing.
 
 A report never contains your forms or any name, email, address, phone number, MLS number,
-deal, template name or file name. Every field is a fixed choice or a number: the code is
-public, and `src/lib/report.js` is the whole list. You can see exactly what a report holds
+deal, template name or file name. Every field is a fixed choice or a number, except that
+one form-type title, and that is sent only for an association's form code (four letters
+and four digits), only in plain letters, digits and punctuation, at most 80 characters,
+with nothing shaped like a phone or MLS number; anything else is left out whole. The code
+is public, and `src/lib/report.js` is the whole list. You can see exactly what a report holds
 under "What's sent" when an error shows.
 
 Reports carry no account, no ID and no cookie, and neither Dotted Line nor the Deal Dates

@@ -53,6 +53,9 @@ export function meFromDeals(rawDeals, agentId) {
 /** The draft's `defaults.sender`. Same as Real's own UI: the signed-in agent, or — for a
  *  TC acting for an agent — that agent (Real names them sender of record itself). */
 export function senderFor(me /*, deal */) {
+  // My Documents: no profile to name her from, and guessing would be worse than Real's own
+  // choice — null keeps the sender Real put on the draft at upload (draft.js).
+  if (me?.myDocuments) return null;
   return { firstName: me.firstName, lastName: me.lastName, email: me.email, agentYentaId: null };
 }
 
@@ -126,6 +129,17 @@ export function wfMatch({ me, webformsUserName, webformsUserEmail = null }) {
  *  TC's draft landed in the wrong agent's Drafts). → [{level, text}] */
 export function actingNotes({ me, deal, webformsUserName, webformsUserEmail = null }) {
   const out = [];
+  if (me?.myDocuments) {
+    out.push({ level: "info", text: me.id
+      ? "Real Signature is on My Documents: the draft goes in your own Drafts, not an agent's. To make it as an agent, use Switch account in Real Signature first."
+      : "Real Signature is on My Documents: the draft goes in your own Drafts, with no reZEN deal. To work on an agent's deal, use Switch account in Real Signature first." });
+    // The team's deals she's on belong to their agents, but on My Documents the draft goes
+    // out from HER: say whose deal it is and who sends (Dan, 2026-11-12, test 99).
+    if (isOthersDeal(me, deal)) {
+      out.push({ level: "warn", text: `This deal is ${deal.agentName || "an agent"}'s, but the draft goes out from you: it's in your Drafts with you as sender. To send it as ${deal.agentName || "the agent"}, use Switch account in Real Signature and pick them first.` });
+    }
+    return out;
+  }
   const acting = !!me?.actingForAgent;
   const whose = acting ? `${me.fullName || "the agent"}'s` : "your";
   if (acting) {
@@ -168,7 +182,7 @@ export function setupReport({ rs, wf }) {
   if (rs?.steps) lines.push(`Real Signature calls: ${rs.steps}`);
   if (rs?.signedIn) {
     lines.push(
-      `Acting for an agent (TC): ${rs.actingForAgent ? "yes" : "no"}`,
+      `Acting for an agent (TC): ${rs.actingForAgent ? "yes" : rs.myDocuments ? "no, My Documents" : "no"}`,
       `Real account type: ${rs.type ?? "unknown"}`,
       `Real roles: ${(rs.roles || []).filter((r) => /^[A-Z_]+$/.test(r)).join(", ") || "none listed"}`,
       `Open deals visible: ${rs.deals} (own ${rs.ownDeals}, other agents' ${rs.deals - rs.ownDeals})`,

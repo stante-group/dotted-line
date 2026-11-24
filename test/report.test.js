@@ -55,7 +55,7 @@ test("every other field is rebuilt from fixed choices: injected values and keys 
   assert.equal(r.version, "0.0.0");
   assert.equal(r.cls, "ours");
   assert.equal(r.partial, false);
-  assert.deepEqual(r.ctx, { path: "panel", acting: false, wf: "none", deal: "none", othersDeal: false, tpl: "none",
+  assert.deepEqual(r.ctx, { path: "panel", acting: false, myDocs: false, wf: "none", deal: "none", othersDeal: false, tpl: "none",
     labels: "none", pages: "unknown", forms: "4+", signers: "0", noEmail: false, slow: "upload", warned: false, form: null });
   assert.deepEqual(r.local, { made: 0, failed: 2 });
   assert.equal(sanitizeReport({ kind: "gossip" }), null);
@@ -99,7 +99,7 @@ test("the draft's context: categories only", () => {
     forms: [{ pageCount: 6 }, { pageCount: 2 }], templates: [{ pagesCount: 6 }, { pagesCount: 3 }],
     signers: 4, noEmail: true, timings: { upload: 12, save: 41.5, oneClickTotal: 90 }, warned: true,
   });
-  assert.deepEqual(ctx, { path: "panel", acting: true, wf: "own-corp", deal: "address", othersDeal: false,
+  assert.deepEqual(ctx, { path: "panel", acting: true, myDocs: false, wf: "own-corp", deal: "address", othersDeal: false,
     tpl: "all", labels: "none", pages: "differ", forms: "2-3", signers: "3+", noEmail: true, slow: "save", warned: true });
   assert.equal(draftContext({ path: "one-click", forms: [{ pageCount: 6 }], templates: [null] }).pages, "none");
   assert.equal(draftContext({ path: "one-click", forms: [{}, {}], templates: [{ pagesCount: 6 }, null] }).tpl, "some");
@@ -151,6 +151,23 @@ test("a form placed from its labels with no blocks: the reason and the form's li
     assert.deepEqual(leaks(x), []);
   }
   assert.equal(labelsReport({ code: "Jordan Sample", form: null, path: "panel", version: "0.1.2" }).code, "unknown");
+});
+
+test("the form type's library title rides with an association code, and nothing else gets through", () => {
+  const r = labelsReport({ code: "no-labels", form: "SRAR0145", title: "  Ancillary   Services (Form 910) ", path: "panel", version: "0.3.3", chrome: "152" });
+  assert.equal(r.ctx.formTitle, "Ancillary Services (Form 910)");
+  // Not association-shaped: a brokerage's own library form could be titled anything.
+  assert.equal(labelsReport({ code: "no-labels", form: "AB12", title: "Ancillary Services", path: "panel", version: "0.3.3" }).ctx.formTitle, undefined);
+  // No code, no title.
+  assert.equal(labelsReport({ code: "no-labels", form: null, title: "Ancillary Services", path: "panel", version: "0.3.3" }).ctx.formTitle, undefined);
+  // Dropped whole, never trimmed into shape: an email, a phone, an MLS number, a quote, too long.
+  for (const title of ["Offer for jordan@example.com", "Call (555) 000-0000", "Listing A1234567 12345",
+    "Jordan's \"offer\"", "x".repeat(81), "<script>", ""]) {
+    const x = labelsReport({ code: "fonts", form: "AREA0287", title, path: "panel", version: "0.3.3" });
+    assert.equal(x.ctx.formTitle, undefined, title);
+  }
+  // sanitizeReport applies it to any report's ctx, not just labelsReport's.
+  assert.equal(sanitizeReport({ kind: "error", step: "labels", version: "0.3.3", ctx: { form: "SRAR0145", formTitle: "Jordan Sample 12345 Example" } }).ctx.formTitle, undefined);
 });
 
 test("No deal as the default is told apart from No deal picked", async () => {

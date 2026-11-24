@@ -7,7 +7,9 @@ the extension must fail loudly when a shape stops matching.
 
 ## Real Signature
 
-- App `signature.therealbrokerage.com`; API `signature-api.therealbrokerage.com/api/v1`.
+- App `signature.realremaxgroup.com` since 2026-11-18 (moved without notice; the old
+  `signature.therealbrokerage.com` now 302s to it, and both are listed in `src/lib/sites.js`).
+  API still `signature-api.therealbrokerage.com/api/v1`, as are arrakis, yenta and keymaker.
 - Auth: the app holds a JWT in a JS-readable cookie `jwtToken` and sends
   `Authorization: Bearer <jwt>`. Cross-origin calls are only accepted from the app's own
   origin, which is why the extension works from inside that tab.
@@ -137,6 +139,18 @@ Real's UI has no "packet" choice at upload: each PDF uploads as its own one-time
 - Not usable from her sign-in: yenta `/delegation/managed-accounts?userId&capability=REAL_SIGNATURE`
   → 403 with her keymaker id (400 without one); `/transaction-coordinators/connections` → 403.
 
+- **"My Documents" = the word `SELF` in `actingAsUserId`** (read from Real's bundle,
+  2026-11-12). Picking it (or Real choosing it for a TC with no connected agents) puts her
+  in Real's "LITE version" (the yellow banner: TC, not an agent, not acting). Real's app
+  treats `SELF` as no agent and sends no X-Agent-Context. Sent as a header, it gets a bare
+  400 on every list, even her own drafts. Real's sidebar "Switch account" goes back to the
+  picker ("Assigned Agents" / "My Documents").
+- **A TC's own profile is `GET yenta…/api/v1/users/generic/me`, not `/users/me`** (bundle,
+  2026-11-12; confirmed on Dan's assistant, test 99). Real's app asks it when keymaker roles
+  have `TRANSACTION_COORDINATOR` without `AGENT`. Its `id` lists her deals through the same
+  arrakis `/transactions/participant/{id}/…/OPEN`: the team deals and listings she's on,
+  which is what Real's LITE "Search & select transaction" shows.
+
 ### Sharing (observed 2026-10-12)
 
 - The app's **Shared** tab is `/shared-with-me/templates`: "Shared with Me" → Templates and
@@ -211,6 +225,16 @@ flag flipped; proven 2026-10-15 (next section).
   `STRING` for `SENDER`, added by hand. A DocuSign template's PDF
   can be a used envelope (envelope-ID stamp, typed values); only the blocks matter, since
   drafts put them on the WEBForms PDF.
+
+### A packet's signer cards are read-only; Add Signees edits them (2026-11-19)
+
+On a PACKET's Edit details, each document shows its signers as cards (name · email ·
+role). The cards can't be clicked or edited:
+changing a signer, or adding one, goes through the packet's **Add Signees** box. Dan
+mistook the read-only cards for a lock caused by Auto place (a packet built by hand, deal
+picked in Real Signature, Auto place from the panel); it was only Real's layout. Not a
+Dotted Line fault: Auto place keeps a draft's signers and roles as they are and only adds
+blocks (`placeOnDraft` in src/lib/ondraft.js).
 
 ### Real's packet "Add Signees" box pre-fills a wrong row (2026-10-14)
 

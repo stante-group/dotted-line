@@ -91,6 +91,24 @@ test("pdf checks", () => {
   assert.deepEqual(fromBase64(toBase64(PDF_A)), PDF_A);
 });
 
+// A signed PDF: each signature appends new copies of the pages it touched (same object
+// numbers) and sometimes fresh ones (new numbers, the tree's /Count updated). Counting
+// every page object gave 9 for a 6-page contract (2026-11-22).
+test("countPages: a PDF saved again counts its pages once", () => {
+  const base = "%PDF-1.4\n1 0 obj << /Type /Pages /Kids [2 0 R 3 0 R] /Count 2 >> endobj\n"
+    + "2 0 obj << /Type /Page /Parent 1 0 R >> endobj\n3 0 obj << /Type /Page /Parent 1 0 R >> endobj\n%%EOF\n";
+  // Same numbers again: only the newest copy counts, even with no /Count to go by.
+  const resaved = base + "3 0 obj << /Type /Page /Parent 1 0 R /Annots [9 0 R] >> endobj\n%%EOF\n";
+  assert.equal(countPages(enc(resaved)), 2);
+  assert.equal(countPages(enc(resaved.replace("/Count 2 ", ""))), 2);
+  // A page replaced under a new number: the old one is still in the file, the tree's /Count says 2.
+  const renumbered = base + "4 0 obj << /Type /Page /Parent 1 0 R >> endobj\n"
+    + "1 0 obj << /Type /Pages /Kids [2 0 R 4 0 R] /Count 2 >> endobj\n%%EOF\n";
+  assert.equal(countPages(enc(renumbered)), 2);
+  // A tree of nodes: the root's /Count, not a branch's.
+  assert.equal(countPages(enc("%PDF-1.4\n1 0 obj << /Type /Pages /Count 5 >> endobj\n2 0 obj << /Type /Pages /Parent 1 0 R /Count 3 >> endobj\n%%EOF")), 5);
+});
+
 test("title: deal name, address appended only when complete and not already there", () => {
   const t = { Name: "Offer - Jordan Sample", StreetNumber: "120", StreetName: "Example Street NW", City: "Calgary" };
   assert.equal(suggestTitle({ transaction: t, forms: [] }), "Offer - Jordan Sample – 120 Example Street NW, Calgary");
@@ -735,6 +753,32 @@ test("forms and deal disagree on how many: said under the boxes, the other numbe
   assert.deepEqual(countDisagreements({ deal, webforms: [{ BUYER: 1 }], current: { BUYER: 1 } }), []);
   assert.deepEqual(countDisagreements({ deal, webforms: [], current: { BUYER: 2 } }), []);
   assert.deepEqual(countDisagreements({ deal: null, webforms, current: { BUYER: 2 } }), []);
+});
+
+test("My Documents: no sender of our own, Real's upload sender kept; one note, no warnings", async () => {
+  const { senderFor, actingNotes } = await import("../src/lib/actor.js");
+  const me = { id: null, firstName: "", lastName: "", fullName: "", email: "", type: null, myDocuments: true };
+  assert.equal(senderFor(me), null);
+  const prev = { firstName: "Jordan", lastName: "Sample", email: "jordan@example.com", agentYentaId: null };
+  const draft = { id: "d1", name: "x", pagesCount: 1, fieldDefinitions: [], documentFieldValidations: [], signeeConfigs: [], defaults: { sender: prev } };
+  const body = buildDraftBody({ draft, layout: null, name: "x", pageCount: 1, transactionId: null, counts: { BUYER: 1, SELLER: 0 }, signees: [], sender: senderFor(me) });
+  assert.deepEqual(body.defaults.sender, prev);
+  const notes = actingNotes({ me, deal: null, webformsUserName: "Someone Else", webformsUserEmail: "else@example.com" });
+  assert.equal(notes.length, 1);
+  assert.equal(notes[0].level, "info");
+  assert.match(notes[0].text, /My Documents/);
+});
+
+test("My Documents on an agent's deal: says whose deal it is and that it goes out from her", async () => {
+  const { actingNotes } = await import("../src/lib/actor.js");
+  const me = { id: "tc-1", fullName: "Jordan Sample", email: "jordan@example.com", myDocuments: true };
+  const deal = { id: "d1", ownerId: "agent-1", agentName: "Alex Example" };
+  const notes = actingNotes({ me, deal, webformsUserName: null });
+  assert.equal(notes.length, 2);
+  assert.equal(notes[1].level, "warn");
+  assert.match(notes[1].text, /Alex Example's, but the draft goes out from you/);
+  assert.equal(actingNotes({ me, deal: { ...deal, ownerId: "tc-1" }, webformsUserName: null }).length, 1);
+  assert.equal(actingNotes({ me, deal: null, webformsUserName: null }).length, 1);
 });
 
 // The panel's numbers follow Auto place's lines (Dan, 2026-11-04): a seller-only form with

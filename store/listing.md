@@ -44,14 +44,14 @@ What it never does
 - It doesn't change your WEBForms forms or pages.
 - It doesn't alter your PDFs — the pages go over exactly as WEBForms made them.
 - It never sends your forms, your clients' details or your deals to us. It works with your own sign-ins, in your own browser, on two sites only: WEBForms and Real Signature.
-- It asks before sending us anything at all. With your yes, a short error report when a draft fails and a daily count of drafts that worked: never a name, address, deal or form.
+- It asks before sending us anything at all. With your yes, a short error report when a draft fails and a daily count of drafts that worked: never a name, address, deal or anything typed on a form.
 
 For transaction coordinators
 If an agent has given you Real Signature access in reZEN, pick them under "Acting as" in Real Signature and the draft goes into their Draft tab, with them as sender. Dotted Line warns you when WEBForms and Real Signature are signed in as different people.
 
 Free and open source (MIT): https://github.com/stante-group/dotted-line
 
-What's new in 0.3.1: Auto place knows more forms: Alberta's customer forms, Referral Fee Consent, Fee Disclosure and more, Saskatchewan's Ancillary Services (Form 910), and CREA's Cooperation Disclosure and Certificate of Purchaser. Signed out of Real Signature, or an assistant who hasn't picked an agent yet? Your forms now wait for you instead of stopping with an error. No more spinning when Real Signature doesn't answer, and the email subject is never just "Please sign". Every version's changes: https://github.com/stante-group/dotted-line/blob/main/CHANGELOG.md
+What's new in 0.3.5: Auto place works on PDFs that were signed or saved again, such as a signed contract. Before, it could stop with "page count differs". Every version's changes: https://github.com/stante-group/dotted-line/blob/main/CHANGELOG.md
 
 Made by the Deal Dates team — your deal deadlines in your inbox at 6am (dealdates.app).
 Dotted Line is an independent tool. It is not made, endorsed or supported by Lone Wolf Technologies, CREA or Real Broker. WEBForms, reZEN and Real Signature are their owners' trademarks.
@@ -76,7 +76,7 @@ Create a Real Signature draft from forms the user filled in CREA WEBForms.
 - `storage` — remembers the user's settings and which Real Signature template they chose for each form, on their own computer (settings sync through their own Chrome profile).
 - `scripting` — reads which forms the user ticked in the open WEBForms page, when they click the Dotted Line button, and adds Dotted Line's page script to a WEBForms or Real Signature tab that was already open when it was installed or updated.
 - Host permission `pr.transactiondesk.com` — downloads the forms the user ticked, from WEBForms, using their own sign-in.
-- Host permission `signature.therealbrokerage.com` — reads the user's deals and templates and creates the draft in Real Signature, using their own sign-in.
+- Host permissions `*.realremaxgroup.com` and `*.therealbrokerage.com`, Real Broker's two domains: Real Signature moved from signature.therealbrokerage.com to signature.realremaxgroup.com without notice on 2026-11-18, and granting the domains lets the next such move ship as an ordinary update. The content script runs only on Real Signature itself (signature.realremaxgroup.com and signature.therealbrokerage.com) — reads the user's deals and templates and creates the draft in Real Signature, using their own sign-in.
 
 **Remote code:** No, I am not using remote code. (All code ships in the package.)
 

@@ -622,6 +622,33 @@ test("a time blank of its own however the date line is worded: 'and DATED at ___
   assert.deepEqual(labels(autoLayout([q]).layout), ["SIGNED_DATE BUYER1", "SIGNATURE BUYER1"]);
 });
 
+test("a bare 'DATED at ____ .m. on ____' line gets its time and date (AREA amendments)", () => {
+  // AREA's Commercial Purchase Contract Amendment (Dan, 2026-11-17): the date line starts
+  // with "DATED at", with no "signed" before it and no "day of" after, and got nothing.
+  const p = page([
+    word("DATED at ________. m. on __________________________________________, 20______.", 38, 700),
+    word("Seller", 38, 670), word("Witness", 330, 670),
+  ], [rule(38, 300, 680), rule(330, 570, 680)]);
+  assert.deepEqual(labels(autoLayout([p]).layout), ["SIGNED_TIME_ONLY SELLER1", "SIGNED_DATE_ONLY SELLER1", "SIGNATURE SELLER1"]);
+});
+
+test("a date line above a signer nobody places is left alone, never given to the next signer down", () => {
+  // AREA's Agreement to Represent Both Seller and Buyer Addendum, page 2: three "Dated at"
+  // lines, for the Brokerage, then the Sellers, then the Buyers. The Brokerage's own lines
+  // get no blocks, so its date took the next signature line down, the Seller's: the seller
+  // was asked to time and date the brokerage's line too (0.3.4 sample-form check, 2026-11-18).
+  const dated = (y) => word("Dated at ________. m. on ______________________________________", 38, y);
+  const p = page([
+    dated(415), word("Brokerage Signature", 38, 377), word("Witness Signature", 230, 377),
+    dated(322), word("Seller Signature", 38, 284), word("Witness Signature", 230, 284),
+    dated(229), word("Buyer Signature", 38, 192), word("Witness Signature", 230, 192),
+  ], [rule(38, 200, 387), rule(230, 400, 387), rule(38, 200, 294), rule(230, 400, 294), rule(38, 200, 202), rule(230, 400, 202)]);
+  assert.deepEqual(labels(autoLayout([p]).layout), [
+    "SIGNED_TIME_ONLY SELLER1", "SIGNED_DATE_ONLY SELLER1", "SIGNATURE SELLER1",
+    "SIGNED_TIME_ONLY BUYER1", "SIGNED_DATE_ONLY BUYER1", "SIGNATURE BUYER1",
+  ]);
+});
+
 test("nothing in a purchase contract's REJECTION section: signing there declines the offer", () => {
   // AREA's Commercial Purchase Contract, last page (Dan, 2026-10-31): the acceptance gets
   // the seller; the rejection under "has no effect on the contract's terms" gets nothing.

@@ -16,9 +16,9 @@ import { pairEntries, zipBatches } from "./lib/webforms-api.js";
 import { readPdfText } from "./lib/pdftext.js";
 import { autoLayout, placedSummary, placeOutcome } from "./lib/autoplace.js";
 import { errorReport, labelsReport, okReport, quietReport, sanitizeReport, tallyOk, tallyDue, contextFromDraft, draftContext, chromeMajor, REPORT_URL, REPORTS_ON, sameFailure } from "./lib/report.js";
-import { reviewTitle } from "./lib/review.js";
 import { WHATS_NEW } from "./whats-new.js";
 import { WHATS_NEW_KEY, unseenAfterInstall } from "./lib/whats-new-note.js";
+import { reviewTitle } from "./lib/review.js";
 import { startsFromClick, notReady, detailsRequest, webformsHandoff, handoffMeta, samePicks } from "./lib/handoff.js";
 import { selection } from "./webforms/selection.js";
 
@@ -32,7 +32,7 @@ const JOB_TTL_MS = 60 * 60 * 1000;
 // So: the icon opens a POPUP over the page everywhere except Real Signature, where the
 // deal / signer / template choices need room and the SIDE PANEL opens — enabled on Real
 // Signature tabs only, so switching back to WEBForms never squeezes it.
-const RS = "https://signature.therealbrokerage.com/";
+import { RS, isRs } from "./lib/sites.js";
 const PANEL = "src/panel/panel.html";
 const POPUP = "src/panel/panel.html?popup=1";
 chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(() => {});
@@ -76,7 +76,7 @@ chrome.storage.onChanged.addListener((changes, area) => {
 
 async function placeUi(tabId, url) {
   const u = String(url || "");
-  const rs = u.startsWith(RS);
+  const rs = isRs(u);
   await settingsRead;
   // Without the "tabs" permission Chrome only gives us the URL of our two sites; any other
   // tab's url is undefined, which correctly reads as "not ours".
@@ -174,7 +174,7 @@ chrome.tabs.query({}).then((tabs) => tabs.forEach((t) => placeUi(t.id, t.url))).
 // same amber dot as a draft one click made: "look at the panel". Gone once the panel has
 // shown the forms (job:forTab marks the job seen) or when the job ends.
 async function waitingBadge(tabId, url) {
-  if (!String(url || "").startsWith(RS)) return;
+  if (!isRs(url)) return;
   const cutoff = Date.now() - JOB_TTL_MS;
   const j = (await allJobs()).find((x) => x.tabId === tabId && x.createdAt >= cutoff && !x.seen && !autoRunning.has(x.id));
   if (!j) return;
@@ -355,7 +355,7 @@ function recordLabels({ job, templateIds, path }) {
       const key = `${VERSION}|${f.library || "?"}|${code}`;
       if (sent[key]) continue;
       sent[key] = day;
-      post(labelsReport({ code, form: f.library, path, version: VERSION, chrome: CHROME })); // not awaited: see recordError
+      post(labelsReport({ code, form: f.library, title: f.typeName, path, version: VERSION, chrome: CHROME })); // not awaited: see recordError
     }
     await chrome.storage.local.set({ labelsSent: sent });
   });
@@ -536,7 +536,10 @@ async function startJob({ wfTabId, wfForms, meta, background, auto, rsTabId = nu
       if (hasAcroForm(data)) throw new Error(`"${form.name}" came back as a fillable PDF, not the flattened form. Not using it.`);
       // From here on a form is known by its TYPE's name (template suggestions, the buyer or
       // seller side, Real's document names); WEBForms' own name was only for the zip.
+      // typeName kept apart from name: only the library's title may go in a report
+      // (report.js formTitle); name falls back to WEBForms' own, which can be typed text.
       return { id: form.id, name: form.typeName || form.name, library: form.library || null,
+        typeName: form.typeName || null,
         formGuid: form.formGuid, pageCount: form.pageCount ?? countPages(data),
         parties: form.parties || null, names: form.names || null, pdfBase64: toBase64(data) };
     });
@@ -673,7 +676,7 @@ async function handOverFromClick(wf, tabId, opened) {
 const OWN = chrome.runtime.getURL("");
 const RS_TAB_ONLY = new Set(["job:get", "job:status", "made:next", "rs:step", "rs:no-step"]);
 chrome.runtime.onMessage.addListener((msg, sender, reply) => {
-  const fromRsTab = !!sender.tab?.url?.startsWith(RS);
+  const fromRsTab = isRs(sender.tab?.url);
   // One of Dotted Line's own pages: the panel, the popup, or Settings, which opens in a tab
   // of its own (so has a sender.tab, whose page is ours too). A content script's sender.url
   // is the website's, never ours.

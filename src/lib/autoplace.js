@@ -272,7 +272,9 @@ const INITIALS_OVAL = /\bINITIALS OF (BUYER|SELLER)\(S\):/g;
 // BCREA: "SIGNED, SEALED, & DELIVERED THIS ____ DAY OF ____ YR. ____".
 // BCREA: "Confirmed and signed this ___ Day of ____ Year".
 // SREC's Form 910: "Dated at ____ this ____ day of ____, 20__".
-const DATED = /\bsigned this(?![a-z]).*?day of(?![a-z])|^\s*Dated at\b.*?\bday of\b|\bsigned and dated\b.*?\bon(?![a-z])|\bsigned and sealed\b.*?\bday of\b|\bsigned, sealed,? (?:&|and) delivered\b.*?\bday of\b|^\s*Signed at\b.*?\bmm(?![a-ce-z])|^\s*Signed on\b|\bsigned in the presence of a witness, and dated\b.*?\bon(?![a-z])|^\s*Date\b/i;
+// AREA's amendments: a bare "DATED at ____ .m. on ____, 20__" (no "signed" before it, no
+// "day of" after), which matched nothing and got no time or date (Dan, 2026-11-17).
+const DATED = /\bsigned this(?![a-z]).*?day of(?![a-z])|^\s*Dated at\b.*?\bday of\b|^\s*Dated at\b.*?\bm\.\s*on(?![a-z])|\bsigned and dated\b.*?\bon(?![a-z])|\bsigned and sealed\b.*?\bday of\b|\bsigned, sealed,? (?:&|and) delivered\b.*?\bday of\b|^\s*Signed at\b.*?\bmm(?![a-ce-z])|^\s*Signed on\b|\bsigned in the presence of a witness, and dated\b.*?\bon(?![a-z])|^\s*Date\b/i;
 
 // A form's title, in capitals near the top of page 1, can name a side the labels don't:
 // "COMMERCIAL TENANT CUSTOMER DISCLOSURE ACKNOWLEDGMENT" (customer = the tenant), "CUSTOMER
@@ -673,7 +675,12 @@ export function assignSlots(blocks) {
     if (!below.length) below = sorted.filter((s) => s.sig && s.y < d.y + 6 && d.y - s.y < 180);
     const top = Math.max(...below.map((s) => s.y));
     const sig = below.filter((s) => top - s.y < 6).sort((a, b) => a.x - b.x)[0];
-    if (sig) { d.role = sig.role; d.index = sig.index; d.shared = true; }
+    // Never past another date line: that one is the nearer signer's, so this one belongs to
+    // a line in between that gets no block (AREA's Agreement to Represent Both Seller and
+    // Buyer Addendum dates the Brokerage's lines first, and the Seller got that date too,
+    // 2026-11-18). Its own time and date share its row, so only a date 6pt or more lower counts.
+    const between = sig && sorted.some((o) => o.date && !o.pair && !o.under && o.y < d.y - 6 && o.y > sig.y + 3);
+    if (sig && !between) { d.role = sig.role; d.index = sig.index; d.shared = true; }
   }
   // One date blank for a side with several signers is Signer 1's (Dan, 2026-10-30): Buyer 1
   // and Seller 1 are always there, Buyer 2 and Seller 2 not. A side with a date per signer

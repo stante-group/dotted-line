@@ -1,4 +1,4 @@
-// Real Signature side. Runs in the signature.therealbrokerage.com tab so every API call
+// Real Signature side. Runs in the Real Signature tab (src/lib/sites.js) so every API call
 // goes out with the page's own origin and sign-in. Draft only — see src/lib/realsig-api.js.
 //
 // The side panel shows the choices (deal, template per form, signer counts); this script
@@ -31,8 +31,29 @@ async function context({ fresh = false } = {}) {
   // reZEN profile of her own (/users/me → 404) and may not read the agent's (/users/{id} →
   // 403), so the agent's name and email come from the agent's own deals (2026-10-15).
   const actingAs = lib.readActingAs(document.cookie);
+  const myDocs = !actingAs && lib.readMyDocuments(document.cookie);
   let own = null;
-  if (!actingAs) {
+  if (myDocs) {
+    // "My Documents" (Real's LITE version): a TC working as herself. Real's own deal picker
+    // there asks for the deals of HER reZEN profile (yentaUserResponse.id, read from its
+    // bundle 2026-11-12): the team deals she's a participant on (Dan's assistant, test 97).
+    // So the same here. A TC Real has no profile for (/users/me → 404, as one did on
+    // 2026-10-15) still gets her own templates and No deal. The draft goes in her own Drafts
+    // with the sender Real gave it on upload (lib.senderFor → null keeps it).
+    // Real's app asks /users/generic/me for a TC (/users/me is an agent's, a 404 for her:
+    // test 98, 2026-11-12), so that first, then /users/me for anyone else on My Documents.
+    const profile = () => rs.genericMe().catch((e) => (/→ 40[034]\b/.test(String(e?.message)) ? rs.me() : Promise.reject(e)));
+    try { own = { ...lib.meFromYenta(await profile()), myDocuments: true }; } catch (e) {
+      if (!/^GET \/users\/me → 404\b/.test(String(e?.message))) throw e;
+      const [mine, shared] = await Promise.all([rs.allTemplates(), rs.allTemplates({ sharedWithMe: true })]);
+      const templates = new Map();
+      for (const t of mine) templates.set(t.id, { t, shared: false });
+      for (const t of shared) if (!templates.has(t.id)) templates.set(t.id, { t, shared: true });
+      ctx = { rs, lib, me: { id: null, firstName: "", lastName: "", fullName: "", email: "", type: null, myDocuments: true }, templates, deals: new Map() };
+      return ctx;
+    }
+  }
+  if (!actingAs && !own) {
     // A TC who hasn't picked an agent yet: Real Signature opens on "Whose documents would you
     // like to access?" and her own profile is a 404 (Dan's assistant, 2026-11-04, reported as
     // an error). Not an error: the forms wait, and the pick reloads the page (see below).
@@ -99,12 +120,17 @@ async function steps() {
   const rs = new lib.RealSignature({ getToken: () => lib.readToken(document.cookie), getActingAs: () => lib.readActingAs(document.cookie) });
   const code = (e) => (e?.name === "NotSignedIn" ? "401" : /→ (\d{3})/.exec(String(e?.message))?.[1] || "error");
   const actingAs = lib.readActingAs(document.cookie);
-  const out = { token: lib.readToken(document.cookie) ? "yes" : "no", acting: actingAs ? "yes" : "no" };
+  const myDocs = lib.readMyDocuments(document.cookie);
+  const out = { token: lib.readToken(document.cookie) ? "yes" : "no", acting: actingAs ? "yes" : myDocs ? "my documents" : "no" };
   const run = async (k, f) => { try { const r = await f(); out[k] = "ok"; return r; } catch (e) { out[k] = code(e); return null; } };
   // Every call carries X-Agent-Context when acting, as Real's app does. A TC's own /users/me
   // is a 404 by design — her agent's deals give the id instead.
   let id = actingAs;
-  if (!actingAs) {
+  if (myDocs) {
+    const g = await run("generic me", () => rs.genericMe());
+    try { id = g && lib.meFromYenta(g).id; } catch { out["generic me"] = "odd shape"; }
+  }
+  if (!actingAs && !id) {
     const me = await run("me", () => rs.me());
     try { id = me && lib.meFromYenta(me).id; } catch { out.me = "odd shape"; }
   }
@@ -134,7 +160,9 @@ async function setup() {
   const tpls = [...c.templates.values()];
   return {
     signedIn: true,
-    steps: c.lib.readActingAs(document.cookie) ? await steps().catch(() => "unavailable") : null, // TC: show the calls too
+    // TC: show the calls too, acting for an agent or in her own documents
+    steps: c.lib.readActingAs(document.cookie) || c.me.myDocuments ? await steps().catch(() => "unavailable") : null,
+    myDocuments: !!c.me.myDocuments,
     fullName: c.me.fullName, // compared in the panel, never printed in the report
     email: c.me.email, // likewise
     type: c.me.type,
@@ -524,7 +552,9 @@ async function openActing() {
 {
   const now = () => {
     const v = decodeURIComponent(/(?:^|;\s*)actingAsUserId=([^;]*)/.exec(document.cookie)?.[1] || "").replace(/^"|"$/g, "");
-    return v && v !== "null" && v !== "undefined" ? v : null;
+    // "SELF" is My Documents, not an agent (realsig-api.js MY_DOCUMENTS): reported as no
+    // agent, so switching between it and an agent still reloads the panel.
+    return v && v !== "null" && v !== "undefined" && v !== "SELF" ? v : null;
   };
   const tell = (actingAs) => chrome.runtime.sendMessage({ type: "rs:acting", actingAs }).catch(() => { /* panel closed */ });
   let last = now();
@@ -544,7 +574,9 @@ async function openActing() {
 // added, clicked or styled — and tells the panel and the worker when the step changes. On
 // Review it reads the draft back (GET only) and checks it (src/lib/review.js). The worker
 // puts the amber dot on the icon when something's missing and the panel may be shut.
-const STEPS_PAGE = /^https:\/\/signature\.therealbrokerage\.com\/one-time-documents\/(document|packet)\/([0-9a-f-]{36})(?:[/?#]|$)/i;
+// The path only: this script runs on Real Signature's pages alone (manifest), wherever they
+// live (sites.js), and an address written here would go stale unseen, as it had by 0.3.4.
+const STEPS_PAGE = /^\/one-time-documents\/(document|packet)\/([0-9a-f-]{36})(?:[/?#]|$)/i;
 // What a step bar marks its current step with. A class is a guess at Real's styling, so
 // steps.js trusts aria-current first; the live check of 0.4.0 says which Real uses.
 const MARKED = '[aria-current="step"], [aria-current="true"], [aria-selected="true"], [class*="active" i], [class*="current" i], [class*="selected" i]';
@@ -603,7 +635,7 @@ function runCheck() {
 }
 
 async function readStep() {
-  const m = STEPS_PAGE.exec(location.href);
+  const m = STEPS_PAGE.exec(location.pathname);
   if (!m) {
     if (where.key) { Object.assign(where, { key: null, kind: null, id: null, step: null, check: null, error: null }); tellStep(); }
     return;
