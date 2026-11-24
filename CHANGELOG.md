@@ -64,6 +64,11 @@ Dotted Line by itself a few hours after a version is published.
   and the draft in your own Drafts. To make a draft as an agent, use Switch account in
   Real Signature first.
 
+- **The suggested number of buyers and sellers follows the form's own signing lines.**
+  With Auto place, a form with seller lines only no longer suggests buyers too, and a form
+  with one signing line suggests one signer. Names in WEBForms and the reZEN deal still
+  come first, and you can always change the numbers.
+
 ## 0.3.1 — 2026-11-04
 
 - **Signed out of Real Signature? Dotted Line now waits while you sign in.** It used to

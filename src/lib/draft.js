@@ -75,11 +75,18 @@ function sideFromTemplates(slots) {
  *  leaves the spare signers' blocks off; without one, only signer roles are set up, so a
  *  slot more or less costs nothing. The agent can always change the numbers.
  *
+ *  Forms placed from their labels (Auto place) count like templates, from the lines the
+ *  labels give each side (labels: placedSummary().slots of each, CLIENT = whichever side
+ *  signs). With no template, nobody named and no deal people, a side with fewer lines than
+ *  MIN_SIGNERS gets one per line, so the numbers match the blocks (Dan, 2026-11-04).
+ *
  *  templates: templateSlots() of each picked template (none picked → []).
+ *  labels: placedSummary().slots of each form placed from its labels (none → []).
  *  webforms: partiesFromFormValues() of each form ({BUYER, SELLER} counts). */
-export function signerCounts({ deal, formNames, templates = [], webforms = [], agentSide = null }) {
+export function signerCounts({ deal, formNames, templates = [], labels = [], webforms = [], agentSide = null }) {
   const n = deal ? countsFromDeal(deal) : { BUYER: 0, SELLER: 0 };
   const byTemplate = sideFromTemplates(templates);
+  const byLabels = sideFromTemplates(labels);
   const byName = sideFromFormNames(formNames);
   const many = (xs) => (xs || []).length > 1;
   const formsAre = (side) => `${many(formNames) ? "these are" : "this is a"} ${side === "BUYER" ? "buyer" : "seller"}'s form${many(formNames) ? "s" : ""}`;
@@ -92,10 +99,12 @@ export function signerCounts({ deal, formNames, templates = [], webforms = [], a
   // (agentSideFromFormValues) — the buyer's agent's clients are the buyers.
   else if (agentSide === "BUYER") { side = "BUYER"; why = "You're the buyer's agent on the WEBForms form, so the buyers sign; the sellers sign with their own agent."; }
   else if (agentSide === "SELLER") { side = "SELLER"; why = "You're the listing agent on the WEBForms form, so the sellers sign; the buyers sign with their own agent."; }
-  else if (agentSide === "DUAL" && !byTemplate) { side = "BOTH"; why = "You're the agent for both sides on the WEBForms form, so buyers and sellers both sign."; }
+  else if (agentSide === "DUAL" && !byTemplate && !byLabels) { side = "BOTH"; why = "You're the agent for both sides on the WEBForms form, so buyers and sellers both sign."; }
   else {
     const lead = deal?.side === "DUAL" ? "Dual representation" : deal ? "Couldn't tell which side this deal is" : "No deal";
     if (byTemplate) { side = byTemplate; why = `${lead}, and ${tpl(side)}, so only the ${side === "BUYER" ? "buyers" : "sellers"} sign.`; }
+    // Before the form's name: the lines Auto place found are what will be placed.
+    else if (byLabels) { side = byLabels; why = `${lead}, and ${many(formNames) ? "these forms" : "this form"} only ${many(formNames) ? "have" : "has"} ${side === "BUYER" ? "buyer" : "seller"} signing lines, so only the ${side === "BUYER" ? "buyers" : "sellers"} sign.`; }
     else if (byName) { side = byName; why = `${lead}, and ${formsAre(side)}, so only the ${side === "BUYER" ? "buyers" : "sellers"} sign.`; }
     else { side = "BOTH"; why = `${lead}, so buyers and sellers are both included.`; }
   }
@@ -125,7 +134,18 @@ export function signerCounts({ deal, formNames, templates = [], webforms = [], a
       continue;
     }
     const fromTemplates = Math.max(0, ...templates.map((x) => x[role] || 0));
+    const fromLabels = Math.max(0, ...labels.map((x) => Math.max(x[role] || 0, x.CLIENT || 0)));
     const base = MIN_SIGNERS;
+    // Only labels: fewer lines than MIN_SIGNERS lower the number to match (one "Signed:" line,
+    // one signer). More never raise it: BC's contracts print three lines a side as room, not
+    // as three people, and a spare signer is one more to delete in Real Signature. A template
+    // beside them keeps today's rule.
+    if (!templates.length && fromLabels > 0) {
+      counts[role] = Math.min(fromLabels, base);
+      notes.push(fromLabels < base ? `no ${who}s named in WEBForms, and the form has a signing line for ${fromLabels}`
+        : `no ${who}s named in WEBForms, so ${counts[role]}`);
+      continue;
+    }
     counts[role] = Math.max(base, fromTemplates);
     notes.push(fromTemplates > base ? `no ${who}s named in WEBForms, and your template has blocks for ${fromTemplates}`
       : `no ${who}s named in WEBForms, so ${counts[role]}`);
