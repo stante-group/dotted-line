@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { RS, RS_HOSTS, RS_PATTERNS, RS_DOMAINS, isRs, draftIdOf, packetIdOf, HOME_URL } from "../src/lib/sites.js";
 
 const manifest = JSON.parse(readFileSync(new URL("../manifest.json", import.meta.url)));
@@ -55,9 +55,13 @@ test("the panel's page patterns match on both addresses, and nowhere else", () =
 });
 
 test("no source file names a Real Signature app address except sites.js", () => {
-  const files = ["src/background.js", "src/panel/panel.js", "src/setup-check.js", "src/options/import.js", "src/messaging.js", "src/realsig/content.js"];
+  const src = new URL("../src/", import.meta.url);
+  const files = readdirSync(src, { recursive: true }).filter((f) => /\.(js|html)$/.test(f) && !/lib[\\/]sites\.js$/.test(f));
+  assert.ok(files.length > 20, `read ${files.length} files`);
   for (const f of files) {
-    const s = readFileSync(new URL(`../${f}`, import.meta.url), "utf8");
-    assert.ok(!/signature\.(?:therealbrokerage|realremaxgroup)\.com/.test(s), f);
+    const s = readFileSync(new URL(f.replaceAll("\\", "/"), src), "utf8");
+    // Escaped too: the old address sat in a regex (signature\.therealbrokerage\.com), which
+    // the plain spelling missed, and Check before you send would never have run (2026-11-24).
+    assert.ok(!/signature\\*\.(?:therealbrokerage|realremaxgroup)\\*\.com/.test(s), f);
   }
 });

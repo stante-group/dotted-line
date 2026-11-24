@@ -574,7 +574,9 @@ async function openActing() {
 // added, clicked or styled — and tells the panel and the worker when the step changes. On
 // Review it reads the draft back (GET only) and checks it (src/lib/review.js). The worker
 // puts the amber dot on the icon when something's missing and the panel may be shut.
-const STEPS_PAGE = /^https:\/\/signature\.therealbrokerage\.com\/one-time-documents\/(document|packet)\/([0-9a-f-]{36})(?:[/?#]|$)/i;
+// The path only: this script runs on Real Signature's pages alone (manifest), wherever they
+// live (sites.js), and an address written here would go stale unseen, as it had by 0.3.4.
+const STEPS_PAGE = /^\/one-time-documents\/(document|packet)\/([0-9a-f-]{36})(?:[/?#]|$)/i;
 // What a step bar marks its current step with. A class is a guess at Real's styling, so
 // steps.js trusts aria-current first; the live check of 0.4.0 says which Real uses.
 const MARKED = '[aria-current="step"], [aria-current="true"], [aria-selected="true"], [class*="active" i], [class*="current" i], [class*="selected" i]';
@@ -633,7 +635,7 @@ function runCheck() {
 }
 
 async function readStep() {
-  const m = STEPS_PAGE.exec(location.href);
+  const m = STEPS_PAGE.exec(location.pathname);
   if (!m) {
     if (where.key) { Object.assign(where, { key: null, kind: null, id: null, step: null, check: null, error: null }); tellStep(); }
     return;

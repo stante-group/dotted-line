@@ -3,6 +3,54 @@
 What changed in each version, in plain words. The newest is at the top. Chrome updates
 Dotted Line by itself a few hours after a version is published.
 
+## Not released yet
+
+- **A short "What's new" note after an update.** The first time you open Dotted Line
+  after Chrome updates it, a line at the top says what changed, with a link to the full
+  list. Dismiss it, or make a draft, and it's gone. Updates with only fixes don't show one.
+- **Packets you haven't set up now show on Real Signature's home page too.** The panel
+  already listed single documents you'd uploaded but not set up, each with a Set up
+  button. Now packets are in the same list, newest first. A packet with some documents
+  set up and some not shows how many are left, and Set up does only those.
+- **One signer per copy.** When you tick the same form more than once — a form that takes
+  one signer, filled once per buyer — each copy used to get every buyer, and you deleted
+  the extra one from each copy by hand. Now the panel offers "One signer per copy" and
+  lists who gets which copy before you finish. Each copy's buyer or seller line in
+  WEBForms says whose it is; when the names don't match the deal, nothing is split and
+  the panel says why. Your agent role stays on every copy. One click stops for you to
+  check whenever this would apply.
+- **Two copies naming two different buyers now count as two buyers.** When only the forms
+  named the buyers, the panel said 1, and the second buyer's copy went to the first buyer.
+- **Check before you send, by itself.** On Real Signature's Review step, the side panel
+  says "Ready to send", or lists what's missing: a signer with no email (or one that isn't
+  an email), a signer with no signature block, a signature with no date on its page, a
+  signature block nobody is set to sign, or nobody set to sign at all. There's no button to
+  press. It only tells you: it never stops you sending and never changes the document. Fix
+  it in Add Signees or on Prepare and the list follows.
+- **If the panel is shut and something's missing on Review, the icon gets its amber dot.**
+  Point at the icon to see how many things, click it to see them.
+- **The side panel gets out of the way on Prepare.** Real Signature's own panels can't be
+  closed there, so Dotted Line closes itself once it's done: after Auto place adds blocks,
+  when you reach Prepare and every block is already on the document, and when you reach
+  Review and nothing is missing. It stays open when there's something to read: lines left
+  for you to place, a warning, an error, or what's missing on Review. Click the Dotted Line
+  icon to bring it back at any time; it never closes on its own when you've just opened it.
+- **Error reports, if you've said yes, now cover the check too:** when it can't read the
+  document on Review, and (once a day at most) when Dotted Line can't tell which step
+  Real Signature is on, which would quietly stop the check and the closing.
+- **"Start as soon as I click the Dotted Line icon" no longer needs a second click.** With
+  one click off, clicking the icon in WEBForms now goes straight to Real Signature with the
+  Dotted Line panel open, and the panel says "Getting your forms from WEBForms…" until they
+  arrive. You used to wait in the small window over WEBForms and then click "Go to Real
+  Signature". If nothing is ready to send yet (no forms ticked, or a form not saved), the
+  small window over WEBForms opens and says why, as before. With one click on, nothing
+  changes.
+- **Company clients sign on the "Per:" lines.** When your client is a company in reZEN,
+  Auto place puts the signatures on the "Per: Authorized Signing Officer(s)" lines and
+  leaves the Seller/Buyer lines blank, as on the Commercial Purchase Contract notices. A
+  person, or a mix of people and companies, signs as before. This also works when you set
+  up a document you uploaded to Real Signature, once its deal is attached.
+
 ## 0.3.5 — 2026-11-24
 
 - **Signed PDFs work with Auto place.** A PDF that had been signed or saved again, such as
@@ -38,9 +86,6 @@ Dotted Line by itself a few hours after a version is published.
 
 ## 0.3.2 — 2026-11-12
 
-- **A short "What's new" note after an update.** The first time you open Dotted Line
-  after Chrome updates it, a line at the top says what changed, with a link to the full
-  list. Dismiss it, or make a draft, and it's gone. Updates with only fixes don't show one.
 - **Signing in partway through no longer shows an error.** If Real Signature sent you
   to sign in just as one click was starting, the panel showed a red "message channel
   closed" error. Now your forms wait while you sign in, the same as any other sign-in.
@@ -66,11 +111,6 @@ Dotted Line by itself a few hours after a version is published.
   Signature does on My Documents: your own templates, the deals and listings you're on,
   and the draft in your own Drafts. To make a draft as an agent, use Switch account in
   Real Signature first.
-
-- **The suggested number of buyers and sellers follows the form's own signing lines.**
-  With Auto place, a form with seller lines only no longer suggests buyers too, and a form
-  with one signing line suggests one signer. Names in WEBForms and the reZEN deal still
-  come first, and you can always change the numbers.
 
 ## 0.3.1 — 2026-11-04
 
