@@ -3,7 +3,7 @@
 What changed in each version, in plain words. The newest is at the top. Chrome updates
 Dotted Line by itself a few hours after a version is published.
 
-## Not released yet
+## 0.3.5 — 2026-11-24
 
 - **Signed PDFs work with Auto place.** A PDF that had been signed or saved again, such as
   a signed contract, stopped with "page count differs": Dotted Line counted the pages it
