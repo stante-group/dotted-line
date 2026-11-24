@@ -91,6 +91,24 @@ test("pdf checks", () => {
   assert.deepEqual(fromBase64(toBase64(PDF_A)), PDF_A);
 });
 
+// A signed PDF: each signature appends new copies of the pages it touched (same object
+// numbers) and sometimes fresh ones (new numbers, the tree's /Count updated). Counting
+// every page object gave 9 for a 6-page contract (2026-11-22).
+test("countPages: a PDF saved again counts its pages once", () => {
+  const base = "%PDF-1.4\n1 0 obj << /Type /Pages /Kids [2 0 R 3 0 R] /Count 2 >> endobj\n"
+    + "2 0 obj << /Type /Page /Parent 1 0 R >> endobj\n3 0 obj << /Type /Page /Parent 1 0 R >> endobj\n%%EOF\n";
+  // Same numbers again: only the newest copy counts, even with no /Count to go by.
+  const resaved = base + "3 0 obj << /Type /Page /Parent 1 0 R /Annots [9 0 R] >> endobj\n%%EOF\n";
+  assert.equal(countPages(enc(resaved)), 2);
+  assert.equal(countPages(enc(resaved.replace("/Count 2 ", ""))), 2);
+  // A page replaced under a new number: the old one is still in the file, the tree's /Count says 2.
+  const renumbered = base + "4 0 obj << /Type /Page /Parent 1 0 R >> endobj\n"
+    + "1 0 obj << /Type /Pages /Kids [2 0 R 4 0 R] /Count 2 >> endobj\n%%EOF\n";
+  assert.equal(countPages(enc(renumbered)), 2);
+  // A tree of nodes: the root's /Count, not a branch's.
+  assert.equal(countPages(enc("%PDF-1.4\n1 0 obj << /Type /Pages /Count 5 >> endobj\n2 0 obj << /Type /Pages /Parent 1 0 R /Count 3 >> endobj\n%%EOF")), 5);
+});
+
 test("title: deal name, address appended only when complete and not already there", () => {
   const t = { Name: "Offer - Jordan Sample", StreetNumber: "120", StreetName: "Example Street NW", City: "Calgary" };
   assert.equal(suggestTitle({ transaction: t, forms: [] }), "Offer - Jordan Sample – 120 Example Street NW, Calgary");

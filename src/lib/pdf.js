@@ -13,11 +13,26 @@ export function hasAcroForm(u8) {
   return latin1(u8).includes("/AcroForm");
 }
 
-/** Page count from uncompressed page objects; null when the PDF hides them in compressed
- *  object streams. Only a fallback — WEBForms' own PageCount is preferred. */
+/** Page count from uncompressed objects; null when the PDF hides them in compressed object
+ *  streams. Only a fallback — WEBForms' own PageCount, or Real's, is preferred.
+ *
+ *  A PDF saved again (signed, or edited) keeps its old objects and appends the new ones:
+ *  a signed contract had 9 page objects for 6 pages after seven signing updates, and
+ *  counting them all stopped Auto place with "page count differs" (Dan, 2026-11-22). So
+ *  only the newest copy of each object counts, and the page tree's own /Count wins over a
+ *  count of pages. */
 export function countPages(u8) {
-  const n = (latin1(u8).match(/\/Type\s*\/Page(?![a-zA-Z])/g) || []).length;
-  return n || null;
+  const latest = new Map();
+  for (const m of latin1(u8).matchAll(/(\d+)\s+\d+\s+obj\b([\s\S]*?)\bendobj/g)) latest.set(m[1], m[2]);
+  let total = 0, pages = 0;
+  for (const body of latest.values()) {
+    if (/\/Type\s*\/Pages(?![a-zA-Z])/.test(body)) {
+      // The root holds every page, so it has the largest /Count of the tree's nodes.
+      const n = Number(/\/Count\s+(\d+)/.exec(body)?.[1]);
+      if (n > total) total = n;
+    } else if (/\/Type\s*\/Page(?![a-zA-Z])/.test(body)) pages++;
+  }
+  return total || pages || null;
 }
 
 export function toBase64(u8) {
