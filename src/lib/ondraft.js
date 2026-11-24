@@ -45,6 +45,65 @@ export function newUploads(rows, now = Date.now()) {
     .map((d) => ({ id: d.id, name: String(d.name || "Draft"), createdAt: d.createdAt }));
 }
 
+// The kinds of field that are a signer's block (not a text box or a check box).
+export const BLOCK_TYPES = new Set(["SIGNATURE", "INITIALS", "SIGNED_DATE", "SIGNED_DATE_ONLY", "SIGNED_TIME_ONLY"]);
+export const blockCount = (t) => (t?.fieldDefinitions || []).filter((f) => BLOCK_TYPES.has(f?.type)).length;
+
+/** A document nobody has set up: no signers named in a role it has, and no blocks. The one
+ *  rule for a single upload's Set up and a packet's (content.js packetRead): a document
+ *  with either is the agent's work, and Set up's full save would lose it. */
+export const notSetUp = (doc) => !draftSigners(doc) && !blockCount(doc);
+
+const WEEK = 7 * 24 * 3600 * 1000;
+
+/** The Drafts list's rows → the packets to look inside, newest five from the last week.
+ *  The list holds single documents (type "DOCUMENT") and packets; the packet row's own
+ *  type word hasn't been seen (docs/api-notes.md), so every other row is taken as a packet
+ *  and checked by reading it (unsetPacket). A row with no id or date throws: the list
+ *  changed, and guessing would list the wrong things. */
+export function packetRows(rows, now = Date.now()) {
+  const out = [];
+  for (const d of rows || []) {
+    if (d?.type === "DOCUMENT") continue;
+    if (typeof d?.id !== "string" || !d.id || typeof d.createdAt !== "number") throw new Error("Real Signature's draft list changed shape: a packet has no id or date");
+    if (d.createdAt >= now - WEEK) out.push({ id: d.id, name: String(d.name || "Packet"), createdAt: d.createdAt });
+  }
+  return out.sort((a, b) => b.createdAt - a.createdAt).slice(0, 5);
+}
+
+/** A packet read whole (GET /packet-templates/{id}) → a row for the home page's list when
+ *  any of its documents isn't set up, else null. Partly set-up packets count: the packet's
+ *  own Set up (panel openPacket) sets up only the fresh documents and leaves the others as
+ *  they are. row: its Drafts list row, for the name and date. */
+export function unsetPacket(p, row) {
+  if (!p || typeof p !== "object" || !Array.isArray(p.documentTemplates)) throw new Error("Real Signature's packet changed shape");
+  if (p.id != null && p.id !== row.id) throw new Error("Real Signature's packet changed shape: it came back with another id");
+  if (p.oneTimeUse === false) return null; // a reusable packet, not a draft
+  const docs = p.documentTemplates;
+  if (docs.some((d) => !d || typeof d !== "object")) throw new Error("Real Signature's packet changed shape");
+  const unset = docs.filter(notSetUp).length;
+  if (!unset) return null;
+  return { kind: "packet", id: row.id, name: String(p.name || row.name || "Packet"), createdAt: row.createdAt, documents: docs.length, unset };
+}
+
+/** "5 minutes ago", from a time in milliseconds. */
+export function agoWords(t, now = Date.now()) {
+  const m = Math.max(0, Math.round((now - (t || 0)) / 60000));
+  const n = (v, w) => `${v} ${w}${v === 1 ? "" : "s"} ago`;
+  return m < 1 ? "just now" : m < 60 ? n(m, "minute") : m < 1440 ? n(Math.round(m / 60), "hour") : n(Math.round(m / 1440), "day");
+}
+
+/** The home page's list: single uploads and packets together, newest first, each with its
+ *  second line. A packet's date is when its documents were combined, so "Made", not
+ *  "Uploaded"; a partly set-up one says how many are left. */
+export function homeList(uploads = [], packets = [], now = Date.now()) {
+  const s = (n, w) => `${n} ${w}${n === 1 ? "" : "s"}`;
+  return [
+    ...uploads.map((d) => ({ ...d, kind: "document", detail: `Uploaded ${agoWords(d.createdAt, now)}` })),
+    ...packets.map((p) => ({ ...p, detail: `${p.unset < p.documents ? `Packet, ${p.unset} of ${p.documents} documents not set up` : `Packet of ${s(p.documents, "document")}`} · Made ${agoWords(p.createdAt, now)}` })),
+  ].sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0));
+}
+
 const area = (p) => Math.max(0, p[2] - p[0]) * Math.max(0, p[3] - p[1]);
 
 /** Two blocks on the same spot: same page, and they share over half the smaller one. */
