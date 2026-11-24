@@ -11,6 +11,8 @@ import { signerCounts, signersWithoutEmail, signeesFromDeal, agentRoleFor, agent
 import { actingNotes } from "../lib/actor.js";
 import { packetPlacedSummary, packetDeals, mixedDealsWarning, straySignersWarning } from "../lib/ondraft.js";
 import { contextFromDraft, REPORTS_ON } from "../lib/report.js";
+import { WHATS_NEW } from "../whats-new.js";
+import { WHATS_NEW_KEY, noteToShow } from "../lib/whats-new-note.js";
 
 // The same page is the popup (WEBForms and other sites) and the side panel (Real Signature);
 // see background.js "Where the UI shows".
@@ -119,6 +121,30 @@ for (const [id, choice] of [["consent-yes", "yes"], ["consent-no", "no"]]) {
   });
 }
 askConsent();
+
+// ---------- What's new, once after an update (GitHub #8, src/lib/whats-new-note.js) ----------
+
+// Shown in the popup and the side panel alike (the same page): the popup on WEBForms is
+// what most agents open first. Plain text from src/whats-new.js, put in with textContent.
+// Storage unreadable → no note: it's a nicety, and an error box for it would be worse.
+async function showWhatsNew() {
+  const got = await chrome.storage.local.get(WHATS_NEW_KEY).catch(() => ({}));
+  const note = noteToShow(got[WHATS_NEW_KEY], WHATS_NEW);
+  if (note) {
+    $("whats-new-title").textContent = `Updated to ${note.version}.`;
+    $("whats-new-text").textContent = `What's new: ${note.text}`;
+  }
+  $("whats-new").hidden = !note;
+}
+$("whats-new-dismiss").addEventListener("click", () => {
+  $("whats-new").hidden = true;
+  chrome.storage.local.remove(WHATS_NEW_KEY).catch(() => {});
+});
+// A draft made (background.js recordOk) marks it seen: hide it here too, if it's showing.
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area === "local" && WHATS_NEW_KEY in changes) showWhatsNew();
+});
+showWhatsNew();
 
 /** Under an error: "sent", or (for an agent who hasn't said yes to reports) a button to
  *  send this one, with exactly what it holds. Shows the last report from the past 10
