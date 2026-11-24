@@ -83,7 +83,7 @@ function lookAhead() {
 // formGuid, library, values}} (an open form's editor — saves the ~4 s formfields request).
 // Forms ticked in a list aren't open, so they're asked for — usually already, on the tick.
 async function details({ transactionId, formIds, preloaded = null, user = null, transaction: onPage = null }) {
-  const { wf, partiesFromFormValues, buyerNamesFromFormValues, agentSideFromFormValues, agentSideFromContacts, combineSides,
+  const { wf, partiesFromFormValues, partyNamesFromFormValues, buyerNamesFromFormValues, agentSideFromFormValues, agentSideFromContacts, combineSides,
     partiesFromContacts, buyerNamesFromContacts, mergeParties, peopleFromContacts } = await client();
   const [{ name: userName, email: userEmail }, transaction, contacts] = await Promise.all([
     user || wf.user(),
@@ -120,6 +120,9 @@ async function details({ transactionId, formIds, preloaded = null, user = null, 
     forms: forms.map(({ id, pageCount, formGuid, library, values }) => ({
       id, pageCount, formGuid, library, typeName: (library && names[library]) || null,
       parties: partiesFromFormValues(values),
+      // Each form's own buyer and seller name lines, for "One signer per copy": two copies of
+      // one form, each naming its one signer (copies.js). Kept as far as the hand-off only.
+      names: partyNamesFromFormValues(values),
     })),
     firstFormValues,
     // How many buyers and sellers sign, per side: the transaction's Contacts (WEBForms' own,

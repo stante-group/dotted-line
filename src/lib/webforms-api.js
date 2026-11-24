@@ -283,6 +283,21 @@ export function buyerNamesFromFormValues(values) {
   return PARTY_FIELDS.BUYER.flat().map((k) => String(values?.[k] ?? "").replace(/\s+/g, " ").trim()).filter(Boolean);
 }
 
+/** One form's buyer and seller name lines as typed: the party lines, or the signature-name
+ *  lines when the party lines are empty, with a run-on line ("(operating as …)") left out.
+ *  For "One signer per copy" (copies.js), which matches each copy's own line to a person on
+ *  the deal. Like buyerNamesFromFormValues, they go no further than the hand-off.
+ *  → {BUYER: [line], SELLER: [line]} */
+export function partyNamesFromFormValues(values) {
+  const out = {};
+  for (const [side, sets] of Object.entries(PARTY_FIELDS)) {
+    const lines = (keys) => keys.map((k) => String(values?.[k] ?? "").replace(/\s+/g, " ").trim())
+      .filter((t) => t && !CONTINUES.test(t));
+    out[side] = sets.map(lines).find((l) => l.length) || [];
+  }
+  return out;
+}
+
 /** WEBForms form values → how many buyers and sellers the agent typed in, as counts only. Each side takes the larger of its party lines and
  *  its signature-name lines. A form without these fields → 0s. */
 export function partiesFromFormValues(values) {
