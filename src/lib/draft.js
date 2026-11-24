@@ -164,6 +164,17 @@ const hasEmail = (p) => isEmail(p.email);
 /** A signer's name: the person's, or the company's when the client is a company (reZEN's
  *  `company`, a Buyer Record's `entityName`). "" when reZEN has neither. */
 export const personName = (p) => [p.firstName, p.lastName].filter(Boolean).join(" ") || String(p.company ?? "").trim();
+/** Does every client who signs this form sign for a company? From the reZEN deal: a client
+ *  with a company name and no first or last name (Dan, 2026-11-03). Only when one side signs
+ *  (as forClients), and only that side's signers the counts keep. Never guessed from "Ltd."
+ *  in a name. Auto place then puts their blocks on the "Per:" lines (autoLayout). */
+export function companyClients(deal, counts) {
+  const sides = SIGNER_ROLES.filter((s) => (counts?.[s] ?? 0) > 0);
+  if (sides.length !== 1) return false;
+  const people = (deal?.participants || []).filter((p) => p.role === sides[0]).slice(0, counts[sides[0]]);
+  return people.length > 0 && people.every((p) => !p.firstName && !p.lastName && !!String(p.company ?? "").trim());
+}
+
 /** Real Signature takes a signer only with an email and a name: a blank one refuses the whole
  *  draft ("defaults.signees[0].name: must not be blank", 2026-10-31). */
 const canSign = (p) => hasEmail(p) && !!personName(p);
