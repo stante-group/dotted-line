@@ -558,12 +558,16 @@ async function startJob({ wfTabId, wfForms, meta, background, auto, rsTabId = nu
     await purgeOld();
     const id = crypto.randomUUID();
     await tx("readwrite", (s) => s.put({ id, createdAt: Date.now(), ...meta, timings, forms, tabId }));
-    if (!auto) { setHandoff(tabId, null); return { id, tabId }; }
+    // The dot, now that the forms are saved. Real Signature's page has long finished loading
+    // by here (it loads while WEBForms makes the zip), and onUpdated only looks on a load, so
+    // without this the dot came only if the page loaded again (Dan, 2026-11-27).
+    const dotNow = () => chrome.tabs.get(tabId).then((t) => waitingBadge(tabId, t.url)).catch(() => {});
+    if (!auto) { setHandoff(tabId, null); await dotNow(); return { id, tabId }; }
     setHandoff(tabId, { busy: "Making your draft…" });
     const a = await autoCreate(id);
     // Made: the tab is on the draft already — nothing to tell it. Not made: the panel
     // takes over there, with what it needs.
-    if (a.done) handoffs.delete(tabId); else setHandoff(tabId, null);
+    if (a.done) handoffs.delete(tabId); else { setHandoff(tabId, null); await dotNow(); }
     return { id, tabId, auto: a };
   } catch (e) {
     const error = String(e?.message || e);
